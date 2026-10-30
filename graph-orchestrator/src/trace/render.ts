@@ -99,6 +99,14 @@ function label(d: Dispatch): string {
   return parts.map(esc).join("<br/>");
 }
 
+const WAVE_STATUSES = ["done", "blocked", "exhausted", "over_budget", "failed"] as const;
+
+/** The wave_end counts for the subgraph title: non-zero statuses only, in catalog order. */
+function waveCounts(end: Wave["end"]): string[] {
+  if (!end) return [];
+  return WAVE_STATUSES.filter((s) => typeof end[s] === "number" && end[s] > 0).map((s) => `${end[s]} ${s.replace("_", " ")}`);
+}
+
 function statusClass(status: string): string {
   return CLASSES[status] ? status : "failed";
 }
@@ -129,7 +137,7 @@ export function renderTrace(text: string, extra: TraceEvent[] = []): string {
       continue;
     }
     const w = item.wave;
-    const title = `Wave ${w.number}${w.at ? ` · ${esc(w.at)}` : ""}`;
+    const title = [`Wave ${w.number}`, w.at ? esc(w.at) : "", ...waveCounts(w.end)].filter(Boolean).join(" · ");
     out.push(`  subgraph wave${w.number}[${JSON.stringify(title)}]`);
     out.push("    direction TB");
     if (w.dispatches.length === 0) out.push(`    wave${w.number}_empty([no dispatches])`);

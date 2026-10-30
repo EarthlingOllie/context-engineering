@@ -85,6 +85,11 @@ function label(d) {
   if (d.question) parts.push(`? ${short(d.question, 40)}`);
   return parts.map(esc).join("<br/>");
 }
+var WAVE_STATUSES = ["done", "blocked", "exhausted", "over_budget", "failed"];
+function waveCounts(end) {
+  if (!end) return [];
+  return WAVE_STATUSES.filter((s) => typeof end[s] === "number" && end[s] > 0).map((s) => `${end[s]} ${s.replace("_", " ")}`);
+}
 function statusClass(status) {
   return CLASSES[status] ? status : "failed";
 }
@@ -112,7 +117,7 @@ function renderTrace(text, extra = []) {
       continue;
     }
     const w = item.wave;
-    const title = `Wave ${w.number}${w.at ? ` \xB7 ${esc(w.at)}` : ""}`;
+    const title = [`Wave ${w.number}`, w.at ? esc(w.at) : "", ...waveCounts(w.end)].filter(Boolean).join(" \xB7 ");
     out.push(`  subgraph wave${w.number}[${JSON.stringify(title)}]`);
     out.push("    direction TB");
     if (w.dispatches.length === 0) out.push(`    wave${w.number}_empty([no dispatches])`);

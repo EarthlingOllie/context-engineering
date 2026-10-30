@@ -13,7 +13,7 @@ test("single wave: one subgraph, a node per dispatch labelled with topology and 
   const out = renderTrace(fixture("single-wave.jsonl"));
   const L = lines(out);
   assert.equal(L[0], "flowchart TD");
-  assert.ok(L.includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z"]'));
+  assert.ok(L.includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z · 1 done · 1 exhausted"]'));
   assert.ok(L.includes('w1_d1["w1-d1<br/>single ×1"]:::done'));
   assert.ok(L.includes('w1_d2["w1-d2<br/>generator-evaluator ×3<br/>exhausted"]:::exhausted'));
   assert.equal(L.filter((l) => l === "end").length, 1);
@@ -22,11 +22,19 @@ test("single wave: one subgraph, a node per dispatch labelled with topology and 
   assert.ok(!out.includes("-->"), "no edges without dependencies");
 });
 
+test("wave_end: the subgraph title carries the wave's non-zero status counts; a wave without wave_end keeps the bare title", () => {
+  const L = lines(renderTrace(fixture("single-wave.jsonl")));
+  assert.ok(L.includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z · 1 done · 1 exhausted"]'));
+  const open = fixture("single-wave.jsonl").split("\n").filter((l) => !l.includes('"wave_end"')).join("\n");
+  assert.ok(lines(renderTrace(open)).includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z"]'), "no counts without a wave_end line");
+  assert.equal(parseTrace(open).skipped, 0);
+});
+
 test("multiple waves with dependencies: dependsOn edges across waves, chain stages nested, unknown deps noted", () => {
   const out = renderTrace(fixture("multi-wave-deps.jsonl"));
   const L = lines(out);
-  assert.ok(L.includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z"]'));
-  assert.ok(L.includes('subgraph wave2["Wave 2 · 2026-10-30T10:20:00Z"]'));
+  assert.ok(L.includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z · 2 done"]'));
+  assert.ok(L.includes('subgraph wave2["Wave 2 · 2026-10-30T10:20:00Z · 1 done · 1 failed"]'));
   assert.ok(L.includes('subgraph w2_d1["w2-d1 · chain ×2"]'));
   assert.ok(L.includes('w2_s1["w2-s1<br/>single ×1"]:::done'));
   assert.ok(L.includes('w2_s2["w2-s2<br/>generator-evaluator ×2"]:::done'));
