@@ -27,9 +27,11 @@ Thumbs.db
 /blob-report
 /coverage
 
-# Environment files (keep the example only)
+# Environment files (keep the example and the two hermetic test setups)
 .env.*
 !.env.example
+!.env.testing
+!.env.e2e
 
 # SQLite databases
 *.sqlite
@@ -40,3 +42,6 @@ Thumbs.db
 # Storage logs
 /storage/logs/*
 !/storage/logs/.gitignore
+
+# Browser-journey scratch storage (see e2e/global-setup.ts)
+/storage/e2e

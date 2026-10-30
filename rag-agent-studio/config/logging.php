@@ -65,6 +65,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Used only by the browser journeys (.env.e2e), which read invitation emails back from it
+        'e2e' => [
+            'driver' => 'single',
+            'path' => storage_path('e2e/laravel.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

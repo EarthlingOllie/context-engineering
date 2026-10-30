@@ -15,6 +15,9 @@
                 <p class="text-xs text-slate-500">PDF, Word, text or Markdown, up to 10 MB.</p>
                 <input type="file" wire:model="file" accept=".pdf,.txt,.md,.docx" class="block w-full text-sm">
                 <div wire:loading wire:target="file" class="text-xs text-slate-500">Uploading…</div>
+                @if ($file)
+                    <p class="text-xs text-slate-600" wire:loading.remove wire:target="file">Chosen: {{ $file->getClientOriginalName() }}</p>
+                @endif
                 @error('file') <p class="text-sm text-red-700">{{ $message }}</p> @enderror
                 <button type="submit" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Upload file</button>
             </form>
@@ -45,6 +48,11 @@
         </section>
 
         <section class="lg:col-span-2" wire:poll.3s>
+            @if ($stillWaiting)
+                <p class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
+                    <strong>Still waiting?</strong> Sources are usually ready within a minute. If nothing changes, ask whoever set up Assistant Studio to start the background processing.
+                </p>
+            @endif
             @if ($sources->isEmpty())
                 <p class="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
                     Add files, text or web pages so your assistant knows what to say.

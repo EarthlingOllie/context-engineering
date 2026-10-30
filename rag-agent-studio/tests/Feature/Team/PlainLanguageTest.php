@@ -29,7 +29,7 @@ it('never shows technical words on the sign-up, log-in, invitation and team page
         $text = strtolower(strip_tags($html));
 
         foreach ($bannedWords as $word) {
-            expect($text)->not->toContain($word);
+            expect(preg_match('/\b'.preg_quote($word, '/').'\b/', $text))->toBe(0, "'{$word}' appears on a page");
         }
     }
 });

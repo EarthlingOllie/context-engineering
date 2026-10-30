@@ -26,7 +26,7 @@ class StudioServiceProvider extends ServiceProvider
             : new FakeAnswerProvider);
 
         $this->app->bind(UrlFetcher::class, fn () => config('studio.url_fetch_driver') === 'real'
-            ? new HttpUrlFetcher
+            ? $this->app->make(HttpUrlFetcher::class)
             : new FakeUrlFetcher);
     }
 }

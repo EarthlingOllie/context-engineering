@@ -45,6 +45,24 @@ it('lists what the assistant knows with a status for each source', function () {
         ->assertDontSee('Add files, text or web pages so your assistant knows what to say.');
 });
 
+it('offers a hint when a source has been waiting for more than a minute', function () {
+    Source::factory()->for($this->agent)->create(['title' => 'Slow one', 'created_at' => now()->subMinutes(2)]);
+
+    Livewire::actingAs($this->user)
+        ->test(AgentKnowledge::class, ['agent' => $this->agent])
+        ->assertSee('Still waiting?')
+        ->assertSee('ask whoever set up Assistant Studio to start the background processing');
+});
+
+it('does not nag while a source has only just been added', function () {
+    Source::factory()->for($this->agent)->create(['title' => 'Fresh one']);
+    Source::factory()->for($this->agent)->ready()->create(['title' => 'Old but done', 'created_at' => now()->subHour()]);
+
+    Livewire::actingAs($this->user)
+        ->test(AgentKnowledge::class, ['agent' => $this->agent])
+        ->assertDontSee('Still waiting?');
+});
+
 it('explains what to do when the assistant knows nothing yet', function () {
     Livewire::actingAs($this->user)
         ->test(AgentKnowledge::class, ['agent' => $this->agent])
@@ -82,7 +100,44 @@ it('stores an uploaded file and starts reading it', function () {
     Queue::assertPushed(IngestSource::class, fn (IngestSource $job) => $job->source->is($source));
 });
 
-it('only accepts PDF, Word, text or Markdown files under 10 MB', function (?UploadedFile $file) {
+it('asks for a file first when none is chosen', function () {
+    Livewire::actingAs($this->user)
+        ->test(AgentKnowledge::class, ['agent' => $this->agent])
+        ->call('uploadFile')
+        ->assertHasErrors(['file'])
+        ->assertSee('Please choose a file first')
+        ->assertDontSee('under 10 MB');
+
+    expect(Source::count())->toBe(0);
+    Queue::assertNothingPushed();
+});
+
+it('says which file is chosen once it has arrived, so people know when to press Upload', function () {
+    Livewire::actingAs($this->user)
+        ->test(AgentKnowledge::class, ['agent' => $this->agent])
+        ->assertDontSee('Chosen:')
+        ->set('file', UploadedFile::fake()->create('opening-hours.txt', 12, 'text/plain'))
+        ->assertSee('Chosen: opening-hours.txt');
+});
+
+it('turns away files over 10 MB the moment they arrive, with the same friendly message', function () {
+    // The upload endpoint applies this rule before the file ever reaches the component
+    expect(config('livewire.temporary_file_upload.rules'))->toContain('max:'.(config('studio.max_file_mb') * 1024));
+
+    Livewire::actingAs($this->user)
+        ->test(AgentKnowledge::class, ['agent' => $this->agent])
+        ->set('file', UploadedFile::fake()->create('huge.pdf', 10 * 1024 + 1, 'application/pdf'))
+        ->assertHasErrors(['file'])
+        ->assertSee('Please choose a PDF, Word, text or Markdown file under 10 MB')
+        ->assertDontSee('kilobytes')
+        ->assertDontSee('Chosen:')
+        ->assertSet('file', null);
+
+    Storage::assertDirectoryEmpty('livewire-tmp');
+    expect(Source::count())->toBe(0);
+});
+
+it('only accepts PDF, Word, text or Markdown files under 10 MB', function (UploadedFile $file) {
     Livewire::actingAs($this->user)
         ->test(AgentKnowledge::class, ['agent' => $this->agent])
         ->set('file', $file)
@@ -93,10 +148,9 @@ it('only accepts PDF, Word, text or Markdown files under 10 MB', function (?Uplo
     expect(Source::count())->toBe(0);
     Queue::assertNothingPushed();
 })->with([
-    'nothing chosen' => [null],
     'a program' => [fn () => UploadedFile::fake()->create('setup.exe', 12, 'application/octet-stream')],
     'an image' => [fn () => UploadedFile::fake()->image('photo.png')],
-    'too big' => [fn () => UploadedFile::fake()->create('huge.pdf', 10 * 1024 + 1, 'application/pdf')],
+    'just under the size limit but the wrong kind' => [fn () => UploadedFile::fake()->create('huge.zip', 10 * 1024, 'application/zip')],
 ]);
 
 it('accepts each supported file type', function (string $name, string $mime) {
@@ -186,6 +240,18 @@ it('asks for a proper web address', function (string $url) {
     expect(Source::count())->toBe(0);
     Queue::assertNothingPushed();
 })->with(['', 'example.com/faq', 'ftp://example.com/faq', 'not a web address']);
+
+it('only accepts addresses of public web pages, not ones inside the network', function (string $url) {
+    Livewire::actingAs($this->user)
+        ->test(AgentKnowledge::class, ['agent' => $this->agent])
+        ->set('url', $url)
+        ->call('addWebPage')
+        ->assertHasErrors(['url'])
+        ->assertSee('Please enter the address of a public web page');
+
+    expect(Source::count())->toBe(0);
+    Queue::assertNothingPushed();
+})->with(['http://127.0.0.1/admin', 'http://localhost:6379/', 'http://169.254.169.254/latest/meta-data/', 'http://192.168.1.1/', 'http://intranet/']);
 
 it('removes a source along with everything read from it', function () {
     Storage::put('sources/1/hours.txt', 'hours');

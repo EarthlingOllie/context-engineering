@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# The one command to run before sharing work. It stops at the first problem
+# and exits non-zero, so it can be used as a gate locally or in CI.
+#
+#   1. Code style        vendor/bin/pint --test
+#   2. Application tests php artisan test --coverage --min=100
+#   3. Front-end build   npm run build
+#   4. Browser journeys  npm run test:e2e
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+step() {
+    printf '\n\033[1m==> %s\033[0m\n' "$1"
+}
+
+step "Code style (pint)"
+vendor/bin/pint --test
+
+step "Application tests with 100% coverage (pest)"
+php artisan test --coverage --min=100
+
+step "Front-end build (vite)"
+npm run build
+
+step "Browser journeys (playwright)"
+npm run test:e2e
+
+step "All checks passed"

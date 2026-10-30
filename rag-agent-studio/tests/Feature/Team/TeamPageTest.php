@@ -41,8 +41,9 @@ it('lets the owner invite a teammate, shows the link and emails it', function ()
     Mail::fake();
     $owner = User::factory()->owner()->create();
 
-    Livewire::actingAs($owner)
+    $component = Livewire::actingAs($owner)
         ->test(TeamPage::class)
+        ->assertDontSee("We've emailed")
         ->set('email', 'grace@example.com')
         ->call('invite')
         ->assertHasNoErrors()
@@ -55,10 +56,18 @@ it('lets the owner invite a teammate, shows the link and emails it', function ()
         ->and($invitation->invited_by)->toBe($owner->id)
         ->and($invitation->isUsable())->toBeTrue();
 
+    // Straight after inviting: a success message that says what happened and what to do if the email never arrives
+    $component
+        ->assertSee("We've emailed grace@example.com an invitation.")
+        ->assertSee("If it doesn't arrive, copy the link below and send it to them yourself.");
+
+    // The link is copyable, not just a bare address
     Livewire::actingAs($owner)
         ->test(TeamPage::class)
         ->assertSee('grace@example.com')
-        ->assertSee(route('invite.accept', $invitation->token))
+        ->assertSeeHtml('aria-label="Invitation link"')
+        ->assertSeeHtml('value="'.route('invite.accept', $invitation->token).'"')
+        ->assertSee('Copy')
         ->assertSee('Cancel');
 
     Mail::assertSent(InvitationMail::class, fn (InvitationMail $mail) => $mail->hasTo('grace@example.com')
@@ -115,6 +124,19 @@ it('lets the owner cancel a pending invitation', function () {
     expect(Invitation::find($invitation->id))->toBeNull();
 });
 
+it('keeps invitation links to the owner, so a member cannot use one to join as someone else', function () {
+    $owner = User::factory()->owner()->create();
+    $member = User::factory()->for($owner->organisation)->create();
+    $invitation = Invitation::factory()->for($owner->organisation)->create(['email' => 'grace@example.com', 'invited_by' => $owner->id]);
+
+    Livewire::actingAs($member)
+        ->test(TeamPage::class)
+        ->assertSee('grace@example.com')
+        ->assertDontSee($invitation->token)
+        ->assertDontSee('Invitation link')
+        ->assertDontSee('Copy');
+});
+
 it('hides used and expired invitations', function () {
     $owner = User::factory()->owner()->create();
     Invitation::factory()->for($owner->organisation)->accepted()->create(['email' => 'used@example.com', 'invited_by' => $owner->id]);
@@ -156,7 +178,8 @@ it('keeps members from inviting, removing or cancelling', function () {
 
     Livewire::actingAs($member)
         ->test(TeamPage::class)
-        ->assertDontSee('Invite')
+        ->assertDontSee('Invite a teammate')
+        ->assertSee('Only the owner can invite teammates.')
         ->assertDontSee('Remove')
         ->assertDontSee('Cancel');
 

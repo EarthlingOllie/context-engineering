@@ -26,6 +26,19 @@ it('sends texts to Voyage and returns the embeddings in order', function () {
         && $request['model'] === 'voyage-3');
 });
 
+it('puts the embeddings back in the order the texts were sent', function () {
+    Http::fake([
+        'api.voyageai.com/v1/embeddings' => Http::response([
+            'data' => [
+                ['index' => 1, 'embedding' => [0.3, 0.4]],
+                ['index' => 0, 'embedding' => [0.1, 0.2]],
+            ],
+        ]),
+    ]);
+
+    expect((new VoyageEmbeddingProvider)->embed(['a', 'b']))->toBe([[0.1, 0.2], [0.3, 0.4]]);
+});
+
 it('fails loudly when Voyage rejects the request', function () {
     Http::fake(['api.voyageai.com/*' => Http::response(['error' => 'bad key'], 401)]);
 

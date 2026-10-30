@@ -7,6 +7,8 @@ use App\Models\Organisation;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
@@ -48,6 +50,15 @@ class Register extends Component
     {
         $this->validate();
 
+        // Twenty workspaces an hour from one address is plenty for people and too few for scripts
+        $throttleKey = 'register|'.request()->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 20)) {
+            throw ValidationException::withMessages([
+                'email' => 'Too many workspaces have been created from your connection. Please try again later.',
+            ]);
+        }
+
         $user = DB::transaction(function (): User {
             $organisation = Organisation::create(['name' => $this->workspaceName]);
 
@@ -58,6 +69,8 @@ class Register extends Component
                 'role' => Role::Owner,
             ]);
         });
+
+        RateLimiter::hit($throttleKey, 3600);
 
         Auth::login($user);
         session()->regenerate();

@@ -7,7 +7,9 @@ use App\Models\Agent;
 use App\Models\Conversation;
 use App\Services\Rag\AnswerService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
+use Throwable;
 
 class AgentTest extends Component
 {
@@ -37,7 +39,14 @@ class AgentTest extends Component
         ]);
         $this->conversationId = $conversation->id;
 
-        $answers->answer($conversation, trim($this->message));
+        try {
+            $answers->answer($conversation, trim($this->message));
+        } catch (Throwable $failure) {
+            // A provider outage or a missing key is logged for whoever runs the studio; the person testing gets plain words
+            report($failure);
+
+            throw ValidationException::withMessages(['message' => 'Something went wrong. Please try again.']);
+        }
 
         $this->message = '';
     }

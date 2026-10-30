@@ -13,6 +13,9 @@ class TeamPage extends Component
 {
     public string $email = '';
 
+    /** The address just invited, so the page can say what happened next. */
+    public string $invitedEmail = '';
+
     protected function rules(): array
     {
         return [
@@ -49,6 +52,7 @@ class TeamPage extends Component
 
         Mail::to($invitation->email)->send(new InvitationMail($invitation));
 
+        $this->invitedEmail = $invitation->email;
         $this->email = '';
     }
 

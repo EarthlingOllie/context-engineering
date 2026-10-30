@@ -75,3 +75,30 @@ it('asks for an email and a password when they are blank', function () {
         ->assertSee('Please enter your email')
         ->assertSee('Please choose a password');
 });
+
+it('stops one connection from creating workspaces without end', function () {
+    foreach (range(1, 20) as $n) {
+        Livewire::test(Register::class)
+            ->set('workspaceName', "Workspace {$n}")
+            ->set('name', 'Ada')
+            ->set('email', "ada{$n}@example.com")
+            ->set('password', 'secret-password')
+            ->call('register')
+            ->assertHasNoErrors();
+
+        auth()->logout();
+    }
+
+    Livewire::test(Register::class)
+        ->set('workspaceName', 'One too many')
+        ->set('name', 'Ada')
+        ->set('email', 'ada21@example.com')
+        ->set('password', 'secret-password')
+        ->call('register')
+        ->assertHasErrors(['email'])
+        ->assertSee('Too many workspaces have been created from your connection. Please try again later.')
+        ->assertNoRedirect();
+
+    expect(Organisation::count())->toBe(20)
+        ->and(User::where('email', 'ada21@example.com')->exists())->toBeFalse();
+});

@@ -77,17 +77,33 @@ it('asks for a name and a password of at least 8 characters', function () {
         ->assertSee('Password must be at least 8 characters');
 });
 
-it('will not create a second account for an email that already has one', function () {
+it('explains what to do when the invited email already has an account, instead of a form that cannot work', function () {
     User::factory()->create(['email' => 'grace@example.com']);
     $invitation = Invitation::factory()->create(['email' => 'grace@example.com']);
+    $invitation->organisation->update(['name' => 'Acme Bakery']);
+    $invitation->inviter->update(['name' => 'Ada Lovelace']);
 
     Livewire::test(AcceptInvite::class, ['token' => $invitation->token])
+        ->assertSee('There is already an account for grace@example.com')
+        ->assertSee('Each account belongs to one workspace')
+        ->assertSee('Ask Ada Lovelace to invite you with a different email address if you want to join Acme Bakery as well.')
+        ->assertDontSee('Join workspace')
+        ->assertDontSee('Your name')
         ->set('name', 'Grace Hopper')
         ->set('password', 'secret-password')
         ->call('join')
-        ->assertHasErrors(['name'])
-        ->assertSee('That email is already in use');
+        ->assertHasNoErrors()
+        ->assertNoRedirect();
 
     expect(User::where('email', 'grace@example.com')->count())->toBe(1)
-        ->and($invitation->fresh()->accepted_at)->toBeNull();
+        ->and($invitation->fresh()->accepted_at)->toBeNull()
+        ->and(auth()->check())->toBeFalse();
+});
+
+it('names the workspace rather than a person when the inviter has left', function () {
+    User::factory()->create(['email' => 'grace@example.com']);
+    $invitation = Invitation::factory()->create(['email' => 'grace@example.com', 'invited_by' => null]);
+
+    Livewire::test(AcceptInvite::class, ['token' => $invitation->token])
+        ->assertSee('Ask the owner of '.$invitation->organisation->name.' to invite you with a different email address');
 });

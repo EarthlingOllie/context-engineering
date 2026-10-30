@@ -8,6 +8,7 @@ use App\Models\Conversation;
 use App\Models\Project;
 use App\Models\Source;
 use App\Models\User;
+use App\Services\Rag\AnswerService;
 use Livewire\Livewire;
 
 function agentWithKnowledge(User $user): Agent
@@ -89,6 +90,25 @@ it('keeps the whole transcript in one conversation', function () {
 
     expect(Conversation::count())->toBe(1)
         ->and(Conversation::sole()->messages()->count())->toBe(4);
+});
+
+it('says something went wrong in plain words when the assistant cannot answer', function () {
+    $user = User::factory()->create();
+    $agent = agentWithKnowledge($user);
+    $this->mock(AnswerService::class)
+        ->shouldReceive('answer')
+        ->once()
+        ->andThrow(new RuntimeException('Anthropic said no: 401 invalid x-api-key'));
+
+    Livewire::actingAs($user)
+        ->test(AgentTest::class, ['agent' => $agent])
+        ->set('message', 'Hello?')
+        ->call('send')
+        ->assertHasErrors(['message'])
+        ->assertSee('Something went wrong. Please try again.')
+        ->assertDontSee('Anthropic')
+        ->assertDontSee('x-api-key')
+        ->assertSet('message', 'Hello?');
 });
 
 it('asks for a message before sending', function () {

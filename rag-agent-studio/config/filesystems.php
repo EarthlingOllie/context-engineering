@@ -38,6 +38,15 @@ return [
             'report' => false,
         ],
 
+        // Used only by the browser journeys (.env.e2e), so they never touch real uploads
+        'e2e' => [
+            'driver' => 'local',
+            'root' => storage_path('e2e/files'),
+            'serve' => true,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

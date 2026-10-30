@@ -1,7 +1,12 @@
 <div class="mx-auto max-w-md">
     <h1 class="mb-2 text-2xl font-semibold">Join {{ $workspaceName }}</h1>
 
-    @if ($usable)
+    @if ($usable && $emailHasAccount)
+        <div class="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-900">
+            <p>There is already an account for {{ $email }}.</p>
+            <p class="mt-2 text-sm">Each account belongs to one workspace. Ask {{ $inviterName ?? 'the owner of '.$workspaceName }} to invite you with a different email address if you want to join {{ $workspaceName }} as well.</p>
+        </div>
+    @elseif ($usable)
         <p class="mb-6 text-sm text-slate-600">You've been invited to the <strong>{{ $workspaceName }}</strong> workspace. Tell us your name and choose a password to join.</p>
 
         <form wire:submit="join" class="space-y-4 rounded-lg border border-slate-200 bg-white p-6">

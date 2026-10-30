@@ -64,6 +64,7 @@ it('disables publishing until a source is ready and explains why', function () {
         ->test(AgentShare::class, ['agent' => $agent])
         ->assertSeeHtml('wire:click="publish" disabled')
         ->assertSee('Add at least one ready source')
+        ->assertSeeHtml('href="'.route('agents.knowledge', $agent).'"')
         ->call('publish')
         ->assertSee('Add at least one ready source');
 
@@ -95,6 +96,8 @@ it('publishes the assistant and shows the website snippet and share link', funct
         ->assertSeeHtml(e('<script src="https://studio.example/embed/'.$key->public_key.'.js" async></script>'))
         ->assertSee('Share link')
         ->assertSee('https://studio.example/chat/'.$key->public_key)
+        ->assertSee('If someone else looks after your website, send them this line and ask them to add it.')
+        ->assertSee('Custom code')
         ->assertSee('Copy')
         ->assertSee('Take offline')
         ->assertSee('Reset link')
@@ -110,6 +113,7 @@ it('takes a live assistant offline and says the link no longer works', function 
         ->call('takeOffline')
         ->assertSee('Offline')
         ->assertSee('is offline')
+        ->assertSee('"currently unavailable" message')
         ->assertSee('Publish')
         ->assertDontSee('Take offline')
         ->assertDontSee('Website snippet')

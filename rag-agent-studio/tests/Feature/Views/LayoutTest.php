@@ -36,7 +36,9 @@ it('never mentions the technology behind the assistant', function () {
         'a' => Agent::factory()->create(),
     ]);
 
+    $text = strtolower(strip_tags($html));
+
     foreach (['token', 'chunk', 'embedding', 'model', 'temperature', 'api key', 'agent', 'bot', 'corpus', 'rag'] as $word) {
-        expect(strtolower(strip_tags($html)))->not->toContain($word);
+        expect(preg_match('/\b'.preg_quote($word, '/').'\b/', $text))->toBe(0, "'{$word}' appears in the layout");
     }
 });

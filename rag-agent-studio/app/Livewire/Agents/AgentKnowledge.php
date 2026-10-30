@@ -7,9 +7,11 @@ use App\Enums\SourceType;
 use App\Jobs\IngestSource;
 use App\Models\Agent;
 use App\Models\Source;
+use App\Services\Ingestion\PublicAddressCheck;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -39,7 +41,7 @@ class AgentKnowledge extends Component
     {
         $this->validate(
             ['file' => ['required', 'file', 'extensions:pdf,txt,md,docx', 'max:'.(config('studio.max_file_mb') * 1024)]],
-            ['file.*' => 'Please choose a PDF, Word, text or Markdown file under 10 MB'],
+            ['file.required' => 'Please choose a file first', 'file.*' => 'Please choose a PDF, Word, text or Markdown file under 10 MB'],
         );
 
         $name = $this->file->getClientOriginalName();
@@ -72,12 +74,16 @@ class AgentKnowledge extends Component
         $this->reset('textTitle', 'text');
     }
 
-    public function addWebPage(): void
+    public function addWebPage(PublicAddressCheck $addresses): void
     {
         $this->validate(
             ['url' => ['required', 'url:http,https', 'max:2000']],
             ['url.*' => 'Please enter a valid web address starting with http'],
         );
+
+        if (! $addresses->looksPublic($this->url)) {
+            throw ValidationException::withMessages(['url' => 'Please enter the address of a public web page']);
+        }
 
         $this->addSource(['type' => SourceType::Url, 'title' => $this->url, 'url' => $this->url]);
 
@@ -113,8 +119,12 @@ class AgentKnowledge extends Component
 
     public function render(): View
     {
+        $sources = $this->agent->sources()->latest()->orderByDesc('id')->get();
+
         return view('livewire.agents.agent-knowledge', [
-            'sources' => $this->agent->sources()->latest()->orderByDesc('id')->get(),
+            'sources' => $sources,
+            'stillWaiting' => $sources->contains(fn (Source $source) => $source->status === SourceStatus::Pending
+                && $source->created_at->lt(now()->subMinute())),
         ])->title($this->agent->name);
     }
 

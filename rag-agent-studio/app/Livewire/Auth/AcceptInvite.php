@@ -7,7 +7,6 @@ use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -50,17 +49,12 @@ class AcceptInvite extends Component
     {
         $invitation = $this->invitation();
 
-        if (! $invitation->isUsable()) {
+        // The page explains both of these instead of showing the form
+        if (! $invitation->isUsable() || $this->emailHasAccount($invitation)) {
             return null;
         }
 
         $this->validate();
-
-        if (User::where('email', $invitation->email)->exists()) {
-            throw ValidationException::withMessages([
-                'name' => 'That email is already in use',
-            ]);
-        }
 
         $user = DB::transaction(function () use ($invitation): User {
             $invitation->update(['accepted_at' => now()]);
@@ -79,6 +73,11 @@ class AcceptInvite extends Component
         return $this->redirectRoute('projects.index');
     }
 
+    private function emailHasAccount(Invitation $invitation): bool
+    {
+        return User::where('email', $invitation->email)->exists();
+    }
+
     private function invitation(): Invitation
     {
         return Invitation::with('organisation')->where('token', $this->token)->firstOrFail();
@@ -91,6 +90,9 @@ class AcceptInvite extends Component
         return view('livewire.auth.accept-invite', [
             'workspaceName' => $invitation->organisation->name,
             'usable' => $invitation->isUsable(),
+            'email' => $invitation->email,
+            'emailHasAccount' => $this->emailHasAccount($invitation),
+            'inviterName' => $invitation->inviter?->name,
         ]);
     }
 }
