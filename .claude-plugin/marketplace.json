@@ -6,7 +6,8 @@
     {
       "name": "graph-orchestrator",
       "source": "./graph-orchestrator",
-      "description": "An orchestrator skill that plans waves of dispatches, each a topology run by one Workflow script, and leaves a Mermaid trace.",
+      "version": "0.2.0",
+      "description": "An orchestrator skill that plans waves of dispatches, each a topology (single, generator-evaluator, fan-out, chain, debate) run by one Workflow script, and leaves a Mermaid trace.",
       "category": "productivity",
       "keywords": ["orchestration", "workflow", "subagents"]
     }

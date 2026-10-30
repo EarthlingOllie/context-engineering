@@ -460,11 +460,105 @@ var fanOut = {
 };
 
 // src/topologies/debate.ts
-async function runDebate(_ctx, spec) {
-  const params = spec.params ?? {};
-  const p = params["participants"];
-  if (Array.isArray(p) && p.length > MAX_PARTICIPANTS) return overBudget(spec, `debate: ${p.length} participants exceeds the cap of ${MAX_PARTICIPANTS}`);
-  return fail(spec, "debate is not built in this plugin version: it is the dogfood task (spec story 42). Use generator-evaluator or a fan-out with a reducer for now.");
+var POSITION_LINES = 8;
+function participantsOf(params) {
+  const raw = Array.isArray(params.participants) ? params.participants : [];
+  return raw.map((p, i) => {
+    const o = p && typeof p === "object" ? p : {};
+    return { name: str(o, "name") || `participant ${i + 1}`, stance: str(o, "stance") };
+  });
+}
+function judgeEntryOf(spec, params) {
+  const fromRoles = roleEntry(spec, "judge");
+  if (fromRoles) return fromRoles;
+  const j = params.judge;
+  if (j && typeof j === "object") return { ...j.skill ? { skill: String(j.skill) } : {}, instructions: String(j.instructions ?? "") };
+  return void 0;
+}
+var line = (p) => `${p.name}: ${p.stance || "(no stance given)"}`;
+var transcriptOf = (turns) => turns.map((t) => `round ${t.round} \u2014 ${t.participant.name} (${t.participant.stance}):
+${t.position}`).join("\n\n");
+async function runDebate(ctx, spec) {
+  const returns = contractOf(spec);
+  const params = spec.params;
+  const participants = participantsOf(params);
+  if (participants.length > MAX_PARTICIPANTS) return overBudget(spec, `debate: ${participants.length} participants exceeds the cap of ${MAX_PARTICIPANTS}`);
+  if (participants.length === 0) return fail(spec, "debate: `params.participants` must list at least one { name, stance }");
+  const judgeEntry = judgeEntryOf(spec, params);
+  if (!judgeEntry) return fail(spec, "debate: a judge is required; supply `params.judge` or `roles.judge`");
+  const rounds = int(params.rounds, DEFAULT_ROUNDS);
+  const debaterEntry = roleEntry(spec, "debater");
+  const n = participants.length;
+  const transcript = [];
+  for (let round = 1; round <= rounds; round++) {
+    const prior = transcript.length ? transcriptOf(transcript) : `(none; this is round 1 of ${rounds})`;
+    const raw = await ctx.rt.parallel(
+      participants.map((participant, i) => async () => {
+        const others = participants.filter((_, j) => j !== i);
+        const out = await callRole(
+          ctx,
+          spec,
+          "debater",
+          buildPrompt({
+            role: "debater",
+            task: spec.task,
+            context: spec.context,
+            entry: debaterEntry,
+            returns: { shape: `your position in round ${round} of ${rounds}: the claim, the strongest evidence for it, any point you concede`, maxLines: POSITION_LINES },
+            artifactDir: ctx.artifactDir,
+            sections: [
+              { title: "STANCE", body: line(participant) },
+              { title: "OTHER PARTICIPANTS", body: others.length ? others.map(line).join("\n") : "(none)" },
+              { title: "PRIOR ROUNDS", body: prior }
+            ]
+          }),
+          `debater ${i + 1}/${n} r${round}`
+        );
+        return { participant, out };
+      })
+    );
+    const turns = [];
+    const blocked = [];
+    for (let i = 0; i < n; i++) {
+      const participant = participants[i];
+      const out = raw[i]?.out ?? null;
+      if (!out) return { ...fail(spec, `debater ${participant.name} returned nothing in round ${round}`, round), artifacts: [] };
+      const q = blockedQuestion(out);
+      if (q) blocked.push(`${participant.name} (round ${round}): ${q}`);
+      else turns.push({ round, participant, position: cutLines(str(out, "position"), POSITION_LINES) });
+    }
+    if (blocked.length) return { id: spec.id, status: "blocked", result: cutLines(transcriptOf(transcript), returns.maxLines), artifacts: [], question: blocked.join("\n"), iterations: round };
+    transcript.push(...turns);
+  }
+  const judge = await callRole(
+    ctx,
+    spec,
+    "judge",
+    buildPrompt({
+      role: "judge",
+      task: spec.task,
+      context: spec.context,
+      entry: judgeEntry,
+      returns,
+      artifactDir: ctx.artifactDir,
+      sections: [
+        { title: "PARTICIPANTS", body: participants.map(line).join("\n") },
+        { title: `TRANSCRIPT (${rounds} round${rounds === 1 ? "" : "s"})`, body: transcriptOf(transcript) }
+      ]
+    }),
+    "judge"
+  );
+  if (!judge) return fail(spec, `judge returned nothing after ${rounds} round(s)`, rounds);
+  const artifacts = strArr(judge, "artifacts");
+  const verdict = cutLines(str(judge, "verdict"), returns.maxLines);
+  const jq = blockedQuestion(judge);
+  if (jq) return { id: spec.id, status: "blocked", result: verdict, artifacts, question: jq, iterations: rounds };
+  const reasoning = firstLine(str(judge, "reasoning"));
+  if (!reasoning) return { id: spec.id, status: "done", result: verdict, artifacts, iterations: rounds };
+  const tail = `-- judge reasoning: ${reasoning}`;
+  const head = returns.maxLines > 1 ? cutLines(verdict, returns.maxLines - 1) : "";
+  return { id: spec.id, status: "done", result: head ? `${head}
+${tail}` : tail, artifacts, iterations: rounds };
 }
 var debate = {
   demand: (_spec, params) => {

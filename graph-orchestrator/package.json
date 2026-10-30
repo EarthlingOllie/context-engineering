@@ -1,7 +1,7 @@
 {
   "name": "graph-orchestrator",
-  "version": "0.1.0",
-  "description": "Claude Code plugin: an orchestrator skill that plans waves of dispatches, each a topology run by one Workflow script.",
+  "version": "0.2.0",
+  "description": "Claude Code plugin: an orchestrator skill that plans waves of dispatches, each a topology (single, generator-evaluator, fan-out, chain, debate) run by one Workflow script.",
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit -p .",

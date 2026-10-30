@@ -203,16 +203,122 @@ test("fan-out: a partition instruction runs a partition agent first, then at mos
 
 // ---------- debate ----------
 
-test("debate: not built in this version; returns failed without spending agents, over_budget above 6 participants", async () => {
+const two = [{ name: "a", stance: "for" }, { name: "b", stance: "against" }];
+
+test("debate: runs the stated rounds — one debater per participant per round, then the judge — and returns the judge's verdict", async () => {
+  const { out, calls, labels } = await wave(
+    [spec({ id: "w1-d1", topology: "debate", task: "Pick the store for v1", context: ["tests use sqlite"], params: { participants: two, rounds: 2, judge: { instructions: "decide" } }, roles: { debater: { skill: "research", instructions: "cite files" } } })],
+    {
+      "debater 1/2 r1": { position: "pg scales", blocked: false },
+      "debater 2/2 r1": { position: "sqlite is simpler", blocked: false },
+      "debater 1/2 r2": { position: "pg still scales", blocked: false },
+      "debater 2/2 r2": { position: "concede scale; sqlite for tests", blocked: false },
+      judge: { verdict: "use pg; keep sqlite for tests", reasoning: "scale decides", artifacts: ["/scratch/t/verdict.md"], blocked: false },
+    },
+  );
+  assert.deepEqual(labels(), ["w1-d1 debater 1/2 r1", "w1-d1 debater 2/2 r1", "w1-d1 debater 1/2 r2", "w1-d1 debater 2/2 r2", "w1-d1 judge", "wave 1 scribe"]);
+  const r = out.results[0]!;
+  assert.equal(r.status, "done");
+  assert.equal(r.iterations, 2);
+  assert.equal(r.result, "use pg; keep sqlite for tests\n-- judge reasoning: scale decides");
+  assert.deepEqual(r.artifacts, ["/scratch/t/verdict.md"]);
+  const d1 = calls[0]!.prompt;
+  assert.match(d1, /ROLE: debater/);
+  assert.match(d1, /You are a debater/);
+  assert.match(d1, /TASK: Pick the store for v1/);
+  assert.match(d1, /- tests use sqlite/);
+  assert.match(d1, /SKILL: load and follow the skill `research`/);
+  assert.match(d1, /INSTRUCTIONS:\ncite files/);
+  assert.match(d1, /STANCE:\na: for/);
+  assert.match(d1, /OTHER PARTICIPANTS:\nb: against/);
+  assert.match(d1, /PRIOR ROUNDS:\n\(none; this is round 1 of 2\)/);
+  assert.match(d1, /RETURN: at most 8 lines/);
+  assert.equal(calls[0]!.opts.phase, "w1-d1");
+  assert.ok(calls[0]!.opts.schema, "debater call carries the role schema");
+  const d2 = calls[3]!.prompt;
+  assert.match(d2, /STANCE:\nb: against/);
+  assert.match(d2, /PRIOR ROUNDS:\nround 1 — a \(for\):\npg scales\n\nround 1 — b \(against\):\nsqlite is simpler/);
+  assert.doesNotMatch(d2, /pg still scales/, "a debater does not see positions from its own round");
+  const j = calls[4]!.prompt;
+  assert.match(j, /ROLE: judge/);
+  assert.match(j, /You are the judge/);
+  assert.match(j, /TASK: Pick the store for v1/);
+  assert.match(j, /INSTRUCTIONS:\ndecide/);
+  assert.match(j, /PARTICIPANTS:\na: for\nb: against/);
+  assert.match(j, /TRANSCRIPT \(2 rounds\):\nround 1 — a \(for\):\npg scales[\s\S]*round 2 — b \(against\):\nconcede scale; sqlite for tests/);
+  assert.match(j, /RETURN: at most 5 lines — one verdict line/, "the judge gets the dispatch's return contract");
+  const ev = out.events.find((e) => e.type === "dispatch") as { iterations: number; status: string };
+  assert.equal(ev.iterations, 2);
+  assert.equal(ev.status, "done");
+});
+
+test("debate: the judge's reasoning reaches the result as its tail line, surviving a full-length verdict like the evaluator's feedback", async () => {
+  const { out } = await wave(
+    [spec({ id: "w1-d1", topology: "debate", params: { participants: two, rounds: 1, judge: { instructions: "decide" } }, returns: { shape: "x", maxLines: 3 } })],
+    { judge: { verdict: "v1\nv2\nv3", reasoning: "scale decides; a measured sqlite bottleneck would overturn it\nmore detail", artifacts: [], blocked: false } },
+  );
+  const r = out.results[0]!;
+  assert.equal(r.status, "done");
+  assert.equal(r.result, "v1\nv2\n-- judge reasoning: scale decides; a measured sqlite bottleneck would overturn it");
+});
+
+test("debate: rounds default to 2 and the judge may come from roles.judge; the verdict is cut to the contract", async () => {
+  const { out, labels } = await wave(
+    [spec({ id: "w1-d1", topology: "debate", params: { participants: two }, roles: { judge: { instructions: "decide" } }, returns: { shape: "one verdict line", maxLines: 1 } })],
+    { judge: { verdict: "line one\nline two", reasoning: "", artifacts: [], blocked: false } },
+  );
+  assert.equal(labels().filter((l) => l.includes("debater")).length, 4);
+  assert.deepEqual(labels().slice(-2), ["w1-d1 judge", "wave 1 scribe"]);
+  assert.equal(out.results[0]!.status, "done");
+  assert.equal(out.results[0]!.iterations, 2);
+  assert.equal(out.results[0]!.result, "line one");
+});
+
+test("debate: a blocked debater short-circuits the debate with its question; the judge never runs", async () => {
+  const { out, labels } = await wave(
+    [spec({ id: "w1-d1", topology: "debate", params: { participants: two, rounds: 3, judge: { instructions: "decide" } } })],
+    { "debater 2/2 r2": { position: "", blocked: true, question: "Is the prod database shared?" } },
+  );
+  assert.deepEqual(labels(), ["w1-d1 debater 1/2 r1", "w1-d1 debater 2/2 r1", "w1-d1 debater 1/2 r2", "w1-d1 debater 2/2 r2", "wave 1 scribe"]);
+  const r = out.results[0]!;
+  assert.equal(r.status, "blocked");
+  assert.equal(r.question, "b (round 2): Is the prod database shared?");
+  assert.equal(r.iterations, 2);
+  const ev = out.events.find((e) => e.type === "dispatch") as { question?: string };
+  assert.equal(ev.question, "b (round 2): Is the prod database shared?");
+});
+
+test("debate: a blocked judge returns blocked with the judge's question after all rounds ran", async () => {
+  const { out } = await wave(
+    [spec({ id: "w1-d1", topology: "debate", params: { participants: two, rounds: 1, judge: { instructions: "decide" } } })],
+    { judge: { verdict: "", reasoning: "", artifacts: [], blocked: true, question: "Does latency or cost matter more?" } },
+  );
+  const r = out.results[0]!;
+  assert.equal(r.status, "blocked");
+  assert.equal(r.question, "Does latency or cost matter more?");
+  assert.equal(r.iterations, 1);
+});
+
+test("debate: more than 6 participants is over_budget without spending agents; demand is participants × rounds + 1", async () => {
+  const { out, labels } = await wave([spec({ id: "w1-d1", topology: "debate", params: { participants: Array.from({ length: 7 }, (_, i) => ({ name: `p${i}`, stance: "s" })), judge: { instructions: "decide" } } })]);
+  assert.deepEqual(labels(), ["wave 1 scribe"]);
+  assert.equal(out.results[0]!.status, "over_budget");
+  assert.match(out.results[0]!.result, /cap of 6/);
+  assert.equal(agentDemand(spec({ id: "x", topology: "debate", params: { participants: [{}, {}, {}], rounds: 2 } })), 7);
+  assert.equal(agentDemand(spec({ id: "x", topology: "debate", params: { participants: [{}, {}, {}] } })), 7);
+  assert.equal(agentDemand(spec({ id: "x", topology: "debate", params: { participants: Array.from({ length: 7 }, () => ({})) } })), 0);
+});
+
+test("debate: a missing judge or no participants returns failed without spending agents", async () => {
   const { out, labels } = await wave([
-    spec({ id: "w1-d1", topology: "debate", params: { participants: [{ name: "a", stance: "for" }, { name: "b", stance: "against" }], judge: { instructions: "decide" } } }),
-    spec({ id: "w1-d2", topology: "debate", params: { participants: Array.from({ length: 7 }, (_, i) => ({ name: `p${i}`, stance: "s" })) } }),
+    spec({ id: "w1-d1", topology: "debate", params: { participants: two } }),
+    spec({ id: "w1-d2", topology: "debate", params: { participants: [], judge: { instructions: "decide" } } }),
   ]);
   assert.deepEqual(labels(), ["wave 1 scribe"]);
   assert.equal(out.results[0]!.status, "failed");
-  assert.match(out.results[0]!.result, /dogfood task/);
-  assert.equal(out.results[1]!.status, "over_budget");
-  assert.equal(agentDemand(spec({ id: "x", topology: "debate", params: { participants: [{}, {}, {}], rounds: 2 } })), 7);
+  assert.match(out.results[0]!.result, /judge/);
+  assert.equal(out.results[1]!.status, "failed");
+  assert.match(out.results[1]!.result, /participants/);
 });
 
 // ---------- chain ----------

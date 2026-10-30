@@ -1,6 +1,6 @@
 /**
- * The topologies: single, generator-evaluator, fan-out, chain (and the debate
- * placeholder), one file each under topologies/, with what they share in
+ * The topologies: single, generator-evaluator, fan-out, chain and debate,
+ * one file each under topologies/, with what they share in
  * topologies/shared.ts and the choice by `spec.topology` in
  * topologies/dispatch.ts. Each is a plain async function over an injected
  * runtime, so the whole module runs under test with a fake `agent()`. This

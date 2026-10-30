@@ -1,4 +1,4 @@
-# Catalog — graph-orchestrator v0.1
+# Catalog — graph-orchestrator v0.2
 
 The topologies this plugin version runs. Fixed per version: a topology that is not here is not available mid-session; it becomes a proper addition. Load once at kickoff; choose from this page, never from the implementation.
 
@@ -121,16 +121,27 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 
 ---
 
-## debate — not yet built
+## debate
 
-**Status** The signature, caps and roles exist; the topology itself is the dogfood task (spec story 42): the first real task run through this orchestrator is to build it. Until then a `debate` dispatch returns `failed` with a message saying so and spends no agents. Use `generator-evaluator` (one critic) or a `fan-out` of candidate positions with a `reducer` as the stand-in.
+**Use when** a contested decision should come back as a verdict, not a transcript: choose between designs, settle a disputed root cause, pick one of several candidate fixes.
 
-**Use when** (once built) a contested decision should come back as a verdict, not a transcript: choose between designs, settle a disputed root cause.
+**Roles** `debater` (one entry shared by every participant; each participant argues the fixed stance given in params), `judge` (required; reads the whole transcript and returns the verdict). Give the debater a research-shaped skill when the stances need evidence from the codebase.
 
-**Roles** `debater` (one per participant; fixed stance given in params), `judge` (required; returns the verdict).
-
-**Params** `participants`: `[{ name, stance }]`, ≤ 6; `rounds` (default 2); `judge`: a role entry, or supply `roles.judge`. More than 6 participants → `over_budget`.
+**Params** `participants`: `[{ name, stance }]`, 1–6; `rounds` (default 2); `judge`: a role entry, or supply `roles.judge`.
 
 **Demand** participants × rounds + 1.
 
-**Returns** `done` with the judge's verdict in the contract shape; `iterations` = rounds.
+**Flow** each round runs one debater per participant in parallel; a debater sees its STANCE, the OTHER PARTICIPANTS' stances and the PRIOR ROUNDS' transcript (never its own round's positions), and returns a position of at most 8 lines. After the last round the judge sees the participants and the full transcript and answers in the dispatch's return contract.
+
+**Returns** `done` with the judge's verdict in the contract shape, its last line the judge's reasoning (`-- judge reasoning: …`, as the evaluator's feedback is surfaced), `iterations` = rounds. `blocked` with the question if any debater blocks (that round's remaining debaters finish, the judge never runs, `iterations` = the round reached) or the judge blocks. More than 6 participants → `over_budget`, nothing run. No participants, or no judge in either place → `failed`, nothing run.
+
+```json
+{ "id": "w2-d3", "topology": "debate",
+  "task": "Pick the store for v1: Postgres or SQLite",
+  "context": ["tests already run against sqlite (w1-d2)"],
+  "roles": { "debater": { "skill": "research", "instructions": "cite file:line for every claim about the current code" },
+             "judge": { "instructions": "decide on scale and operational cost; name what would overturn the verdict" } },
+  "params": { "participants": [ { "name": "pg", "stance": "Postgres from day one" }, { "name": "sqlite", "stance": "SQLite until a measured need" } ], "rounds": 2 },
+  "returns": { "shape": "one verdict line, then at most two lines of reasoning", "maxLines": 3 },
+  "dependsOn": ["w1-d2"] }
+```

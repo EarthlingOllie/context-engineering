@@ -1,6 +1,6 @@
 # graph-orchestrator
 
-A Claude Code plugin in which the orchestrator is a skill that plans **waves** of **dispatches**, and each dispatch is a **topology** (single, generator-evaluator, fan-out, chain; debate pending) run by deterministic code inside one Workflow script. Loops and parallelism happen inside the topology; only the outcome comes back to the orchestrator, which folds it into a one-screen state file and plans the next wave. When the frontier is empty, a renderer turns the trace into a Mermaid diagram of the session.
+A Claude Code plugin in which the orchestrator is a skill that plans **waves** of **dispatches**, and each dispatch is a **topology** (single, generator-evaluator, fan-out, chain, debate) run by deterministic code inside one Workflow script. Loops and parallelism happen inside the topology; only the outcome comes back to the orchestrator, which folds it into a one-screen state file and plans the next wave. When the frontier is empty, a renderer turns the trace into a Mermaid diagram of the session.
 
 Spec: `docs/v1/spec.md`. Glossary: `docs/v1/graph-orchestrator/CONTEXT.md`. Decisions: ADR-0001, ADR-0002.
 
@@ -29,7 +29,7 @@ claude plugin install graph-orchestrator@earthlingollie
 Then, in any project:
 
 ```
-/graph-orchestrator Build the debate topology --mode attended
+/graph-orchestrator Add rate limiting to the public API --mode attended
 ```
 
 Flags: `--mode attended|autonomous` (default autonomous when nobody says otherwise), `--waves N` (16), `--dispatches N` (9), `--scratch <dir>`.
@@ -60,4 +60,4 @@ Tests run on Node 22 with native type stripping; no test runner beyond `node --t
 
 ## The dogfood task
 
-Spec story 42: the first real task run through the orchestrator is building the `debate` topology itself. This version therefore ships debate's signature, caps, roles (`judge`, `debater`) and catalog entry, but `src/topologies/debate.ts` returns `failed` until that run replaces it. Expected shape of the run: a fan-out for research, a generator-evaluator for the implementation, a chain for the catalog entry, and one human intervention on the judge's verdict format.
+Spec story 42: the first real task run through the orchestrator was building the `debate` topology itself. Version 0.2.0 is the result: `src/topologies/debate.ts` runs the rounds and the judge, the catalog describes it beside the other four, and `test/wave.test.ts` covers the rounds, the verdict, the blocked and `over_budget` paths.
