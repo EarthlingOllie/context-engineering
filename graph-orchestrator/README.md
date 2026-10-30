@@ -12,7 +12,7 @@ skills/graph-orchestrator/SKILL.md  the orchestrator skill, invoked as /graph-or
 skills/graph-orchestrator/catalog.md the catalog the skill loads once per session
 workflows/wave.js                   the Workflow script, one wave per run (built; do not edit)
 scripts/render-trace.js             trace.jsonl → Mermaid (built; do not edit)
-src/                                TypeScript source: types, roles, topologies, runWave, renderer
+src/                                TypeScript source: types, roles, topologies/ (one file each), runWave, renderer
 test/                               wave-boundary tests, renderer fixtures, bundle test
 build.mjs                           esbuild: src → workflows/wave.js and scripts/render-trace.js
 ```
@@ -60,4 +60,4 @@ Tests run on Node 22 with native type stripping; no test runner beyond `node --t
 
 ## The dogfood task
 
-Spec story 42: the first real task run through the orchestrator is building the `debate` topology itself. This version therefore ships debate's signature, caps, roles (`judge`, `debater`) and catalog entry, but `runDebate` in `src/topologies.ts` returns `failed` until that run replaces it. Expected shape of the run: a fan-out for research, a generator-evaluator for the implementation, a chain for the catalog entry, and one human intervention on the judge's verdict format.
+Spec story 42: the first real task run through the orchestrator is building the `debate` topology itself. This version therefore ships debate's signature, caps, roles (`judge`, `debater`) and catalog entry, but `src/topologies/debate.ts` returns `failed` until that run replaces it. Expected shape of the run: a fan-out for research, a generator-evaluator for the implementation, a chain for the catalog entry, and one human intervention on the judge's verdict format.
