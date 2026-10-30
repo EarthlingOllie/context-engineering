@@ -54,6 +54,11 @@ export async function runWave(args: WaveArgs, rt: Runtime): Promise<WaveReturn> 
   const cap = Math.max(1, Math.floor(Number(a.maxAgents)) || 1);
   const artifactDir = typeof a.artifactDir === "string" && a.artifactDir ? a.artifactDir : dirOf(traceFile);
 
+  // Interventions since the last wave, normalised before any dispatch runs: objects are kept (stamped with now when undated), anything else is dropped and logged.
+  const rawHumans: unknown[] = Array.isArray(a.humans) ? a.humans : [];
+  const humans: HumanEvent[] = rawHumans.filter((h): h is HumanEvent => !!h && typeof h === "object").map((h) => ({ ...h, type: "human", at: h.at ?? now }));
+  if (humans.length !== rawHumans.length) rt.log(`wave ${wave}: dropped ${rawHumans.length - humans.length} malformed humans entry(ies); each must be an object`);
+
   // Demand log: the sum of each dispatch's agent need, against the effective cap. The scribe is one more, stated apart.
   const demands = dispatches.map((d) => agentDemand(d));
   const demand = demands.reduce((s, n) => s + n, 0);
@@ -128,7 +133,6 @@ export async function runWave(args: WaveArgs, rt: Runtime): Promise<WaveReturn> 
   const results: DispatchResult[] = raw.map((r, i) => r ?? fail(dispatches[i] ?? { id: "?" }, "runtime returned no result for this dispatch"));
 
   // Events: interventions since the last wave, then the wave, its stages, its dispatches, and the end line.
-  const humans: HumanEvent[] = (Array.isArray(a.humans) ? a.humans : []).map((h) => ({ ...h, type: "human", at: h.at ?? now }));
   const counts = { done: 0, blocked: 0, exhausted: 0, over_budget: 0, failed: 0 };
   for (const r of results) counts[r.status]++;
   const events: TraceEvent[] = [

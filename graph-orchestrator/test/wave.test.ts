@@ -439,3 +439,17 @@ test("a scribe that returns nothing is logged and the wave still returns its res
   assert.equal(out.scribe, null);
   assert.ok(logs.some((l) => /scribe returned nothing/.test(l)));
 });
+
+test("malformed humans entries are dropped and logged up front; the wave's results and the well-formed interventions survive", async () => {
+  const { out, calls, logs } = await wave([spec({ id: "w2-d1", topology: "single" })], {}, {
+    humans: [null, "not an object", 42, { type: "human", trigger: "ambiguity", question: "Which DB?", answer: "postgres" }],
+  });
+  assert.equal(out.results[0]!.status, "done");
+  assert.deepEqual(
+    out.events.map((e) => e.type),
+    ["human", "wave_start", "dispatch", "wave_end"],
+  );
+  assert.equal((out.events[0] as { at?: string }).at, baseArgs.now);
+  assert.ok(logs.some((l) => /wave 2: dropped 3 malformed humans entr/.test(l)), `logged the drop: ${logs.join(" | ")}`);
+  assert.match(calls.at(-1)!.prompt, /Append the 4 line\(s\)/);
+});

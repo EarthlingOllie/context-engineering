@@ -560,6 +560,9 @@ async function runWave(args, rt) {
   const traceFile = typeof a.traceFile === "string" && a.traceFile ? a.traceFile : "trace.jsonl";
   const cap = Math.max(1, Math.floor(Number(a.maxAgents)) || 1);
   const artifactDir = typeof a.artifactDir === "string" && a.artifactDir ? a.artifactDir : dirOf(traceFile);
+  const rawHumans = Array.isArray(a.humans) ? a.humans : [];
+  const humans = rawHumans.filter((h) => !!h && typeof h === "object").map((h) => ({ ...h, type: "human", at: h.at ?? now }));
+  if (humans.length !== rawHumans.length) rt.log(`wave ${wave}: dropped ${rawHumans.length - humans.length} malformed humans entry(ies); each must be an object`);
   const demands = dispatches.map((d) => agentDemand(d));
   const demand = demands.reduce((s, n) => s + n, 0);
   const perDispatch = dispatches.map((d, i) => `${d?.id ?? "?"}=${demands[i]}`).join(" ");
@@ -621,7 +624,6 @@ async function runWave(args, rt) {
   };
   const raw = await rt.parallel(dispatches.map((_, i) => () => runOne(i)));
   const results = raw.map((r, i) => r ?? fail(dispatches[i] ?? { id: "?" }, "runtime returned no result for this dispatch"));
-  const humans = (Array.isArray(a.humans) ? a.humans : []).map((h) => ({ ...h, type: "human", at: h.at ?? now }));
   const counts = { done: 0, blocked: 0, exhausted: 0, over_budget: 0, failed: 0 };
   for (const r of results) counts[r.status]++;
   const events = [
