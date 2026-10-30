@@ -348,6 +348,29 @@ test("same-wave dependsOn: the dependant waits for its dependency and receives t
   assert.match(out.results[4]!.result, /duplicate dispatch id/);
 });
 
+test("same-wave dependsOn: a dependant whose dependency did not finish done is short-circuited as failed, spending no agent", async () => {
+  const { out, labels, logs } = await wave(
+    [
+      spec({ id: "w1-d1", topology: "single" }),
+      spec({ id: "w1-d2", topology: "single", dependsOn: ["w1-d1"] }),
+      spec({ id: "w1-d3", topology: "single", dependsOn: ["w1-d2"] }),
+    ],
+    { "w1-d1 worker": { result: "need a decision", artifacts: [], blocked: true, question: "Which DB?" } },
+  );
+  assert.deepEqual(labels(), ["w1-d1 worker", "wave 1 scribe"], "neither dependant runs a worker");
+  assert.deepEqual(
+    out.results.map((r) => [r.id, r.status, r.iterations]),
+    [
+      ["w1-d1", "blocked", 1],
+      ["w1-d2", "failed", 0],
+      ["w1-d3", "failed", 0],
+    ],
+  );
+  assert.match(out.results[1]!.result, /^dependency w1-d1 was blocked/);
+  assert.match(out.results[2]!.result, /^dependency w1-d2 was failed/);
+  assert.ok(logs.some((l) => /w1-d2: dependency w1-d1 was blocked/.test(l)), "the short-circuit is logged");
+});
+
 test("humans passed in args are written by the scribe before the wave, stamped with now when undated", async () => {
   const { out, calls } = await wave([spec({ id: "w2-d1", topology: "single", dependsOn: ["w1-d2"] })], {}, {
     humans: [{ type: "human", trigger: "blocked", dispatch: "w1-d2", question: "Which DB?", answer: "postgres", mode: "attended" }],

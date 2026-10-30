@@ -1,12 +1,13 @@
 /**
  * runWave: the wave boundary. Pure over the injected runtime. Runs every
  * dispatch of the wave in parallel (a dispatch that names a same-wave id in
- * `dependsOn` waits for it and receives its artifacts), collects the trace
+ * `dependsOn` waits for it and receives its artifacts, or fails unrun when
+ * that dependency did not finish `done`), collects the trace
  * events in memory, and finishes by asking one scribe agent to append them to
  * the trace file in a single write.
  */
 import type { DispatchResult, DispatchSpec, HumanEvent, Runtime, TraceEvent, WaveArgs, WaveReturn } from "./types.ts";
-import { agentDemand, dispatchEvent, fail, forwardLines, runDispatch, type TopologyContext } from "./topologies.ts";
+import { agentDemand, dispatchEvent, fail, firstLine, forwardLines, runDispatch, type TopologyContext } from "./topologies.ts";
 
 /** The runtime's hard limit on agents per run. The only thing a wave refuses. */
 export const HARD_AGENT_LIMIT = 1000;
@@ -108,6 +109,13 @@ export async function runWave(args: WaveArgs, rt: Runtime): Promise<WaveReturn> 
       if (inCycle(i)) return fail(d, "dependsOn cycle within the wave");
       const deps = (Array.isArray(d?.dependsOn) ? d.dependsOn : []).map((x) => firstIndex.get(String(x))).filter((j): j is number => j !== undefined && j !== i);
       const depResults = await Promise.all(deps.map((j) => runOne(j)));
+      // A dependency that did not finish `done` has nothing to build on: short-circuit without spending an agent; the orchestrator re-dispatches next wave.
+      const notDone = depResults.find((r) => r.status !== "done");
+      if (notDone) {
+        const why = `dependency ${notDone.id} was ${notDone.status}: ${firstLine(notDone.result)}`;
+        rt.log(`wave ${wave}: ${id || "?"}: ${why}; not run`);
+        return fail(d, why);
+      }
       const forwarded = depResults.flatMap(forwardLines);
       const spec: DispatchSpec = forwarded.length ? { ...d, context: [...(Array.isArray(d.context) ? d.context : []), ...forwarded] } : d;
       return runDispatch(ctx, spec);

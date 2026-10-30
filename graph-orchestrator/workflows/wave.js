@@ -600,6 +600,12 @@ async function runWave(args, rt) {
       if (inCycle(i)) return fail(d, "dependsOn cycle within the wave");
       const deps = (Array.isArray(d?.dependsOn) ? d.dependsOn : []).map((x) => firstIndex.get(String(x))).filter((j) => j !== void 0 && j !== i);
       const depResults = await Promise.all(deps.map((j) => runOne(j)));
+      const notDone = depResults.find((r) => r.status !== "done");
+      if (notDone) {
+        const why = `dependency ${notDone.id} was ${notDone.status}: ${firstLine(notDone.result)}`;
+        rt.log(`wave ${wave}: ${id || "?"}: ${why}; not run`);
+        return fail(d, why);
+      }
       const forwarded = depResults.flatMap(forwardLines);
       const spec = forwarded.length ? { ...d, context: [...Array.isArray(d.context) ? d.context : [], ...forwarded] } : d;
       return runDispatch(ctx, spec);

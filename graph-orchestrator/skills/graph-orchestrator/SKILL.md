@@ -74,7 +74,7 @@ From the state file alone. Up to `--dispatches` dispatch specs, ids `w<wave>-d<n
 - **roles** — per role, the skill that supplies the domain (`tdd`, `code-review`, …) and the task-specific instructions. Name skills; never paste their text.
 - **params** — as the catalog narrows them.
 - **returns** — the contract: `shape` (what the lines are) and `maxLines` (≤ 20, usually 1–6). Results come back inline and cut to this; size it so you can decide without opening anything. Anything longer is an artifact path.
-- **dependsOn** — ids of earlier dispatches whose results this one builds on. Forward their artifact paths in `context`, not their prose. A dispatch that names a same-wave id waits for it; prefer a `chain` when stages are a unit.
+- **dependsOn** — ids of earlier dispatches whose results this one builds on. Forward their artifact paths in `context`, not their prose. A dispatch that names a same-wave id waits for it, and is `failed` unrun (result `dependency <id> was <status>: …`, no agent spent) if that dependency does not finish `done`: handle the dependency's status, then re-dispatch the dependant next wave. Prefer a `chain` when stages are a unit.
 
 Hard to reverse (deleting, pushing, anything with an external side effect)? **Trigger 4: ask first, in both modes.** Tell the roles in `instructions` what they are not authorised to do.
 
@@ -109,7 +109,7 @@ For each result, by status:
 | `blocked` | **Trigger 2: ask, in both modes.** The `question` is the worker's. Record the intervention. Re-dispatch next wave with the answer as a `context` line and the blocked id in `dependsOn`, so the worker resumes rather than restarts. A fan-out that is `done` with a `question` had a blocked branch: ask the same way; re-dispatch only that branch. |
 | `exhausted` | **Trigger 3.** Attended: ask whether to change the criteria, the approach or stop. Autonomous: if you see another route, take it and record the choice; if not, record a best guess and move on. Never re-run the same spec unchanged. |
 | `over_budget` | the spec exceeded a cap; the `result` says which. Split or narrow it and re-dispatch. |
-| `failed` | the spec could not run; the `result` says why. Fix the spec once. A second failure is treated as `exhausted`. |
+| `failed` | the spec could not run; the `result` says why. Fix the spec once. A second failure is treated as `exhausted`. A result starting `dependency <id> was …` is not a spec fault: integrate the dependency's status, then re-dispatch. |
 
 Then: update FRONTIER (remove what finished, add what the results opened), rewrite the state file, and plan the next wave from the state file alone.
 
