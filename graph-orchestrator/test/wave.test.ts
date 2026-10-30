@@ -74,16 +74,17 @@ test("generator-evaluator: stops on first pass; round 2 generator sees feedback 
   assert.doesNotMatch(calls[0]!.prompt, /FEEDBACK \(evaluator/);
 });
 
-test("generator-evaluator: returns exhausted at the iteration cap", async () => {
+test("generator-evaluator: returns exhausted at the iteration cap; the feedback line survives a full-length result", async () => {
   const { out, labels } = await wave(
-    [spec({ id: "w1-d1", topology: "generator-evaluator", params: { max_iterations: 2, pass_criteria: "x" } })],
-    { generator: { result: "attempt", artifacts: [], blocked: false }, evaluator: { pass: false, feedback: "still wrong", blocked: false } },
+    [spec({ id: "w1-d1", topology: "generator-evaluator", params: { max_iterations: 2, pass_criteria: "x" }, returns: { shape: "x", maxLines: 3 } })],
+    { generator: { result: "l1\nl2\nl3", artifacts: [], blocked: false }, evaluator: { pass: false, feedback: "still wrong\nmore detail", blocked: false } },
   );
   assert.equal(labels().length, 5);
   const r = out.results[0]!;
   assert.equal(r.status, "exhausted");
   assert.equal(r.iterations, 2);
-  assert.match(r.result, /exhausted after 2 round\(s\); last evaluator feedback: still wrong/);
+  assert.equal(r.result, "l1\nl2\n-- exhausted after 2 round(s); last evaluator feedback: still wrong");
+  assert.equal(r.result.split("\n").length, 3);
 });
 
 test("generator-evaluator: defaults to 3 iterations and short-circuits when the evaluator is blocked", async () => {
@@ -210,7 +211,7 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
   assert.equal(r.result, "/scratch/t/writeup.md");
   assert.deepEqual(r.artifacts, ["/scratch/t/research.md", "/scratch/t/writeup.md"]);
   assert.match(calls[0]!.prompt, /- chain-wide fact\n- stage fact/);
-  assert.match(calls[1]!.prompt, /- prior stage w3-s1 \(done\): \/scratch\/t\/research\.md\n- artifacts from w3-s1: \/scratch\/t\/research\.md/);
+  assert.match(calls[1]!.prompt, /- w3-s1 \(done\) returned: \/scratch\/t\/research\.md\n- artifacts from w3-s1: \/scratch\/t\/research\.md/);
   assert.match(calls[1]!.prompt, /RETURN: at most 5 lines/, "a stage without returns inherits the chain's contract");
   const types = out.events.map((e) => (e.type === "dispatch" ? `${e.id}${e.parent ? `<${e.parent}` : ""}` : e.type));
   assert.deepEqual(types, ["wave_start", "w3-s1<w3-d1", "w3-s2<w3-d1", "w3-d1", "wave_end"]);
@@ -275,7 +276,7 @@ test("an agent that throws yields a failed result for that dispatch and the wave
 
 // ---------- demand logging and budgets ----------
 
-test("demand log: the logged demand is the sum of each dispatch's agent need plus the scribe, against the cap", async () => {
+test("demand log: the logged demand is the sum of each dispatch's agent need, with the scribe stated apart, against the cap", async () => {
   const dispatches = [
     spec({ id: "w2-d1", topology: "single" }),
     spec({ id: "w2-d2", topology: "generator-evaluator", params: { max_iterations: 3 } }),
@@ -283,13 +284,13 @@ test("demand log: the logged demand is the sum of each dispatch's agent need plu
     spec({ id: "w2-d4", topology: "chain", params: { stages: [{ topology: "single", task: "a" }, { topology: "single", task: "b" }] } }),
   ];
   const { out, logs } = await wave(dispatches, {}, { maxAgents: 2 });
-  assert.equal(out.demand, 1 + 6 + 5 + 2 + 1);
+  assert.equal(out.demand, 1 + 6 + 5 + 2);
   assert.equal(out.cap, 2);
   assert.equal(out.wave, 2);
-  assert.match(logs[0]!, /^wave 2: 4 dispatch\(es\), demand 15 agent\(s\) incl\. scribe vs cap 2 — over cap/);
+  assert.match(logs[0]!, /^wave 2: 4 dispatch\(es\), demand 14 agent\(s\) \+ 1 scribe vs cap 2 — over cap/);
   assert.match(logs[0]!, /w2-d1=1 w2-d2=6 w2-d3=5 w2-d4=2/);
   const start = out.events[0] as { demand: number; cap: number };
-  assert.equal(start.demand, 15);
+  assert.equal(start.demand, 14);
   assert.equal(start.cap, 2);
 });
 
@@ -358,7 +359,7 @@ test("a wave with no dispatches still logs, writes wave_start and wave_end, and 
     out.events.map((e) => e.type),
     ["wave_start", "wave_end"],
   );
-  assert.match(logs[0]!, /wave 7: 0 dispatch\(es\), demand 1/);
+  assert.match(logs[0]!, /wave 7: 0 dispatch\(es\), demand 0 agent\(s\) \+ 1 scribe/);
 });
 
 test("a scribe that returns nothing is logged and the wave still returns its results and events", async () => {

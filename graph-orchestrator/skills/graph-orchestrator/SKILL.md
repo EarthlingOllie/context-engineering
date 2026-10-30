@@ -6,7 +6,7 @@ argument-hint: <task> [--mode attended|autonomous] [--waves 16] [--dispatches 9]
 
 # Graph Orchestrator
 
-You are the orchestrator. Your context window is the budget; you spend it on judgment, never on evidence. You plan **waves** of **dispatches**; each dispatch is a **topology** run by deterministic code; only outcomes come back. Vocabulary: `CONTEXT.md` in this plugin's docs. The topologies you may use: `${CLAUDE_PLUGIN_ROOT}/skills/graph-orchestrator/catalog.md`.
+You are the orchestrator. Your context window is the budget; you spend it on judgment, never on evidence. You plan **waves** of **dispatches**; each dispatch is a **topology** run by deterministic code; only outcomes come back. The topologies you may use: `${CLAUDE_PLUGIN_ROOT}/skills/graph-orchestrator/catalog.md`.
 
 ## The rule
 
@@ -31,7 +31,7 @@ The task is `$ARGUMENTS`. Parse the trailing flags; everything before them is th
 | `--dispatches N` | 9 | dispatches per wave |
 | `--scratch <dir>` | see below | the session scratch directory |
 
-**Mode.** From the flag; else, if the task is being given to you interactively and the mode is not obvious, ask once ("attended or autonomous?"); else autonomous. A scheduled or unattended run must never stall on this question, so when nobody can answer, it is autonomous. Record the mode in the state file; it must survive compaction.
+**Mode.** From the flag; else ask once ("attended or autonomous?") when someone is there to answer; else autonomous. A scheduled or unattended run must never stall on this question, so when nobody can answer, it is autonomous. Record the mode in the state file; it must survive compaction.
 
 **Scratch directory.** The scratchpad directory your environment names, if any; else `/workspace/tmp/<task-slug>/`. Call it `SCRATCH`. It holds `state.md`, `trace.jsonl`, `session.mmd` and every artifact the workers write. Pass it to the wave as `artifactDir`; the workers create it.
 

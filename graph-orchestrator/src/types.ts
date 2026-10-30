@@ -4,15 +4,8 @@
  * Vocabulary: CONTEXT.md.
  */
 
-export type Topology = "single" | "generator-evaluator" | "fan-out" | "debate" | "chain";
-
-export const TOPOLOGIES: readonly Topology[] = [
-  "single",
-  "generator-evaluator",
-  "fan-out",
-  "debate",
-  "chain",
-];
+export const TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain"] as const;
+export type Topology = (typeof TOPOLOGIES)[number];
 
 /** A role slot filled at dispatch time: the skill supplies the domain, the instructions the task. */
 export type RoleEntry = { skill?: string; instructions: string };
@@ -66,7 +59,7 @@ export type DispatchResult = {
 export type HumanEvent = {
   type: "human";
   at?: string;
-  trigger: "ambiguity" | "blocked" | "exhausted" | "irreversible" | "budget" | string;
+  trigger: "ambiguity" | "blocked" | "exhausted" | "irreversible" | "budget";
   dispatch?: string; // the dispatch that raised it, if any
   question: string;
   answer: string;

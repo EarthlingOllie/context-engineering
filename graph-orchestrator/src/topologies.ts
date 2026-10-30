@@ -8,9 +8,12 @@
  * bad spec; it returns `failed` so a wave always comes back whole.
  */
 import type {
+  ChainParams,
   DispatchResult,
   DispatchSpec,
   DispatchStatus,
+  FanOutParams,
+  GeneratorEvaluatorParams,
   ReturnContract,
   RoleEntry,
   Runtime,
@@ -26,7 +29,7 @@ export const DEFAULT_ITERATIONS = 3;
 export const DEFAULT_ROUNDS = 2;
 export const DEFAULT_WIDTH = 3;
 
-export type Ctx = {
+export type TopologyContext = {
   rt: Runtime;
   artifactDir: string;
   wave: number;
@@ -44,6 +47,11 @@ export function cutLines(text: string, maxLines: number): string {
 
 export function firstLine(text: string): string {
   return String(text ?? "").split("\n")[0] ?? "";
+}
+
+/** Context lines that carry a finished dispatch forward to one that builds on it: status, first line, artifact paths. */
+export function forwardLines(r: DispatchResult): string[] {
+  return [`${r.id} (${r.status}) returned: ${firstLine(r.result)}`, ...(r.artifacts.length ? [`artifacts from ${r.id}: ${r.artifacts.join(", ")}`] : [])];
 }
 
 /** The return contract, clamped to the inline ceiling. */
@@ -97,8 +105,8 @@ function overBudget(spec: DispatchSpec, message: string): DispatchResult {
 }
 
 /** One role agent call. Returns the parsed structured output or null. */
-async function call(
-  ctx: Ctx,
+async function callRole(
+  ctx: TopologyContext,
   spec: DispatchSpec,
   role: RoleName,
   prompt: string,
@@ -120,7 +128,7 @@ export function agentDemand(raw: Partial<DispatchSpec> | null | undefined): numb
     case "single":
       return 1;
     case "generator-evaluator":
-      return 2 * int(params["max_iterations"] ?? params["maxIterations"], DEFAULT_ITERATIONS);
+      return 2 * int(params["max_iterations"], DEFAULT_ITERATIONS);
     case "fan-out": {
       const split = params["split"];
       const width = Array.isArray(split) ? split.length : int(params["width"], DEFAULT_WIDTH);
@@ -144,9 +152,9 @@ export function agentDemand(raw: Partial<DispatchSpec> | null | undefined): numb
 
 // ---------- single ----------
 
-async function runSingle(ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> {
+async function runSingle(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
-  const out = await call(
+  const out = await callRole(
     ctx,
     spec,
     "worker",
@@ -161,11 +169,11 @@ async function runSingle(ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> 
 
 // ---------- generator-evaluator ----------
 
-async function runGeneratorEvaluator(ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> {
+async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
-  const params = spec.params ?? {};
-  const maxIterations = int(params["max_iterations"] ?? params["maxIterations"], DEFAULT_ITERATIONS);
-  const criteria = typeof params["pass_criteria"] === "string" && params["pass_criteria"] ? params["pass_criteria"] : "the task is complete and correct";
+  const params = spec.params as Partial<GeneratorEvaluatorParams>;
+  const maxIterations = int(params.max_iterations, DEFAULT_ITERATIONS);
+  const criteria = typeof params.pass_criteria === "string" && params.pass_criteria ? params.pass_criteria : "the task is complete and correct";
   const genEntry = roleEntry(spec, "generator");
   const evalEntry = roleEntry(spec, "evaluator");
 
@@ -179,7 +187,7 @@ async function runGeneratorEvaluator(ctx: Ctx, spec: DispatchSpec): Promise<Disp
       sections.push({ title: "YOUR ARTIFACTS FROM THE PREVIOUS ROUND (re-open from disk as needed)", body: last.artifacts.length ? last.artifacts.join("\n") : "none" });
     }
     sections.push({ title: "PASS CRITERIA (what the evaluator will check)", body: criteria });
-    const gen = await call(
+    const gen = await callRole(
       ctx,
       spec,
       "generator",
@@ -191,7 +199,7 @@ async function runGeneratorEvaluator(ctx: Ctx, spec: DispatchSpec): Promise<Disp
     last = { result: cutLines(str(gen, "result"), returns.maxLines), artifacts: strArr(gen, "artifacts") };
     if (gq) return { id: spec.id, status: "blocked", result: last.result, artifacts: last.artifacts, question: gq, iterations: round };
 
-    const ev = await call(
+    const ev = await callRole(
       ctx,
       spec,
       "evaluator",
@@ -216,11 +224,13 @@ async function runGeneratorEvaluator(ctx: Ctx, spec: DispatchSpec): Promise<Disp
     feedback = str(ev, "feedback");
   }
 
+  // The feedback line always survives the cut: the result gives up its last line for it.
   const tail = `-- exhausted after ${maxIterations} round(s); last evaluator feedback: ${firstLine(feedback ?? "")}`;
+  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1) : "";
   return {
     id: spec.id,
     status: "exhausted",
-    result: cutLines(`${last?.result ?? ""}\n${tail}`, returns.maxLines),
+    result: head ? `${head}\n${tail}` : tail,
     artifacts: last?.artifacts ?? [],
     iterations: maxIterations,
   };
@@ -230,12 +240,12 @@ async function runGeneratorEvaluator(ctx: Ctx, spec: DispatchSpec): Promise<Disp
 
 type Branch = { index: number; task: string; status: DispatchStatus; result: string; artifacts: string[]; question?: string };
 
-async function runFanOut(ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> {
+async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
-  const params = spec.params ?? {};
-  const split = params["split"];
-  const reducerEntry = roleEntry(spec, "reducer") ?? (params["reducer"] && typeof params["reducer"] === "object" ? (params["reducer"] as RoleEntry) : undefined);
-  const hasReducer = Boolean(reducerEntry) || params["reducer"] === true;
+  const params = spec.params as Partial<FanOutParams>;
+  const split = params.split;
+  const reducerEntry = roleEntry(spec, "reducer") ?? (params.reducer && typeof params.reducer === "object" ? params.reducer : undefined);
+  const hasReducer = Boolean(reducerEntry) || params.reducer === true;
   const workerEntry = roleEntry(spec, "worker");
 
   // 1. Decide the sub-tasks: explicit list, or a partition agent following the instruction.
@@ -244,13 +254,13 @@ async function runFanOut(ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> 
     subtasks = split.filter((s): s is string => typeof s === "string" && s.trim().length > 0);
     if (subtasks.length === 0) return fail(spec, "fan-out: `split` list is empty");
     if (subtasks.length > MAX_WIDTH) return overBudget(spec, `fan-out: ${subtasks.length} sub-tasks exceeds the width cap of ${MAX_WIDTH}; split differently or chain two fan-outs`);
-    if (params["width"] !== undefined && int(params["width"], subtasks.length) !== subtasks.length) {
-      ctx.rt.log(`${spec.id}: width ${String(params["width"])} ignored; explicit split has ${subtasks.length} sub-tasks`);
+    if (params.width !== undefined && int(params.width, subtasks.length) !== subtasks.length) {
+      ctx.rt.log(`${spec.id}: width ${String(params.width)} ignored; explicit split has ${subtasks.length} sub-tasks`);
     }
   } else if (typeof split === "string" && split.trim()) {
-    const width = int(params["width"], DEFAULT_WIDTH);
+    const width = int(params.width, DEFAULT_WIDTH);
     if (width > MAX_WIDTH) return overBudget(spec, `fan-out: width ${width} exceeds the cap of ${MAX_WIDTH}`);
-    const part = await call(
+    const part = await callRole(
       ctx,
       spec,
       "worker",
@@ -289,7 +299,7 @@ async function runFanOut(ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> 
   const branchReturns: ReturnContract = hasReducer ? returns : { shape: returns.shape, maxLines: Math.max(1, Math.floor(returns.maxLines / n)) };
   const raw = await ctx.rt.parallel(
     subtasks.map((task, i) => async (): Promise<Branch> => {
-      const out = await call(
+      const out = await callRole(
         ctx,
         spec,
         "worker",
@@ -329,7 +339,7 @@ async function runFanOut(ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> 
     const body = branches
       .map((b) => (b.status === "done" ? `branch ${b.index + 1} (done) — ${b.task}\n${b.result}\nartifacts: ${b.artifacts.length ? b.artifacts.join(", ") : "none"}` : `branch ${b.index + 1} (${b.status}) — ${b.task}\nGAP: ${b.question ?? b.result}`))
       .join("\n\n");
-    const red = await call(
+    const red = await callRole(
       ctx,
       spec,
       "reducer",
@@ -356,7 +366,7 @@ async function runFanOut(ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> 
  * is proven by use. The signature, caps, roles (judge, debater) and the
  * catalog entry are in place; this function is what the dogfood task replaces.
  */
-async function runDebate(_ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> {
+async function runDebate(_ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const params = spec.params ?? {};
   const p = params["participants"];
   if (Array.isArray(p) && p.length > MAX_PARTICIPANTS) return overBudget(spec, `debate: ${p.length} participants exceeds the cap of ${MAX_PARTICIPANTS}`);
@@ -379,18 +389,16 @@ function normaliseStage(parent: DispatchSpec, stage: unknown, index: number, for
   };
 }
 
-async function runChain(ctx: Ctx, spec: DispatchSpec): Promise<DispatchResult> {
+async function runChain(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
-  const stages = spec.params?.["stages"];
+  const stages = (spec.params as Partial<ChainParams>).stages;
   if (!Array.isArray(stages) || stages.length === 0) return fail(spec, "chain: `params.stages` must be a non-empty list of dispatch specs");
 
   const statuses: string[] = [];
   const artifacts: string[] = [];
   let prev: DispatchResult | null = null;
   for (let i = 0; i < stages.length; i++) {
-    const forwarded = prev
-      ? [`prior stage ${prev.id} (${prev.status}): ${firstLine(prev.result)}`, ...(prev.artifacts.length ? [`artifacts from ${prev.id}: ${prev.artifacts.join(", ")}`] : [])]
-      : [];
+    const forwarded = prev ? forwardLines(prev) : [];
     const stage = normaliseStage(spec, stages[i], i, forwarded);
     const r = await runDispatch(ctx, stage);
     ctx.stageEvents.push(dispatchEvent(ctx.wave, stage, r, spec.id));
@@ -432,7 +440,7 @@ export function dispatchEvent(wave: number, spec: DispatchSpec, r: DispatchResul
 }
 
 /** Run one dispatch spec. Never throws: a spec that cannot run returns `failed`. */
-export async function runDispatch(ctx: Ctx, raw: DispatchSpec): Promise<DispatchResult> {
+export async function runDispatch(ctx: TopologyContext, raw: DispatchSpec): Promise<DispatchResult> {
   if (!raw || typeof raw !== "object") return fail({ id: "?" }, "dispatch spec is not an object");
   if (typeof raw.id !== "string" || !raw.id) return fail({ id: "?" }, "dispatch spec has no id");
   if (!TOPOLOGIES.includes(raw.topology)) return fail(raw, `unknown topology "${String(raw.topology)}"; valid: ${TOPOLOGIES.join(", ")}`);

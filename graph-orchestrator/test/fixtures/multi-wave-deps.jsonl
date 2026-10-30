@@ -8,3 +8,10 @@
 {"type":"dispatch","wave":2,"id":"w2-d1","topology":"chain","iterations":2,"status":"done","dependsOn":["w1-d1","w1-d2"],"stages":["w2-s1:done","w2-s2:done"]}
 {"type":"dispatch","wave":2,"id":"w2-d2","topology":"debate","iterations":0,"status":"failed","dependsOn":["w1-d2","w0-ghost"]}
 {"type":"wave_end","wave":2,"at":"2026-10-30T10:20:00Z","done":1,"blocked":0,"exhausted":0,"over_budget":0,"failed":1}
+{"type":"wave_start","wave":3,"at":"2026-10-30T10:40:00Z","dispatches":1,"demand":3,"cap":16}
+{"type":"dispatch","wave":3,"id":"w3-i1","topology":"single","iterations":1,"status":"done","dependsOn":[],"parent":"w3-s1"}
+{"type":"dispatch","wave":3,"id":"w3-i2","topology":"single","iterations":1,"status":"done","dependsOn":[],"parent":"w3-s1"}
+{"type":"dispatch","wave":3,"id":"w3-s1","topology":"chain","iterations":2,"status":"done","dependsOn":[],"parent":"w3-d1","stages":["w3-i1:done","w3-i2:done"]}
+{"type":"dispatch","wave":3,"id":"w3-s2","topology":"single","iterations":1,"status":"blocked","dependsOn":[],"parent":"w3-d1","question":"Publish?"}
+{"type":"dispatch","wave":3,"id":"w3-d1","topology":"chain","iterations":2,"status":"blocked","dependsOn":["w2-d1"],"stages":["w3-s1:done","w3-s2:blocked"],"question":"Publish?"}
+{"type":"wave_end","wave":3,"at":"2026-10-30T10:40:00Z","done":0,"blocked":1,"exhausted":0,"over_budget":0,"failed":0}

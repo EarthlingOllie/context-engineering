@@ -38,6 +38,17 @@ test("multiple waves with dependencies: dependsOn edges across waves, chain stag
   assert.ok(L.includes('w2_d2["w2-d2<br/>debate ×0<br/>failed"]:::failed'));
   assert.ok(L.includes("%% w2-d2 depends on unknown w0-ghost"));
   assert.ok(out.indexOf("subgraph wave1") < out.indexOf("subgraph wave2"));
+  // wave 3: a chain whose first stage is itself a chain; nested stages are drawn, not just traced
+  assert.ok(L.includes('subgraph w3_d1["w3-d1 · chain ×2 · blocked"]'));
+  assert.ok(L.includes('subgraph w3_s1["w3-s1 · chain ×2"]'));
+  assert.ok(L.includes('w3_i1["w3-i1<br/>single ×1"]:::done'));
+  assert.ok(L.includes("w3_i1 --> w3_i2"));
+  assert.ok(L.includes("w3_s1 --> w3_s2"));
+  assert.ok(L.includes('w3_s2["w3-s2<br/>single ×1<br/>blocked<br/>? Publish?"]:::blocked'));
+  assert.ok(L.includes("class w3_s1 done"));
+  assert.ok(L.includes("class w3_d1 blocked"));
+  assert.ok(L.includes("w2_d1 --> w3_d1"));
+  assert.ok(out.indexOf("subgraph w3_s1") > out.indexOf("subgraph w3_d1") && out.indexOf("subgraph w3_s1") < out.indexOf("class w3_d1"));
 });
 
 test("blocked then resumed: the human node hangs off the blocked dispatch and dots into the re-dispatch; labels are escaped", () => {

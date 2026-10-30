@@ -58,5 +58,5 @@ test("the script body runs under a harness-shaped scope and returns the wave as 
   );
   assert.deepEqual(out.results[1]!.stages, ["w1-d2-s1:done", "w1-d2-s2:done"]);
   assert.equal(out.scribe?.appended, 6);
-  assert.ok(f.logs[0]!.startsWith("wave 1: 2 dispatch(es), demand 5 agent(s)"));
+  assert.ok(f.logs[0]!.startsWith("wave 1: 2 dispatch(es), demand 4 agent(s) + 1 scribe"));
 });

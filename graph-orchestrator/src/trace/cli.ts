@@ -9,7 +9,6 @@
  */
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { renderTrace } from "./render.ts";
-import type { TraceEvent } from "../types.ts";
 
 function main(argv: string[]): number {
   const args = argv.slice(2);
@@ -33,14 +32,11 @@ function main(argv: string[]): number {
     process.stderr.write("usage: render-trace <trace.jsonl> [--out <file.mmd>] [--human '<json>']...\n");
     return 2;
   }
-  const extra: TraceEvent[] = [];
   for (const h of humans) {
     try {
       const e = JSON.parse(h);
       if (!e || typeof e !== "object") throw new Error("not an object");
-      const ev = { ...e, type: "human" } as TraceEvent;
-      extra.push(ev);
-      appendFileSync(trace, JSON.stringify(ev) + "\n");
+      appendFileSync(trace, JSON.stringify({ ...e, type: "human" }) + "\n");
     } catch (err) {
       process.stderr.write(`--human: unreadable JSON (${err instanceof Error ? err.message : String(err)}): ${h}\n`);
       return 2;

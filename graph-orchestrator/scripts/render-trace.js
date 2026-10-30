@@ -116,26 +116,28 @@ function renderTrace(text, extra = []) {
     out.push(`  subgraph wave${w.number}[${JSON.stringify(title)}]`);
     out.push("    direction TB");
     if (w.dispatches.length === 0) out.push(`    wave${w.number}_empty([no dispatches])`);
-    for (const d of w.dispatches) {
+    const draw = (d, indent) => {
       const stages = w.stages.get(d.id);
       if (d.topology === "chain" && stages && stages.length) {
         const chainTitle = [`${d.id}`, `chain \xD7${d.iterations}`, d.status !== "done" ? d.status.replace("_", " ") : ""].filter(Boolean).map(esc).join(" \xB7 ");
-        out.push(`    subgraph ${nodeId(d.id)}[${JSON.stringify(chainTitle)}]`);
-        out.push("      direction LR");
+        out.push(`${indent}subgraph ${nodeId(d.id)}[${JSON.stringify(chainTitle)}]`);
+        out.push(`${indent}  direction LR`);
         let prev = null;
         for (const s of stages) {
-          out.push(`      ${nodeId(s.id)}[${JSON.stringify(label(s))}]:::${statusClass(s.status)}`);
-          if (prev) out.push(`      ${prev} --> ${nodeId(s.id)}`);
+          draw(s, `${indent}  `);
+          if (prev) out.push(`${indent}  ${prev} --> ${nodeId(s.id)}`);
           prev = nodeId(s.id);
-          known.add(s.id);
         }
-        out.push("    end");
-        out.push(`    class ${nodeId(d.id)} ${statusClass(d.status)}`);
+        out.push(`${indent}end`);
+        out.push(`${indent}class ${nodeId(d.id)} ${statusClass(d.status)}`);
       } else {
         const text2 = d.topology === "chain" && d.stages?.length ? `${label(d)}<br/>${esc(d.stages.join(", "))}` : label(d);
-        out.push(`    ${nodeId(d.id)}[${JSON.stringify(text2)}]:::${statusClass(d.status)}`);
+        out.push(`${indent}${nodeId(d.id)}[${JSON.stringify(text2)}]:::${statusClass(d.status)}`);
       }
       known.add(d.id);
+    };
+    for (const d of w.dispatches) {
+      draw(d, "    ");
       seenDispatches.push({ id: d.id, dependsOn: d.dependsOn ?? [] });
     }
     out.push("  end");
@@ -176,14 +178,11 @@ function main(argv) {
     process.stderr.write("usage: render-trace <trace.jsonl> [--out <file.mmd>] [--human '<json>']...\n");
     return 2;
   }
-  const extra = [];
   for (const h of humans) {
     try {
       const e = JSON.parse(h);
       if (!e || typeof e !== "object") throw new Error("not an object");
-      const ev = { ...e, type: "human" };
-      extra.push(ev);
-      appendFileSync(trace, JSON.stringify(ev) + "\n");
+      appendFileSync(trace, JSON.stringify({ ...e, type: "human" }) + "\n");
     } catch (err) {
       process.stderr.write(`--human: unreadable JSON (${err instanceof Error ? err.message : String(err)}): ${h}
 `);

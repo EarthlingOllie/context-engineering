@@ -133,26 +133,29 @@ export function renderTrace(text: string, extra: TraceEvent[] = []): string {
     out.push(`  subgraph wave${w.number}[${JSON.stringify(title)}]`);
     out.push("    direction TB");
     if (w.dispatches.length === 0) out.push(`    wave${w.number}_empty([no dispatches])`);
-    for (const d of w.dispatches) {
+    // A chain with traced stages is a nested subgraph; its stages may be chains too, so this recurses.
+    const draw = (d: Dispatch, indent: string): void => {
       const stages = w.stages.get(d.id);
       if (d.topology === "chain" && stages && stages.length) {
         const chainTitle = [`${d.id}`, `chain ×${d.iterations}`, d.status !== "done" ? d.status.replace("_", " ") : ""].filter(Boolean).map(esc).join(" · ");
-        out.push(`    subgraph ${nodeId(d.id)}[${JSON.stringify(chainTitle)}]`);
-        out.push("      direction LR");
+        out.push(`${indent}subgraph ${nodeId(d.id)}[${JSON.stringify(chainTitle)}]`);
+        out.push(`${indent}  direction LR`);
         let prev: string | null = null;
         for (const s of stages) {
-          out.push(`      ${nodeId(s.id)}[${JSON.stringify(label(s))}]:::${statusClass(s.status)}`);
-          if (prev) out.push(`      ${prev} --> ${nodeId(s.id)}`);
+          draw(s, `${indent}  `);
+          if (prev) out.push(`${indent}  ${prev} --> ${nodeId(s.id)}`);
           prev = nodeId(s.id);
-          known.add(s.id);
         }
-        out.push("    end");
-        out.push(`    class ${nodeId(d.id)} ${statusClass(d.status)}`);
+        out.push(`${indent}end`);
+        out.push(`${indent}class ${nodeId(d.id)} ${statusClass(d.status)}`);
       } else {
         const text = d.topology === "chain" && d.stages?.length ? `${label(d)}<br/>${esc(d.stages.join(", "))}` : label(d);
-        out.push(`    ${nodeId(d.id)}[${JSON.stringify(text)}]:::${statusClass(d.status)}`);
+        out.push(`${indent}${nodeId(d.id)}[${JSON.stringify(text)}]:::${statusClass(d.status)}`);
       }
       known.add(d.id);
+    };
+    for (const d of w.dispatches) {
+      draw(d, "    ");
       seenDispatches.push({ id: d.id, dependsOn: d.dependsOn ?? [] });
     }
     out.push("  end");

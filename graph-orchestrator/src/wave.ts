@@ -6,7 +6,7 @@
  * the trace file in a single write.
  */
 import type { DispatchResult, DispatchSpec, HumanEvent, Runtime, TraceEvent, WaveArgs, WaveReturn } from "./types.ts";
-import { agentDemand, dispatchEvent, fail, runDispatch, type Ctx } from "./topologies.ts";
+import { agentDemand, dispatchEvent, fail, forwardLines, runDispatch, type TopologyContext } from "./topologies.ts";
 
 /** The runtime's hard limit on agents per run. The only thing a wave refuses. */
 export const HARD_AGENT_LIMIT = 1000;
@@ -53,12 +53,12 @@ export async function runWave(args: WaveArgs, rt: Runtime): Promise<WaveReturn> 
   const cap = Math.max(1, Math.floor(Number(a.maxAgents)) || 1);
   const artifactDir = typeof a.artifactDir === "string" && a.artifactDir ? a.artifactDir : dirOf(traceFile);
 
-  // Demand log: the sum of each dispatch's agent need plus the scribe, against the effective cap.
+  // Demand log: the sum of each dispatch's agent need, against the effective cap. The scribe is one more, stated apart.
   const demands = dispatches.map((d) => agentDemand(d));
-  const demand = demands.reduce((s, n) => s + n, 0) + 1;
+  const demand = demands.reduce((s, n) => s + n, 0);
   const perDispatch = dispatches.map((d, i) => `${d?.id ?? "?"}=${demands[i]}`).join(" ");
   rt.log(
-    `wave ${wave}: ${dispatches.length} dispatch(es), demand ${demand} agent(s) incl. scribe vs cap ${cap}` +
+    `wave ${wave}: ${dispatches.length} dispatch(es), demand ${demand} agent(s) + 1 scribe vs cap ${cap}` +
       (demand > cap ? ` — over cap; the runtime queues the excess (about ${Math.ceil(demand / cap)} slots deep), expect it to be slow, not broken` : "") +
       (perDispatch ? ` [${perDispatch}]` : ""),
   );
@@ -72,7 +72,7 @@ export async function runWave(args: WaveArgs, rt: Runtime): Promise<WaveReturn> 
   });
   if (overBudgetAt.size) rt.log(`wave ${wave}: ${overBudgetAt.size} dispatch(es) exceed the ${HARD_AGENT_LIMIT}-agent run limit and will not run`);
 
-  const ctx: Ctx = { rt, artifactDir, wave, stageEvents: [] };
+  const ctx: TopologyContext = { rt, artifactDir, wave, stageEvents: [] };
 
   // Same-wave dependencies: first occurrence of an id wins; a dependant waits and gets the artifacts forwarded.
   const firstIndex = new Map<string, number>();
@@ -108,10 +108,7 @@ export async function runWave(args: WaveArgs, rt: Runtime): Promise<WaveReturn> 
       if (inCycle(i)) return fail(d, "dependsOn cycle within the wave");
       const deps = (Array.isArray(d?.dependsOn) ? d.dependsOn : []).map((x) => firstIndex.get(String(x))).filter((j): j is number => j !== undefined && j !== i);
       const depResults = await Promise.all(deps.map((j) => runOne(j)));
-      const forwarded = depResults.flatMap((r) => [
-        `${r.id} (${r.status}) returned: ${String(r.result).split("\n")[0] ?? ""}`,
-        ...(r.artifacts.length ? [`artifacts from ${r.id}: ${r.artifacts.join(", ")}`] : []),
-      ]);
+      const forwarded = depResults.flatMap(forwardLines);
       const spec: DispatchSpec = forwarded.length ? { ...d, context: [...(Array.isArray(d.context) ? d.context : []), ...forwarded] } : d;
       return runDispatch(ctx, spec);
     })();

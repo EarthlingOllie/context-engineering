@@ -1,6 +1,6 @@
 # Catalog — graph-orchestrator v0.1
 
-The topologies this plugin version runs. Fixed per version: a pattern that is not here is not available mid-session; it becomes a proper addition. Load once at kickoff; choose from this page, never from the implementation.
+The topologies this plugin version runs. Fixed per version: a topology that is not here is not available mid-session; it becomes a proper addition. Load once at kickoff; choose from this page, never from the implementation.
 
 Every dispatch, whatever its topology, has the same signature:
 
