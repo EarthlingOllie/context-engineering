@@ -198,7 +198,13 @@ function overBudget(spec, message) {
   return { id: spec.id, status: "over_budget", result: message, artifacts: [], iterations: 0 };
 }
 async function callRole(ctx, spec, role, prompt, label, schema = ROLE_SCHEMAS[role]) {
-  const out = await ctx.rt.agent(prompt, { label: `${spec.id} ${label}`, phase: spec.id, schema });
+  let out;
+  try {
+    out = await ctx.rt.agent(prompt, { label: `${spec.id} ${label}`, phase: spec.id, schema });
+  } catch (err) {
+    ctx.rt.log(`${spec.id} ${label} threw: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
   if (!out || typeof out !== "object") return null;
   return out;
 }

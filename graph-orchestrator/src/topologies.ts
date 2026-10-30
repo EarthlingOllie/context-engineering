@@ -104,7 +104,11 @@ function overBudget(spec: DispatchSpec, message: string): DispatchResult {
   return { id: spec.id, status: "over_budget", result: message, artifacts: [], iterations: 0 };
 }
 
-/** One role agent call. Returns the parsed structured output or null. */
+/**
+ * One role agent call. Returns the parsed structured output or null. An agent
+ * that throws is logged and counts as returning nothing, so the topology's
+ * null path answers with what it had accumulated so far (artifacts, iterations).
+ */
 async function callRole(
   ctx: TopologyContext,
   spec: DispatchSpec,
@@ -113,7 +117,13 @@ async function callRole(
   label: string,
   schema: Record<string, unknown> = ROLE_SCHEMAS[role],
 ): Promise<Record<string, unknown> | null> {
-  const out = await ctx.rt.agent(prompt, { label: `${spec.id} ${label}`, phase: spec.id, schema });
+  let out: unknown;
+  try {
+    out = await ctx.rt.agent(prompt, { label: `${spec.id} ${label}`, phase: spec.id, schema });
+  } catch (err) {
+    ctx.rt.log(`${spec.id} ${label} threw: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
   if (!out || typeof out !== "object") return null;
   return out as Record<string, unknown>;
 }

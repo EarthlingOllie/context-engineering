@@ -9,7 +9,7 @@ in:  { id, topology, task, context[], roles{}, params{}, returns{shape,maxLines�
 out: { id, status: done|blocked|exhausted|over_budget|failed, result (inline, ≤ maxLines), artifacts[], question?, iterations }
 ```
 
-`failed` means the spec could not run at all (unknown topology, bad params, an agent that returned nothing); the `result` says why. `over_budget` means a cap was exceeded and no agent was spent. Roles take `{ skill?, instructions }`: the skill supplies the domain, the instructions the task-specific detail. Every role is told to return `blocked=true` with one `question` when only a human can answer; a blocked role stops its topology.
+`failed` means the spec could not run at all (unknown topology, bad params, an agent that returned nothing or threw — the thrown error goes to the log); the `result` says why. `over_budget` means a cap was exceeded and no agent was spent. Roles take `{ skill?, instructions }`: the skill supplies the domain, the instructions the task-specific detail. Every role is told to return `blocked=true` with one `question` when only a human can answer; a blocked role stops its topology.
 
 Agent demand is logged against the concurrency cap and never refused; the runtime queues. The 1,000-agents-per-run limit is the only hard check.
 

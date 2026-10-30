@@ -279,15 +279,47 @@ test("malformed specs: unknown topology, missing id, missing task and non-object
 });
 
 test("an agent that throws yields a failed result for that dispatch and the wave still returns", async () => {
-  const { out } = await wave([spec({ id: "w1-d1", topology: "single" }), spec({ id: "w1-d2", topology: "single" })], {
+  const { out, logs } = await wave([spec({ id: "w1-d1", topology: "single" }), spec({ id: "w1-d2", topology: "single" })], {
     "w1-d1 worker": () => {
       throw new Error("boom");
     },
   });
   assert.equal(out.results[0]!.status, "failed");
-  assert.match(out.results[0]!.result, /boom/);
+  assert.match(out.results[0]!.result, /worker returned nothing/);
+  assert.ok(logs.some((l) => /w1-d1 worker threw: boom/.test(l)), "the error is logged");
   assert.equal(out.results[1]!.status, "done");
   assert.equal(out.scribe?.appended, 4);
+});
+
+test("a role that throws mid-topology is logged and the result keeps what the topology had already accumulated", async () => {
+  const { out, logs } = await wave(
+    [
+      spec({ id: "w1-d1", topology: "fan-out", params: { split: ["a", "b"] }, roles: { reducer: { instructions: "merge" } } }),
+      spec({ id: "w1-d2", topology: "generator-evaluator", params: { max_iterations: 3 } }),
+    ],
+    {
+      "branch 1/2": { result: "a done", artifacts: ["/scratch/t/a.md"], blocked: false },
+      "branch 2/2": { result: "b done", artifacts: ["/scratch/t/b.md"], blocked: false },
+      reducer: () => {
+        throw new Error("reducer crashed");
+      },
+      "evaluator r1": { pass: false, feedback: "again", blocked: false },
+      "evaluator r2": () => {
+        throw new Error("evaluator crashed");
+      },
+    },
+  );
+  const fan = out.results[0]!;
+  assert.equal(fan.status, "failed");
+  assert.match(fan.result, /reducer returned nothing/);
+  assert.deepEqual(fan.artifacts, ["/scratch/t/a.md", "/scratch/t/b.md"]);
+  assert.equal(fan.iterations, 1);
+  const ge = out.results[1]!;
+  assert.equal(ge.status, "failed");
+  assert.match(ge.result, /evaluator returned nothing in round 2/);
+  assert.equal(ge.iterations, 2);
+  assert.ok(logs.some((l) => /w1-d1 reducer threw: reducer crashed/.test(l)), "the reducer's error is logged");
+  assert.ok(logs.some((l) => /w1-d2 evaluator r2 threw: evaluator crashed/.test(l)), "the evaluator's error is logged");
 });
 
 // ---------- demand logging and budgets ----------
