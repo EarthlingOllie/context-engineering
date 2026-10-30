@@ -321,6 +321,7 @@ test("a role that throws mid-topology is logged and the result keeps what the to
       reducer: () => {
         throw new Error("reducer crashed");
       },
+      generator: { result: "draft", artifacts: ["/scratch/t/gen.md"], blocked: false },
       "evaluator r1": { pass: false, feedback: "again", blocked: false },
       "evaluator r2": () => {
         throw new Error("evaluator crashed");
@@ -338,6 +339,7 @@ test("a role that throws mid-topology is logged and the result keeps what the to
   assert.equal(ge.status, "failed");
   assert.match(ge.result, /evaluator returned nothing in round 2/);
   assert.equal(ge.iterations, 2);
+  assert.deepEqual(ge.artifacts, ["/scratch/t/gen.md"], "the generator's artifacts from the rounds already spent survive");
   assert.ok(logs.some((l) => /w1-d1 reducer threw: reducer crashed/.test(l)), "the reducer's error is logged");
   assert.ok(logs.some((l) => /w1-d2 evaluator r2 threw: evaluator crashed/.test(l)), "the evaluator's error is logged");
 });
