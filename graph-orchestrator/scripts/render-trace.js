@@ -178,11 +178,12 @@ function main(argv) {
     process.stderr.write("usage: render-trace <trace.jsonl> [--out <file.mmd>] [--human '<json>']...\n");
     return 2;
   }
+  const lines = [];
   for (const h of humans) {
     try {
       const e = JSON.parse(h);
       if (!e || typeof e !== "object") throw new Error("not an object");
-      appendFileSync(trace, JSON.stringify({ ...e, type: "human" }) + "\n");
+      lines.push(JSON.stringify({ ...e, type: "human" }) + "\n");
     } catch (err) {
       process.stderr.write(`--human: unreadable JSON (${err instanceof Error ? err.message : String(err)}): ${h}
 `);
@@ -194,6 +195,7 @@ function main(argv) {
 `);
     return 1;
   }
+  if (lines.length) appendFileSync(trace, lines.join(""));
   const mermaid = renderTrace(readFileSync(trace, "utf8"));
   const target = out || trace.replace(/\.jsonl?$/, "") + ".mmd";
   writeFileSync(target, mermaid);

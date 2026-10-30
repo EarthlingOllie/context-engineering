@@ -32,11 +32,14 @@ function main(argv: string[]): number {
     process.stderr.write("usage: render-trace <trace.jsonl> [--out <file.mmd>] [--human '<json>']...\n");
     return 2;
   }
+  // Parse every --human before touching the trace: a bad one must not leave
+  // the earlier ones half-written, or a retry would append them again.
+  const lines: string[] = [];
   for (const h of humans) {
     try {
       const e = JSON.parse(h);
       if (!e || typeof e !== "object") throw new Error("not an object");
-      appendFileSync(trace, JSON.stringify({ ...e, type: "human" }) + "\n");
+      lines.push(JSON.stringify({ ...e, type: "human" }) + "\n");
     } catch (err) {
       process.stderr.write(`--human: unreadable JSON (${err instanceof Error ? err.message : String(err)}): ${h}\n`);
       return 2;
@@ -46,6 +49,7 @@ function main(argv: string[]): number {
     process.stderr.write(`no trace file at ${trace}\n`);
     return 1;
   }
+  if (lines.length) appendFileSync(trace, lines.join(""));
   const mermaid = renderTrace(readFileSync(trace, "utf8"));
   const target = out || trace.replace(/\.jsonl?$/, "") + ".mmd";
   writeFileSync(target, mermaid);

@@ -96,3 +96,21 @@ test("the CLI appends --human lines to the trace, writes the .mmd beside it and 
   assert.ok(existsSync(join(dir, "session.mmd")));
   assert.match(custom, /human_1\(\[/, "the appended human line is now part of the trace");
 });
+
+test("the CLI validates every --human before writing: a bad one leaves the trace untouched, so a retry appends no duplicates", () => {
+  const dir = mkdtempSync(join(tmpdir(), "go-render-"));
+  const trace = join(dir, "trace.jsonl");
+  writeFileSync(trace, fixture("single-wave.jsonl"));
+  const before = readFileSync(trace, "utf8");
+  const cli = new URL("../scripts/render-trace.js", import.meta.url).pathname;
+  const good = JSON.stringify({ at: "2026-10-30T11:00:00Z", trigger: "exhausted", dispatch: "w1-d2", question: "Stop?", answer: "yes" });
+  assert.throws(
+    () => execFileSync("node", [cli, trace, "--human", good, "--human", "{not json"], { encoding: "utf8", stdio: "pipe" }),
+    (err: { status?: number; stderr?: string }) => err.status === 2 && /--human: unreadable JSON/.test(err.stderr ?? ""),
+  );
+  assert.equal(readFileSync(trace, "utf8"), before, "nothing appended when a later --human is unreadable");
+  assert.ok(!existsSync(join(dir, "trace.mmd")), "nothing rendered either");
+  execFileSync("node", [cli, trace, "--human", good], { encoding: "utf8" });
+  const humans = readFileSync(trace, "utf8").trim().split("\n").filter((l) => l.includes('"type":"human"'));
+  assert.equal(humans.length, 1, "the retry appends the human line exactly once");
+});
