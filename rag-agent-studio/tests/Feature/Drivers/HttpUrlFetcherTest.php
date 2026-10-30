@@ -22,3 +22,15 @@ it('is an ordinary exception with a plain message', function () {
     expect($failure)->toBeInstanceOf(RuntimeException::class)
         ->and($failure->getMessage())->toBe('We could not read that file.');
 });
+
+it('explains in plain words when the page comes back empty', function () {
+    Http::fake(['example.com/*' => Http::response('')]);
+
+    (new HttpUrlFetcher)->fetch('https://example.com/blank');
+})->throws(ExtractionFailed::class, "We couldn't open that web page");
+
+it('explains in plain words when the site cannot be reached', function () {
+    Http::fake(['example.com/*' => Http::failedConnection()]);
+
+    (new HttpUrlFetcher)->fetch('https://example.com/down');
+})->throws(ExtractionFailed::class, "We couldn't open that web page");

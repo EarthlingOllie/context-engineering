@@ -1,6 +1,7 @@
 <?php
 
 use App\Drivers\VoyageEmbeddingProvider;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -30,3 +31,20 @@ it('fails loudly when Voyage rejects the request', function () {
 
     (new VoyageEmbeddingProvider)->embed(['a']);
 })->throws(RequestException::class);
+
+it('fails loudly when Voyage sends back something it cannot read', function (array|string $body) {
+    Http::fake(['api.voyageai.com/*' => Http::response($body)]);
+
+    (new VoyageEmbeddingProvider)->embed(['a', 'b']);
+})->with([
+    'no data' => [['object' => 'list']],
+    'too few vectors' => [['data' => [['index' => 0, 'embedding' => [0.1]]]]],
+    'vector missing' => [['data' => [['index' => 0], ['index' => 1, 'embedding' => [0.2]]]]],
+    'not json' => ['<html>Bad gateway</html>'],
+])->throws(RuntimeException::class, 'The embedding service sent back something unexpected');
+
+it('fails loudly when Voyage cannot be reached', function () {
+    Http::fake(['api.voyageai.com/*' => Http::failedConnection()]);
+
+    (new VoyageEmbeddingProvider)->embed(['a']);
+})->throws(ConnectionException::class);

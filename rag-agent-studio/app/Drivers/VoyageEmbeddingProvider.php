@@ -4,6 +4,7 @@ namespace App\Drivers;
 
 use App\Contracts\EmbeddingProvider;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
 class VoyageEmbeddingProvider implements EmbeddingProvider
 {
@@ -16,10 +17,15 @@ class VoyageEmbeddingProvider implements EmbeddingProvider
             ])
             ->throw();
 
-        return collect($response->json('data'))
+        $vectors = collect(is_array($response->json('data')) ? $response->json('data') : [])
             ->sortBy('index')
             ->pluck('embedding')
-            ->values()
-            ->all();
+            ->values();
+
+        if ($vectors->count() !== count($texts) || $vectors->contains(fn ($vector) => ! is_array($vector))) {
+            throw new RuntimeException('The embedding service sent back something unexpected');
+        }
+
+        return $vectors->all();
     }
 }

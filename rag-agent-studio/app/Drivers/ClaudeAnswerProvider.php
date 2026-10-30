@@ -4,6 +4,7 @@ namespace App\Drivers;
 
 use App\Contracts\AnswerProvider;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
 class ClaudeAnswerProvider implements AnswerProvider
 {
@@ -21,9 +22,14 @@ class ClaudeAnswerProvider implements AnswerProvider
             ])
             ->throw();
 
-        return collect($response->json('content'))
+        $blocks = collect(is_array($response->json('content')) ? $response->json('content') : [])
             ->where('type', 'text')
-            ->pluck('text')
-            ->implode(' ');
+            ->pluck('text');
+
+        if ($blocks->isEmpty()) {
+            throw new RuntimeException('The answer service sent back something unexpected');
+        }
+
+        return $blocks->implode(' ');
     }
 }

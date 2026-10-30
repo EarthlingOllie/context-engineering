@@ -1,6 +1,7 @@
 <?php
 
 use App\Drivers\ClaudeAnswerProvider;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -41,3 +42,19 @@ it('fails loudly when Claude rejects the request', function () {
 
     (new ClaudeAnswerProvider)->answer('s', []);
 })->throws(RequestException::class);
+
+it('fails loudly when Claude sends back something it cannot read', function (array|string $body) {
+    Http::fake(['api.anthropic.com/*' => Http::response($body)]);
+
+    (new ClaudeAnswerProvider)->answer('s', [['role' => 'user', 'content' => 'Hi']]);
+})->with([
+    'no content' => [['id' => 'msg_1']],
+    'no text blocks' => [['content' => [['type' => 'tool_use']]]],
+    'not json' => ['<html>Bad gateway</html>'],
+])->throws(RuntimeException::class, 'The answer service sent back something unexpected');
+
+it('fails loudly when Claude cannot be reached', function () {
+    Http::fake(['api.anthropic.com/*' => Http::failedConnection()]);
+
+    (new ClaudeAnswerProvider)->answer('s', []);
+})->throws(ConnectionException::class);

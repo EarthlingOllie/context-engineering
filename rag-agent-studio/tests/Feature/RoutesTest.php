@@ -54,8 +54,8 @@ it('asks visitors to log in before reaching the studio', function () {
     $this->get(route('team'))->assertRedirect(route('login'));
 });
 
-it('has no chat api until the api routes are built', function () {
-    expect(Route::has('api.chat'))->toBeFalse();
+it('exposes the chat api alongside the web routes', function () {
+    expect(Route::has('api.chat'))->toBeTrue();
 });
 
 it('wires the public chat page to its controller', function () {
