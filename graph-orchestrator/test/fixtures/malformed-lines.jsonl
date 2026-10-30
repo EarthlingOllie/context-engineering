@@ -1,0 +1,9 @@
+{"type":"wave_start","wave":1,"at":"2026-10-30T10:00:00Z","dispatches":4,"demand":4,"cap":16}
+{"type":"dispatch","wave":1,"id":"w1-d1","topology":"single","iterations":1,"dependsOn":[]}
+{"type":"dispatch","wave":1,"topology":"single","iterations":1,"status":"done","dependsOn":[]}
+{"type":"dispatch","wave":1,"id":"w1-d3","topology":"single","iterations":1,"status":7,"dependsOn":[]}
+{"type":"dispatch","wave":1,"id":"w1-d4","status":"done","dependsOn":"w1-d1","stages":"not a list","question":42}
+{"type":"wave_end","wave":1,"at":"2026-10-30T10:10:00Z","done":1,"blocked":0,"exhausted":0,"over_budget":0,"failed":0}
+{"type":"human","at":"2026-10-30T10:20:00Z","trigger":"blocked","dispatch":"w1-d4","answer":"go on"}
+{"type":"human","at":"2026-10-30T10:21:00Z","dispatch":"w1-d4","question":"No trigger?","answer":"skip"}
+{"type":"human","at":"2026-10-30T10:22:00Z","trigger":"blocked","dispatch":"w1-d4","question":"Continue?"}

@@ -1,0 +1,4 @@
+{"type":"wave_start","wave":1,"at":"2026-10-30T10:00:00Z","dispatches":2,"demand":8,"cap":2}
+{"type":"dispatch","wave":1,"id":"w1-d1","topology":"single","iterations":1,"status":"done","dependsOn":[]}
+{"type":"dispatch","wave":1,"id":"w1-d2","topology":"generator-evaluator","iterations":3,"status":"exhausted","dependsOn":[]}
+{"type":"wave_end","wave":1,"at":"2026-10-30T10:00:00Z","done":1,"blocked":0,"exhausted":1,"over_budget":0,"failed":0}

@@ -1,0 +1,6 @@
+{"type":"human","at":"2026-10-30T09:59:00Z","trigger":"ambiguity","question":"Rewrite or wrap the legacy parser?","answer":"wrap it","mode":"attended"}
+{"type":"wave_start","wave":1,"at":"2026-10-30T10:00:00Z","dispatches":1,"demand":2,"cap":16}
+not json at all
+{"type":"dispatch","wave":1,"id":"w1-d1","topology":"single","iterations":1,"status":"over_budget","dependsOn":[]}
+{"type":"wave_end","wave":1,"at":"2026-10-30T10:00:00Z","done":0,"blocked":0,"exhausted":0,"over_budget":1,"failed":0}
+{"type":"human","at":"2026-10-30T10:30:00Z","trigger":"budget","question":"Wave budget of 16 reached; continue?","answer":"stop","mode":"autonomous"}
