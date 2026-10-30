@@ -148,6 +148,22 @@ test("fan-out: the reducer runs over finished branches and a blocked branch bloc
   assert.match(calls[0]!.prompt, /RETURN: at most 5 lines/, "branches get the full contract when a reducer merges");
 });
 
+test("fan-out: a blocked reducer keeps the blocked branches' questions alongside its own", async () => {
+  const { out } = await wave(
+    [spec({ id: "w1-d1", topology: "fan-out", params: { split: ["x", "y"] }, roles: { reducer: { instructions: "merge" } } })],
+    {
+      "branch 1/2": { result: "x done", artifacts: ["/scratch/t/x.md"], blocked: false },
+      "branch 2/2": { result: "", artifacts: [], blocked: true, question: "Need prod credentials for y" },
+      reducer: { result: "partial merge", artifacts: [], blocked: true, question: "Merge x alone, or wait for y?" },
+    },
+  );
+  const r = out.results[0]!;
+  assert.equal(r.status, "blocked");
+  assert.equal(r.result, "partial merge");
+  assert.deepEqual(r.artifacts, ["/scratch/t/x.md"]);
+  assert.match(r.question!, /^Merge x alone, or wait for y\?\nbranch 2 \(y\): Need prod credentials for y$/, "the reducer's question first, then the gaps");
+});
+
 test("fan-out: all branches blocked makes the dispatch blocked", async () => {
   const { out } = await wave([spec({ id: "w1-d1", topology: "fan-out", params: { split: ["x", "y"] } })], { branch: { result: "", artifacts: [], blocked: true, question: "who owns this?" } });
   assert.equal(out.results[0]!.status, "blocked");

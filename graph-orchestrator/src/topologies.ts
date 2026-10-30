@@ -348,7 +348,8 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
     );
     if (!red) return { id: spec.id, status: "failed", result: "reducer returned nothing", artifacts, iterations: 1 };
     const rq = blockedQuestion(red);
-    if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: rq, iterations: 1 };
+    // A blocked reducer blocks the dispatch; the blocked branches' questions still travel with it, as on the done path.
+    if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: gapQuestion ? `${rq}\n${gapQuestion}` : rq, iterations: 1 };
     result = cutLines(str(red, "result"), returns.maxLines);
     extraArtifacts = strArr(red, "artifacts");
   } else {

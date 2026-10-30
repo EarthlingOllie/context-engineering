@@ -409,7 +409,8 @@ GAP: ${b.question ?? b.result}`).join("\n\n");
     );
     if (!red) return { id: spec.id, status: "failed", result: "reducer returned nothing", artifacts, iterations: 1 };
     const rq = blockedQuestion(red);
-    if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: rq, iterations: 1 };
+    if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: gapQuestion ? `${rq}
+${gapQuestion}` : rq, iterations: 1 };
     result = cutLines(str(red, "result"), returns.maxLines);
     extraArtifacts = strArr(red, "artifacts");
   } else {

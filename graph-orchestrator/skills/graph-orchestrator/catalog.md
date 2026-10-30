@@ -76,7 +76,7 @@ Agent demand is logged against the concurrency cap and never refused; the runtim
 
 **Demand** width (+1 for a partition instruction) (+1 for a reducer).
 
-**Returns** `done` when at least one branch finished. Without a reducer the result is `[i] <branch result>` per branch, each branch given an equal share of `maxLines`. With a reducer the result is the reducer's, in the full contract. A blocked branch blocks only itself: the dispatch is still `done`, the reducer is told the gap, and `question` lists the blocked branches' questions so you can ask. All branches blocked → `blocked`. A `split` list longer than 9 → `over_budget`, nothing run.
+**Returns** `done` when at least one branch finished. Without a reducer the result is `[i] <branch result>` per branch, each branch given an equal share of `maxLines`. With a reducer the result is the reducer's, in the full contract. A blocked branch blocks only itself: the dispatch is still `done`, the reducer is told the gap, and `question` lists the blocked branches' questions so you can ask. A blocked reducer → `blocked`, with its question first and the blocked branches' questions after it. All branches blocked → `blocked`. A `split` list longer than 9 → `over_budget`, nothing run.
 
 ```json
 { "id": "w1-d2", "topology": "fan-out",
