@@ -1,9 +1,9 @@
 // ---------- generator-evaluator ----------
 import type { DispatchResult, DispatchSpec, GeneratorEvaluatorParams } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { DEFAULT_ITERATIONS, type TopologyContext, blockedQuestion, callRole, contractOf, cutLines, fail, firstLine, int, roleEntry, str, strArr } from "./shared.ts";
+import { DEFAULT_ITERATIONS, type TopologyContext, type TopologyImpl, blockedQuestion, callRole, contractOf, cutLines, fail, firstLine, int, roleEntry, str, strArr } from "./shared.ts";
 
-export async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
+async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
   const params = spec.params as Partial<GeneratorEvaluatorParams>;
   const maxIterations = int(params.max_iterations, DEFAULT_ITERATIONS);
@@ -69,3 +69,8 @@ export async function runGeneratorEvaluator(ctx: TopologyContext, spec: Dispatch
     iterations: maxIterations,
   };
 }
+
+export const generatorEvaluator: TopologyImpl = {
+  demand: (_spec, params) => 2 * int(params["max_iterations"], DEFAULT_ITERATIONS),
+  run: runGeneratorEvaluator,
+};

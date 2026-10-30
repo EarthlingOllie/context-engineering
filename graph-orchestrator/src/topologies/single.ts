@@ -1,9 +1,9 @@
 // ---------- single ----------
 import type { DispatchResult, DispatchSpec } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { type TopologyContext, blockedQuestion, callRole, contractOf, cutLines, fail, roleEntry, str, strArr } from "./shared.ts";
+import { type TopologyContext, type TopologyImpl, blockedQuestion, callRole, contractOf, cutLines, fail, roleEntry, str, strArr } from "./shared.ts";
 
-export async function runSingle(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
+async function runSingle(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
   const out = await callRole(
     ctx,
@@ -17,3 +17,5 @@ export async function runSingle(ctx: TopologyContext, spec: DispatchSpec): Promi
   const base = { id: spec.id, result: cutLines(str(out, "result"), returns.maxLines), artifacts: strArr(out, "artifacts"), iterations: 1 };
   return q ? { ...base, status: "blocked", question: q } : { ...base, status: "done" };
 }
+
+export const single: TopologyImpl = { demand: () => 1, run: runSingle };

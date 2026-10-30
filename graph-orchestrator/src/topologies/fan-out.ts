@@ -1,11 +1,11 @@
 // ---------- fan-out ----------
 import type { DispatchResult, DispatchSpec, DispatchStatus, FanOutParams, ReturnContract } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { DEFAULT_WIDTH, MAX_WIDTH, type TopologyContext, blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, roleEntry, str, strArr, uniq } from "./shared.ts";
+import { DEFAULT_WIDTH, MAX_WIDTH, type TopologyContext, type TopologyImpl, blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, roleEntry, str, strArr, uniq } from "./shared.ts";
 
 type Branch = { index: number; task: string; status: DispatchStatus; result: string; artifacts: string[]; question?: string };
 
-export async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
+async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
   const params = spec.params as Partial<FanOutParams>;
   const split = params.split;
@@ -128,3 +128,15 @@ export async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promi
   const done: DispatchResult = { id: spec.id, status: "done", result, artifacts: uniq([...artifacts, ...extraArtifacts]), iterations: 1 };
   return gapQuestion ? { ...done, question: gapQuestion } : done;
 }
+
+export const fanOut: TopologyImpl = {
+  demand: (spec, params) => {
+    const split = params["split"];
+    const width = Array.isArray(split) ? split.length : int(params["width"], DEFAULT_WIDTH);
+    if (width > MAX_WIDTH) return 0;
+    const partition = typeof split === "string" ? 1 : 0;
+    const reducer = params["reducer"] || (spec.roles ?? {})["reducer"] ? 1 : 0;
+    return partition + width + reducer;
+  },
+  run: runFanOut,
+};

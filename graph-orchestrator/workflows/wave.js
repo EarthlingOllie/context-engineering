@@ -239,6 +239,7 @@ async function runSingle(ctx, spec) {
   const base = { id: spec.id, result: cutLines(str(out, "result"), returns.maxLines), artifacts: strArr(out, "artifacts"), iterations: 1 };
   return q ? { ...base, status: "blocked", question: q } : { ...base, status: "done" };
 }
+var single = { demand: () => 1, run: runSingle };
 
 // src/topologies/generator-evaluator.ts
 async function runGeneratorEvaluator(ctx, spec) {
@@ -304,6 +305,10 @@ ${tail}` : tail,
     iterations: maxIterations
   };
 }
+var generatorEvaluator = {
+  demand: (_spec, params) => 2 * int(params["max_iterations"], DEFAULT_ITERATIONS),
+  run: runGeneratorEvaluator
+};
 
 // src/topologies/fan-out.ts
 async function runFanOut(ctx, spec) {
@@ -423,6 +428,17 @@ ${gapQuestion}` : rq, iterations: 1 };
   const done = { id: spec.id, status: "done", result, artifacts: uniq([...artifacts, ...extraArtifacts]), iterations: 1 };
   return gapQuestion ? { ...done, question: gapQuestion } : done;
 }
+var fanOut = {
+  demand: (spec, params) => {
+    const split = params["split"];
+    const width = Array.isArray(split) ? split.length : int(params["width"], DEFAULT_WIDTH);
+    if (width > MAX_WIDTH) return 0;
+    const partition = typeof split === "string" ? 1 : 0;
+    const reducer = params["reducer"] || (spec.roles ?? {})["reducer"] ? 1 : 0;
+    return partition + width + reducer;
+  },
+  run: runFanOut
+};
 
 // src/topologies/debate.ts
 async function runDebate(_ctx, spec) {
@@ -431,6 +447,15 @@ async function runDebate(_ctx, spec) {
   if (Array.isArray(p) && p.length > MAX_PARTICIPANTS) return overBudget(spec, `debate: ${p.length} participants exceeds the cap of ${MAX_PARTICIPANTS}`);
   return fail(spec, "debate is not built in this plugin version: it is the dogfood task (spec story 42). Use generator-evaluator or a fan-out with a reducer for now.");
 }
+var debate = {
+  demand: (_spec, params) => {
+    const p = params["participants"];
+    const n = Array.isArray(p) ? p.length : 0;
+    if (n > MAX_PARTICIPANTS) return 0;
+    return n * int(params["rounds"], DEFAULT_ROUNDS) + 1;
+  },
+  run: runDebate
+};
 
 // src/topologies/chain.ts
 function normaliseStage(parent, stage, index, forwarded) {
@@ -476,42 +501,34 @@ async function runChain(ctx, spec) {
   }
   return { id: spec.id, status: "done", result: cutLines(prev?.result ?? "", returns.maxLines), artifacts: uniq(artifacts), iterations: stages.length, stages: statuses };
 }
+var chain = {
+  demand: (_spec, params) => {
+    const stages = params["stages"];
+    return Array.isArray(stages) ? stages.reduce((s, st) => s + agentDemand(st), 0) : 0;
+  },
+  run: runChain
+};
 
 // src/topologies/dispatch.ts
+var REGISTRY = {
+  single,
+  "generator-evaluator": generatorEvaluator,
+  "fan-out": fanOut,
+  debate,
+  chain
+};
+function isTopology(t) {
+  return TOPOLOGIES.includes(t);
+}
 function agentDemand(raw) {
   const spec = raw && typeof raw === "object" ? raw : {};
   const params = spec.params && typeof spec.params === "object" ? spec.params : {};
-  switch (spec.topology) {
-    case "single":
-      return 1;
-    case "generator-evaluator":
-      return 2 * int(params["max_iterations"], DEFAULT_ITERATIONS);
-    case "fan-out": {
-      const split = params["split"];
-      const width = Array.isArray(split) ? split.length : int(params["width"], DEFAULT_WIDTH);
-      if (width > MAX_WIDTH) return 0;
-      const partition = typeof split === "string" ? 1 : 0;
-      const reducer = params["reducer"] || (spec.roles ?? {})["reducer"] ? 1 : 0;
-      return partition + width + reducer;
-    }
-    case "debate": {
-      const p = params["participants"];
-      const n = Array.isArray(p) ? p.length : 0;
-      if (n > MAX_PARTICIPANTS) return 0;
-      return n * int(params["rounds"], DEFAULT_ROUNDS) + 1;
-    }
-    case "chain": {
-      const stages = params["stages"];
-      return Array.isArray(stages) ? stages.reduce((s, st) => s + agentDemand(st), 0) : 0;
-    }
-    default:
-      return 0;
-  }
+  return isTopology(spec.topology) ? REGISTRY[spec.topology].demand(spec, params) : 0;
 }
 async function runDispatch(ctx, raw) {
   if (!raw || typeof raw !== "object") return fail({ id: "?" }, "dispatch spec is not an object");
   if (typeof raw.id !== "string" || !raw.id) return fail({ id: "?" }, "dispatch spec has no id");
-  if (!TOPOLOGIES.includes(raw.topology)) return fail(raw, `unknown topology "${String(raw.topology)}"; valid: ${TOPOLOGIES.join(", ")}`);
+  if (!isTopology(raw.topology)) return fail(raw, `unknown topology "${String(raw.topology)}"; valid: ${TOPOLOGIES.join(", ")}`);
   const spec = {
     ...raw,
     task: typeof raw.task === "string" ? raw.task : "",
@@ -523,18 +540,7 @@ async function runDispatch(ctx, raw) {
   };
   if (!spec.task) return fail(spec, "dispatch spec has no task");
   try {
-    switch (spec.topology) {
-      case "single":
-        return await runSingle(ctx, spec);
-      case "generator-evaluator":
-        return await runGeneratorEvaluator(ctx, spec);
-      case "fan-out":
-        return await runFanOut(ctx, spec);
-      case "debate":
-        return await runDebate(ctx, spec);
-      case "chain":
-        return await runChain(ctx, spec);
-    }
+    return await REGISTRY[spec.topology].run(ctx, spec);
   } catch (err) {
     return fail(spec, `topology threw: ${err instanceof Error ? err.message : String(err)}`);
   }

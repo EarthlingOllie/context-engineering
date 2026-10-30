@@ -1,7 +1,7 @@
 // ---------- chain ----------
 import type { ChainParams, DispatchResult, DispatchSpec } from "../types.ts";
-import { type TopologyContext, contractOf, cutLines, dispatchEvent, fail, forwardLines, uniq } from "./shared.ts";
-import { runDispatch } from "./dispatch.ts";
+import { type TopologyContext, type TopologyImpl, contractOf, cutLines, dispatchEvent, fail, forwardLines, uniq } from "./shared.ts";
+import { agentDemand, runDispatch } from "./dispatch.ts";
 
 function normaliseStage(parent: DispatchSpec, stage: unknown, index: number, forwarded: string[]): DispatchSpec {
   const s = (stage && typeof stage === "object" ? stage : {}) as Partial<DispatchSpec>;
@@ -17,7 +17,7 @@ function normaliseStage(parent: DispatchSpec, stage: unknown, index: number, for
   };
 }
 
-export async function runChain(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
+async function runChain(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
   const stages = (spec.params as Partial<ChainParams>).stages;
   if (!Array.isArray(stages) || stages.length === 0) return fail(spec, "chain: `params.stages` must be a non-empty list of dispatch specs");
@@ -48,3 +48,11 @@ export async function runChain(ctx: TopologyContext, spec: DispatchSpec): Promis
   }
   return { id: spec.id, status: "done", result: cutLines(prev?.result ?? "", returns.maxLines), artifacts: uniq(artifacts), iterations: stages.length, stages: statuses };
 }
+
+export const chain: TopologyImpl = {
+  demand: (_spec, params) => {
+    const stages = params["stages"];
+    return Array.isArray(stages) ? stages.reduce((s: number, st) => s + agentDemand(st as DispatchSpec), 0) : 0;
+  },
+  run: runChain,
+};

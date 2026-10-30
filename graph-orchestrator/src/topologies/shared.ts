@@ -21,6 +21,16 @@ export type TopologyContext = {
   stageEvents: TraceEvent[];
 };
 
+/**
+ * What a topology file contributes to the registry in dispatch.ts: the upper
+ * bound on the agents a spec may spawn (0 when a cap would refuse it unrun),
+ * and the run itself.
+ */
+export type TopologyImpl = {
+  demand(spec: Partial<DispatchSpec>, params: Record<string, unknown>): number;
+  run(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult>;
+};
+
 // ---------- small helpers ----------
 
 export function cutLines(text: string, maxLines: number): string {
