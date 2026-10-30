@@ -69,12 +69,12 @@ export async function runWave(args: WaveArgs, rt: Runtime): Promise<WaveReturn> 
       (perDispatch ? ` [${perDispatch}]` : ""),
   );
 
-  // Hard check: dispatches that would push the run past the runtime limit return over_budget unrun.
+  // Hard check: dispatches that would push the run past the runtime limit return over_budget unrun. A refused dispatch spends nothing, so it does not count against the ones after it.
   const overBudgetAt = new Set<number>();
   let cumulative = 1; // the scribe
   demands.forEach((n, i) => {
-    cumulative += n;
-    if (cumulative > HARD_AGENT_LIMIT) overBudgetAt.add(i);
+    if (cumulative + n > HARD_AGENT_LIMIT) overBudgetAt.add(i);
+    else cumulative += n;
   });
   if (overBudgetAt.size) rt.log(`wave ${wave}: ${overBudgetAt.size} dispatch(es) exceed the ${HARD_AGENT_LIMIT}-agent run limit and will not run`);
 

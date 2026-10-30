@@ -371,6 +371,31 @@ test("hard limit: dispatches beyond the 1000-agent run limit return over_budget 
   assert.equal(labels().filter((l) => l.includes("generator")).length, 99);
 });
 
+test("hard limit: refused dispatches and cap-refused zero-spend specs do not count, so later dispatches that fit still run", async () => {
+  const dispatches = [
+    spec({ id: "w1-d1", topology: "fan-out", params: { split: Array.from({ length: 10 }, (_, i) => `part ${i}`) } }), // over width: over_budget, spends 0
+    spec({ id: "w1-d2", topology: "debate", params: { participants: Array.from({ length: 7 }, (_, i) => ({ name: `p${i}`, stance: "s" })) } }), // over participants: over_budget, spends 0
+    ...Array.from({ length: 99 }, (_, i) => spec({ id: `w1-g${i + 1}`, topology: "generator-evaluator", params: { max_iterations: 5 } })), // 1 + 99*10 = 991
+    spec({ id: "w1-big", topology: "generator-evaluator", params: { max_iterations: 5 } }), // would make 1001: refused
+    spec({ id: "w1-last", topology: "single" }), // 992: fits
+  ];
+  const { out, labels } = await wave(dispatches);
+  const byId = Object.fromEntries(out.results.map((r) => [r.id, r]));
+  assert.equal(byId["w1-d1"]!.status, "over_budget");
+  assert.match(byId["w1-d1"]!.result, /width cap of 9/);
+  assert.equal(byId["w1-d2"]!.status, "over_budget");
+  assert.match(byId["w1-d2"]!.result, /cap of 6/);
+  assert.equal(out.results.filter((r) => r.id.startsWith("w1-g") && r.status === "done").length, 99);
+  assert.equal(byId["w1-big"]!.status, "over_budget");
+  assert.match(byId["w1-big"]!.result, /1000-agent run limit/);
+  assert.equal(byId["w1-last"]!.status, "done");
+  assert.equal(labels().filter((l) => l.includes("generator")).length, 99);
+  assert.equal(labels().filter((l) => l.endsWith("worker")).length, 1);
+  assert.equal(agentDemand(dispatches[0]), 0);
+  assert.equal(agentDemand(dispatches[1]), 0);
+  assert.equal(agentDemand(spec({ id: "x", topology: "fan-out", params: { width: 10, split: "s" } })), 0);
+});
+
 // ---------- same-wave dependencies, humans, scribe ----------
 
 test("same-wave dependsOn: the dependant waits for its dependency and receives the artifacts; cycles and duplicate ids fail", async () => {

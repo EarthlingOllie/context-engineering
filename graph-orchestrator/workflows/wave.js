@@ -219,6 +219,7 @@ function agentDemand(raw) {
     case "fan-out": {
       const split = params["split"];
       const width = Array.isArray(split) ? split.length : int(params["width"], DEFAULT_WIDTH);
+      if (width > MAX_WIDTH) return 0;
       const partition = typeof split === "string" ? 1 : 0;
       const reducer = params["reducer"] || (spec.roles ?? {})["reducer"] ? 1 : 0;
       return partition + width + reducer;
@@ -226,6 +227,7 @@ function agentDemand(raw) {
     case "debate": {
       const p = params["participants"];
       const n = Array.isArray(p) ? p.length : 0;
+      if (n > MAX_PARTICIPANTS) return 0;
       return n * int(params["rounds"], DEFAULT_ROUNDS) + 1;
     }
     case "chain": {
@@ -577,8 +579,8 @@ async function runWave(args, rt) {
   const overBudgetAt = /* @__PURE__ */ new Set();
   let cumulative = 1;
   demands.forEach((n, i) => {
-    cumulative += n;
-    if (cumulative > HARD_AGENT_LIMIT) overBudgetAt.add(i);
+    if (cumulative + n > HARD_AGENT_LIMIT) overBudgetAt.add(i);
+    else cumulative += n;
   });
   if (overBudgetAt.size) rt.log(`wave ${wave}: ${overBudgetAt.size} dispatch(es) exceed the ${HARD_AGENT_LIMIT}-agent run limit and will not run`);
   const ctx = { rt, artifactDir, wave, stageEvents: [] };

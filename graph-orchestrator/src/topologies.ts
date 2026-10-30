@@ -130,7 +130,11 @@ async function callRole(
 
 // ---------- agent demand ----------
 
-/** Upper bound on the agents a dispatch may spawn. Logged against the cap; never used to refuse. */
+/**
+ * Upper bound on the agents a dispatch may spawn. Logged against the cap, and
+ * summed for the run limit. A spec a cap refuses (`over_budget`) spends nothing,
+ * so it counts 0.
+ */
 export function agentDemand(raw: Partial<DispatchSpec> | null | undefined): number {
   const spec: Partial<DispatchSpec> = raw && typeof raw === "object" ? raw : {};
   const params = (spec.params && typeof spec.params === "object" ? spec.params : {}) as Record<string, unknown>;
@@ -142,6 +146,7 @@ export function agentDemand(raw: Partial<DispatchSpec> | null | undefined): numb
     case "fan-out": {
       const split = params["split"];
       const width = Array.isArray(split) ? split.length : int(params["width"], DEFAULT_WIDTH);
+      if (width > MAX_WIDTH) return 0;
       const partition = typeof split === "string" ? 1 : 0;
       const reducer = params["reducer"] || (spec.roles ?? {})["reducer"] ? 1 : 0;
       return partition + width + reducer;
@@ -149,6 +154,7 @@ export function agentDemand(raw: Partial<DispatchSpec> | null | undefined): numb
     case "debate": {
       const p = params["participants"];
       const n = Array.isArray(p) ? p.length : 0;
+      if (n > MAX_PARTICIPANTS) return 0;
       return n * int(params["rounds"], DEFAULT_ROUNDS) + 1;
     }
     case "chain": {
