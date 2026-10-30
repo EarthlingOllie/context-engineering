@@ -1,6 +1,6 @@
 # End-to-end findings — graph orchestrator v0.1
 
-Three use cases (see `use-cases.md`) driven through the real Workflow runtime on a 4-CPU cloud session (effective cap 2), one wave per Workflow call, following `SKILL.md` as the orchestrator. Each directory holds the trace, the rendered diagram, the final state file and the main artifact.
+Three use cases (see `use-cases.md`) driven through the real Workflow runtime on a 4-CPU cloud session (effective cap 2), one wave per Workflow call, following `SKILL.md` as the orchestrator. The traces and rendered diagrams were kept out of the repository; UC3's trace is the renderer fixture `test/fixtures/uc3-release.jsonl`, and the three diagrams are published at https://claude.ai/artifact/7DhjGEq95bzFm4XJbv7wXE.
 
 | run | waves | agents | wall clock | statuses seen | outcome |
 |---|---|---|---|---|---|
@@ -23,5 +23,5 @@ Three use cases (see `use-cases.md`) driven through the real Workflow runtime on
 1. **Pass criteria must be mechanical.** In UC3 wave 2 the criteria "every commit as one entry, under 10 lines" were contradictory; the generator packed nineteen SHAs onto three semicolon-separated lines and the evaluator accepted that reading. Restated as "exactly one SHA per line", the loop behaved. The catalog should say: write `pass_criteria` as checks an evaluator can count, not as intent.
 2. **"Gap" drifted.** The UC2 reducer reported "12 gaps (no branch was blocked)", using the word for unverifiable items rather than blocked branches. The reducer stance should define the word or use "blocked branch".
 3. **A renderer imprecision, fixed in this commit.** The dotted "resumed after" edge was drawn from a later intervention to a same-wave dispatch that had already run. Edges now only reach dispatches that follow the intervention in the trace; UC3's trace is the fixture.
-4. **The spec itself has contradictions.** UC2's report (`uc2/report.md`) is worth reading: for instance `spec.md:76` says blocked results are handled by "ask or guess" while the trigger table, the glossary and the skill say blocked always asks; and the spec uses "pattern" and "prompt" against the glossary's own avoid-lists.
+4. **The spec itself has contradictions.** UC2's report found 33, for instance: for instance `spec.md:76` says blocked results are handled by "ask or guess" while the trigger table, the glossary and the skill say blocked always asks; and the spec uses "pattern" and "prompt" against the glossary's own avoid-lists.
 5. **Not exercised live** (unit-tested only): `over_budget`, a scribe failure, every branch blocked, a reducer returning nothing, and debate (unbuilt by design).

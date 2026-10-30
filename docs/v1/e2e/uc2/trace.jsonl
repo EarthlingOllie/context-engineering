@@ -1,7 +1,0 @@
-{"type":"wave_start","wave":1,"at":"2026-10-30T15:30:00Z","dispatches":2,"demand":8,"cap":2}
-{"type":"dispatch","wave":1,"id":"w1-d1","topology":"fan-out","iterations":1,"status":"done","dependsOn":[]}
-{"type":"dispatch","wave":1,"id":"w1-d2","topology":"single","iterations":1,"status":"done","dependsOn":[]}
-{"type":"wave_end","wave":1,"at":"2026-10-30T15:30:00Z","done":2,"blocked":0,"exhausted":0,"over_budget":0,"failed":0}
-{"type":"wave_start","wave":2,"at":"2026-10-30T15:50:00Z","dispatches":1,"demand":2,"cap":2}
-{"type":"dispatch","wave":2,"id":"w2-d1","topology":"generator-evaluator","iterations":1,"status":"done","dependsOn":["w1-d1"]}
-{"type":"wave_end","wave":2,"at":"2026-10-30T15:50:00Z","done":1,"blocked":0,"exhausted":0,"over_budget":0,"failed":0}
