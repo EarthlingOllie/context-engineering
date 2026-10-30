@@ -164,6 +164,24 @@ test("fan-out: a blocked reducer keeps the blocked branches' questions alongside
   assert.match(r.question!, /^Merge x alone, or wait for y\?\nbranch 2 \(y\): Need prod credentials for y$/, "the reducer's question first, then the gaps");
 });
 
+test("fan-out: a reducer that returns nothing is logged and the finished branch results are concatenated instead", async () => {
+  const { out, logs } = await wave(
+    [spec({ id: "w1-d1", topology: "fan-out", params: { split: ["x", "y", "z"] }, roles: { reducer: { instructions: "merge by theme" } } })],
+    {
+      "branch 1/3": { result: "x done", artifacts: ["/scratch/t/x.md"], blocked: false },
+      "branch 2/3": { result: "", artifacts: [], blocked: true, question: "Need prod credentials for y" },
+      "branch 3/3": { result: "z done", artifacts: [], blocked: false },
+      reducer: null,
+    },
+  );
+  const r = out.results[0]!;
+  assert.equal(r.status, "done");
+  assert.equal(r.result, "[1] x done\n[2] blocked: Need prod credentials for y\n[3] z done");
+  assert.deepEqual(r.artifacts, ["/scratch/t/x.md"]);
+  assert.match(r.question!, /branch 2 \(y\): Need prod credentials for y/);
+  assert.ok(logs.some((l) => /w1-d1: reducer returned nothing/.test(l)));
+});
+
 test("fan-out: all branches blocked makes the dispatch blocked", async () => {
   const { out } = await wave([spec({ id: "w1-d1", topology: "fan-out", params: { split: ["x", "y"] } })], { branch: { result: "", artifacts: [], blocked: true, question: "who owns this?" } });
   assert.equal(out.results[0]!.status, "blocked");
@@ -309,11 +327,13 @@ test("a role that throws mid-topology is logged and the result keeps what the to
       },
     },
   );
+  // A thrown reducer takes the same path as one that returned nothing: the branch results are concatenated (C6).
   const fan = out.results[0]!;
-  assert.equal(fan.status, "failed");
-  assert.match(fan.result, /reducer returned nothing/);
+  assert.equal(fan.status, "done");
+  assert.equal(fan.result, "[1] a done\n[2] b done");
   assert.deepEqual(fan.artifacts, ["/scratch/t/a.md", "/scratch/t/b.md"]);
   assert.equal(fan.iterations, 1);
+  assert.ok(logs.some((l) => /w1-d1: reducer returned nothing; the branch results are concatenated instead/.test(l)));
   const ge = out.results[1]!;
   assert.equal(ge.status, "failed");
   assert.match(ge.result, /evaluator returned nothing in round 2/);

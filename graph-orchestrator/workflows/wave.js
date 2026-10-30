@@ -399,6 +399,7 @@ async function runFanOut(ctx, spec) {
     const base = { id: spec.id, status, result: cutLines(branches.map((b) => `branch ${b.index + 1} ${b.status}: ${b.question ?? b.result}`).join("\n"), returns.maxLines), artifacts, iterations: 1 };
     return gapQuestion ? { ...base, question: gapQuestion } : base;
   }
+  const concatenated = () => cutLines(branches.map((b) => b.status === "done" ? `[${b.index + 1}] ${b.result}` : `[${b.index + 1}] ${b.status}: ${b.question ?? b.result}`).join("\n"), returns.maxLines);
   let result;
   let extraArtifacts = [];
   if (hasReducer) {
@@ -413,14 +414,18 @@ GAP: ${b.question ?? b.result}`).join("\n\n");
       buildPrompt({ role: "reducer", task: spec.task, context: spec.context, entry: reducerEntry, returns, artifactDir: ctx.artifactDir, sections: [{ title: "BRANCH RESULTS", body }] }),
       "reducer"
     );
-    if (!red) return { id: spec.id, status: "failed", result: "reducer returned nothing", artifacts, iterations: 1 };
-    const rq = blockedQuestion(red);
-    if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: gapQuestion ? `${rq}
+    if (red) {
+      const rq = blockedQuestion(red);
+      if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: gapQuestion ? `${rq}
 ${gapQuestion}` : rq, iterations: 1 };
-    result = cutLines(str(red, "result"), returns.maxLines);
-    extraArtifacts = strArr(red, "artifacts");
+      result = cutLines(str(red, "result"), returns.maxLines);
+      extraArtifacts = strArr(red, "artifacts");
+    } else {
+      ctx.rt.log(`${spec.id}: reducer returned nothing; the branch results are concatenated instead`);
+      result = concatenated();
+    }
   } else {
-    result = cutLines(branches.map((b) => b.status === "done" ? `[${b.index + 1}] ${b.result}` : `[${b.index + 1}] ${b.status}: ${b.question ?? b.result}`).join("\n"), returns.maxLines);
+    result = concatenated();
   }
   const done = { id: spec.id, status: "done", result, artifacts: uniq([...artifacts, ...extraArtifacts]), iterations: 1 };
   return gapQuestion ? { ...done, question: gapQuestion } : done;

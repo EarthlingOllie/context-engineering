@@ -342,7 +342,8 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
     return gapQuestion ? { ...base, question: gapQuestion } : base;
   }
 
-  // 3. Reduce over the finished branches, noting the gaps; or concatenate.
+  // 3. Reduce over the finished branches, noting the gaps; or concatenate (also the fallback when the reducer returns nothing).
+  const concatenated = () => cutLines(branches.map((b) => (b.status === "done" ? `[${b.index + 1}] ${b.result}` : `[${b.index + 1}] ${b.status}: ${b.question ?? b.result}`)).join("\n"), returns.maxLines);
   let result: string;
   let extraArtifacts: string[] = [];
   if (hasReducer) {
@@ -356,14 +357,18 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
       buildPrompt({ role: "reducer", task: spec.task, context: spec.context, entry: reducerEntry, returns, artifactDir: ctx.artifactDir, sections: [{ title: "BRANCH RESULTS", body }] }),
       "reducer",
     );
-    if (!red) return { id: spec.id, status: "failed", result: "reducer returned nothing", artifacts, iterations: 1 };
-    const rq = blockedQuestion(red);
-    // A blocked reducer blocks the dispatch; the blocked branches' questions still travel with it, as on the done path.
-    if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: gapQuestion ? `${rq}\n${gapQuestion}` : rq, iterations: 1 };
-    result = cutLines(str(red, "result"), returns.maxLines);
-    extraArtifacts = strArr(red, "artifacts");
+    if (red) {
+      const rq = blockedQuestion(red);
+      // A blocked reducer blocks the dispatch; the blocked branches' questions still travel with it, as on the done path.
+      if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: gapQuestion ? `${rq}\n${gapQuestion}` : rq, iterations: 1 };
+      result = cutLines(str(red, "result"), returns.maxLines);
+      extraArtifacts = strArr(red, "artifacts");
+    } else {
+      ctx.rt.log(`${spec.id}: reducer returned nothing; the branch results are concatenated instead`);
+      result = concatenated();
+    }
   } else {
-    result = cutLines(branches.map((b) => (b.status === "done" ? `[${b.index + 1}] ${b.result}` : `[${b.index + 1}] ${b.status}: ${b.question ?? b.result}`)).join("\n"), returns.maxLines);
+    result = concatenated();
   }
   const done: DispatchResult = { id: spec.id, status: "done", result, artifacts: uniq([...artifacts, ...extraArtifacts]), iterations: 1 };
   return gapQuestion ? { ...done, question: gapQuestion } : done;
