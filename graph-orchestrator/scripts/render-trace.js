@@ -187,6 +187,7 @@ function renderTrace(text, extra = []) {
     for (const d of w.dispatches) {
       draw(d, "    ");
       seenDispatches.push({ id: d.id, dependsOn: d.dependsOn ?? [] });
+      for (const dep of d.dependsOn ?? []) for (const hid of humansByDispatch.get(dep) ?? []) edges.push(`  ${hid} -.-> ${nodeId(d.id)}`);
     }
     out.push("  end");
   }
@@ -195,7 +196,6 @@ function renderTrace(text, extra = []) {
       if (dep === d.id) continue;
       if (known.has(dep)) edges.push(`  ${nodeId(dep)} --> ${nodeId(d.id)}`);
       else edges.push(`  %% ${d.id} depends on unknown ${dep}`);
-      for (const hid of humansByDispatch.get(dep) ?? []) edges.push(`  ${hid} -.-> ${nodeId(d.id)}`);
     }
   }
   out.push(...Array.from(new Set(edges)));

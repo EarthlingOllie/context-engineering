@@ -216,17 +216,18 @@ export function renderTrace(text: string, extra: TraceEvent[] = []): string {
     for (const d of w.dispatches) {
       draw(d, "    ");
       seenDispatches.push({ id: d.id, dependsOn: d.dependsOn ?? [] });
+      // Dotted edges from an intervention to a dispatch that resumed after it: only interventions already in the trace count, so a same-wave dispatch that ran before the intervention gets none.
+      for (const dep of d.dependsOn ?? []) for (const hid of humansByDispatch.get(dep) ?? []) edges.push(`  ${hid} -.-> ${nodeId(d.id)}`);
     }
     out.push("  end");
   }
 
-  // Dependency edges, and dotted edges from an intervention to the dispatches that resumed after it.
+  // Dependency edges.
   for (const d of seenDispatches) {
     for (const dep of d.dependsOn) {
       if (dep === d.id) continue;
       if (known.has(dep)) edges.push(`  ${nodeId(dep)} --> ${nodeId(d.id)}`);
       else edges.push(`  %% ${d.id} depends on unknown ${dep}`);
-      for (const hid of humansByDispatch.get(dep) ?? []) edges.push(`  ${hid} -.-> ${nodeId(d.id)}`);
     }
   }
   out.push(...Array.from(new Set(edges)));

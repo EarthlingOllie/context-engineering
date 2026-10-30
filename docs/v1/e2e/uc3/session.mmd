@@ -1,0 +1,35 @@
+flowchart TD
+  classDef done fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef blocked fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+  classDef exhausted fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef over_budget fill:#fef3c7,stroke:#d97706,stroke-dasharray:4 2,color:#78350f
+  classDef failed fill:#f3f4f6,stroke:#6b7280,stroke-dasharray:4 2,color:#111827
+  classDef human fill:#ede9fe,stroke:#7c3aed,color:#3b0764
+  subgraph wave1["Wave 1 · 2026-10-30T16:10:00Z · 1 done · 1 blocked"]
+    direction TB
+    w1_d1["w1-d1<br/>single ×1"]:::done
+    w1_d2["w1-d2<br/>generator-evaluator ×1<br/>blocked<br/>? What is the release date (YYYY-MM-DD) f…"]:::blocked
+  end
+  human_1(["human · blocked<br/>on w1-d2<br/>What is the release date (YYYY-MM-DD) for the 0.2.0 heading…<br/>→ 2026-11-03"]):::human
+  human_2(["human · irreversible<br/>May the release be tagged v0.2.0? It would be done inside t…<br/>→ yes, in the copy only"]):::human
+  subgraph wave2["Wave 2 · 2026-10-30T16:20:00Z · 2 done"]
+    direction TB
+    w2_d1["w2-d1<br/>generator-evaluator ×1"]:::done
+    w2_d2["w2-d2<br/>single ×1"]:::done
+  end
+  subgraph wave3["Wave 3 · 2026-10-30T16:35:00Z · 1 exhausted · 1 failed"]
+    direction TB
+    w3_d1["w3-d1<br/>generator-evaluator ×1<br/>exhausted"]:::exhausted
+    w3_d2["w3-d2<br/>single ×0<br/>failed"]:::failed
+  end
+  human_3(["human · exhausted<br/>on w3-d1<br/>One SHA per line needs 24 lines; the under-10-lines limit c…<br/>→ accept the 24-line changelog"]):::human
+  human_4(["human · budget<br/>Wave budget 3/3 spent; the tag still points at the old chan…<br/>→ stop; I will re-tag by hand"]):::human
+  w1_d2 --> human_1
+  human_1 -.-> w2_d1
+  w3_d1 --> human_3
+  w1_d2 --> w2_d1
+  w2_d1 --> w2_d2
+  w1_d1 --> w2_d2
+  w2_d1 --> w3_d1
+  w3_d1 --> w3_d2
+  w2_d2 --> w3_d2

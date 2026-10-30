@@ -82,6 +82,17 @@ test("human interventions without a dispatch render as standalone nodes; unreada
   assert.equal(parseTrace(fixture("human-intervention.jsonl")).skipped, 1);
 });
 
+test("an intervention only dots into dispatches that come after it; a same-wave dispatch that ran before it gets no edge (UC3 trace)", () => {
+  const out = renderTrace(fixture("uc3-release.jsonl"));
+  const L = lines(out);
+  assert.ok(L.includes("human_1 -.-> w2_d1"), "the resumed changelog dispatch follows the blocked intervention");
+  assert.ok(!L.includes("human_3 -.-> w3_d2"), "w3-d2 ran in the same wave as w3-d1, before the exhaustion intervention existed");
+  assert.ok(L.includes("w3_d1 --> human_3"));
+  assert.ok(L.includes("w3_d1 --> w3_d2"));
+  assert.ok(L.includes('w3_d2["w3-d2<br/>single ×0<br/>failed"]:::failed'), "the short-circuited dependant shows zero iterations");
+  assert.equal(L.filter((l) => /^human_\d+\(\[/.test(l)).length, 4, "four intervention nodes");
+});
+
 test("extra events (the CLI's --human) are rendered after the file's events", () => {
   const out = renderTrace(fixture("single-wave.jsonl"), [{ type: "human", trigger: "exhausted", dispatch: "w1-d2", question: "Three rounds failed; stop?", answer: "yes" }]);
   assert.ok(lines(out).includes("w1_d2 --> human_1"));

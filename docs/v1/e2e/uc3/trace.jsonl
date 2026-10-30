@@ -1,0 +1,16 @@
+{"type":"wave_start","wave":1,"at":"2026-10-30T16:10:00Z","dispatches":2,"demand":3,"cap":2}
+{"type":"dispatch","wave":1,"id":"w1-d1","topology":"single","iterations":1,"status":"done","dependsOn":[]}
+{"type":"dispatch","wave":1,"id":"w1-d2","topology":"generator-evaluator","iterations":1,"status":"blocked","dependsOn":[],"question":"What is the release date (YYYY-MM-DD) for the 0.2.0 heading in CHANGELOG.md?"}
+{"type":"wave_end","wave":1,"at":"2026-10-30T16:10:00Z","done":1,"blocked":1,"exhausted":0,"over_budget":0,"failed":0}
+{"type":"human","at":"2026-10-30T16:15:00Z","trigger":"blocked","dispatch":"w1-d2","question":"What is the release date (YYYY-MM-DD) for the 0.2.0 heading in CHANGELOG.md?","answer":"2026-11-03","mode":"attended"}
+{"type":"human","at":"2026-10-30T16:16:00Z","trigger":"irreversible","question":"May the release be tagged v0.2.0? It would be done inside the copy only, by initialising a git repository there.","answer":"yes, in the copy only","mode":"attended"}
+{"type":"wave_start","wave":2,"at":"2026-10-30T16:20:00Z","dispatches":2,"demand":3,"cap":2}
+{"type":"dispatch","wave":2,"id":"w2-d1","topology":"generator-evaluator","iterations":1,"status":"done","dependsOn":["w1-d2"]}
+{"type":"dispatch","wave":2,"id":"w2-d2","topology":"single","iterations":1,"status":"done","dependsOn":["w2-d1","w1-d1"]}
+{"type":"wave_end","wave":2,"at":"2026-10-30T16:20:00Z","done":2,"blocked":0,"exhausted":0,"over_budget":0,"failed":0}
+{"type":"wave_start","wave":3,"at":"2026-10-30T16:35:00Z","dispatches":2,"demand":3,"cap":2}
+{"type":"dispatch","wave":3,"id":"w3-d1","topology":"generator-evaluator","iterations":1,"status":"exhausted","dependsOn":["w2-d1"]}
+{"type":"dispatch","wave":3,"id":"w3-d2","topology":"single","iterations":0,"status":"failed","dependsOn":["w3-d1","w2-d2"]}
+{"type":"wave_end","wave":3,"at":"2026-10-30T16:35:00Z","done":0,"blocked":0,"exhausted":1,"over_budget":0,"failed":1}
+{"at":"2026-10-30T16:45:00Z","trigger":"exhausted","dispatch":"w3-d1","question":"One SHA per line needs 24 lines; the under-10-lines limit cannot hold. Accept the 24-line changelog, or cut entries?","answer":"accept the 24-line changelog","mode":"attended","type":"human"}
+{"at":"2026-10-30T16:46:00Z","trigger":"budget","question":"Wave budget 3/3 spent; the tag still points at the old changelog commit. Continue for one more wave, or stop?","answer":"stop; I will re-tag by hand","mode":"attended","type":"human"}

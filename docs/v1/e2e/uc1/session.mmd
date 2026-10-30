@@ -1,0 +1,22 @@
+flowchart TD
+  classDef done fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef blocked fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+  classDef exhausted fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef over_budget fill:#fef3c7,stroke:#d97706,stroke-dasharray:4 2,color:#78350f
+  classDef failed fill:#f3f4f6,stroke:#6b7280,stroke-dasharray:4 2,color:#111827
+  classDef human fill:#ede9fe,stroke:#7c3aed,color:#3b0764
+  subgraph wave1["Wave 1 · 2026-10-30T15:00:00Z · 1 done"]
+    direction TB
+    w1_d1["w1-d1<br/>generator-evaluator ×1"]:::done
+  end
+  subgraph wave2["Wave 2 · 2026-10-30T15:10:00Z · 1 done"]
+    direction TB
+    subgraph w2_d1["w2-d1 · chain ×2"]
+      direction LR
+      w2_s1["w2-s1<br/>single ×1"]:::done
+      w2_s2["w2-s2<br/>generator-evaluator ×1"]:::done
+      w2_s1 --> w2_s2
+    end
+    class w2_d1 done
+  end
+  w1_d1 --> w2_d1
