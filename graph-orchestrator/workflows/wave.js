@@ -639,14 +639,18 @@ async function runWave(args, rt) {
     { type: "wave_end", wave, at: now, ...counts }
   ];
   const lines = events.map((e) => JSON.stringify(e));
-  const out = await rt.agent(scribePrompt(traceFile, lines), { label: `wave ${wave} scribe`, phase: "scribe", schema: SCRIBE_SCHEMA });
   let scribe = null;
-  if (out && typeof out === "object") {
-    const o = out;
-    scribe = { appended: Number(o["appended"]) || 0, totalLines: Number(o["totalLines"]) || 0 };
-    if (scribe.appended !== lines.length) rt.log(`wave ${wave}: scribe reported ${scribe.appended} line(s) appended, expected ${lines.length}`);
-  } else {
-    rt.log(`wave ${wave}: scribe returned nothing; trace lines for this wave were not written`);
+  try {
+    const out = await rt.agent(scribePrompt(traceFile, lines), { label: `wave ${wave} scribe`, phase: "scribe", schema: SCRIBE_SCHEMA });
+    if (out && typeof out === "object") {
+      const o = out;
+      scribe = { appended: Number(o["appended"]) || 0, totalLines: Number(o["totalLines"]) || 0 };
+      if (scribe.appended !== lines.length) rt.log(`wave ${wave}: scribe reported ${scribe.appended} line(s) appended, expected ${lines.length}`);
+    } else {
+      rt.log(`wave ${wave}: scribe returned nothing; trace lines for this wave were not written`);
+    }
+  } catch (err) {
+    rt.log(`wave ${wave}: scribe threw: ${err instanceof Error ? err.message : String(err)}; trace lines for this wave were not written`);
   }
   return { status: "done", wave, results, demand, cap, events, scribe };
 }

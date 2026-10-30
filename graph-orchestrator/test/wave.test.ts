@@ -473,3 +473,15 @@ test("malformed humans entries are dropped and logged up front; the wave's resul
   assert.ok(logs.some((l) => /wave 2: dropped 3 malformed humans entr/.test(l)), `logged the drop: ${logs.join(" | ")}`);
   assert.match(calls.at(-1)!.prompt, /Append the 4 line\(s\)/);
 });
+
+test("a scribe that throws is logged and the wave still returns its results and events", async () => {
+  const { out, logs } = await wave([spec({ id: "w1-d1", topology: "single" })], {
+    scribe: () => {
+      throw new Error("disk full");
+    },
+  });
+  assert.equal(out.results[0]!.status, "done");
+  assert.equal(out.events.at(-1)!.type, "wave_end");
+  assert.equal(out.scribe, null);
+  assert.ok(logs.some((l) => /scribe threw: disk full/.test(l)));
+});

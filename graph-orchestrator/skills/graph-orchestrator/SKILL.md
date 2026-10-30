@@ -97,7 +97,7 @@ Workflow({
 })
 ```
 
-If the plugin's workflows are registered by name in this session, `/graph-orchestrator:wave` with the same `args` is equivalent. The call returns `{ status, wave, results[], demand, cap, events[], scribe }` as data. The wave logs its agent demand against the cap; over cap means slow, not broken. Never ask a running wave how it is going.
+If the plugin's workflows are registered by name in this session, `/graph-orchestrator:wave` with the same `args` is equivalent. The call returns `{ status, wave, results[], demand, cap, events[], scribe }` as data. The wave logs its agent demand against the cap; over cap means slow, not broken. A `scribe` of `null` means the scribe failed and this wave's trace lines were not written; the `results` are still complete, so carry on. Never ask a running wave how it is going.
 
 ### Integrate
 
