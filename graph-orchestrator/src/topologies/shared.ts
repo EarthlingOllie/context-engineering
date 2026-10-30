@@ -3,7 +3,7 @@
  * agent call, the result shapers and the dispatch trace event. A topology file
  * imports from here and from roles.ts; nothing in here knows a topology.
  */
-import type { DispatchResult, DispatchSpec, ReturnContract, RoleEntry, Runtime, TraceEvent } from "../types.ts";
+import type { DispatchResult, DispatchSpec, ReturnContract, RoleEntry, Runtime, Topology, TraceEvent } from "../types.ts";
 import { ROLE_SCHEMAS, type RoleName } from "../roles.ts";
 
 export const MAX_LINES = 20;
@@ -56,6 +56,30 @@ export function contractOf(spec: Partial<DispatchSpec>): ReturnContract {
   return { shape, maxLines };
 }
 
+/** What a spec inherits when it leaves a field out: a chain stage takes its parent's id numbering, context and return contract. */
+export type SpecDefaults = { id?: string; context?: string[]; returns?: ReturnContract };
+
+/**
+ * A spec as the orchestrator wrote it (JSON, so any field may be missing or
+ * the wrong type), put into the shape the topologies read. The topology is
+ * carried as written; `runDispatch` validates it. `defaults.context` goes
+ * before the spec's own lines.
+ */
+export function normaliseSpec(raw: unknown, defaults: SpecDefaults = {}): DispatchSpec {
+  const s = (raw && typeof raw === "object" ? raw : {}) as Partial<DispatchSpec>;
+  return {
+    ...s,
+    id: typeof s.id === "string" && s.id ? s.id : (defaults.id ?? "?"),
+    topology: s.topology as Topology,
+    task: typeof s.task === "string" ? s.task : "",
+    context: [...(defaults.context ?? []), ...(Array.isArray(s.context) ? s.context.map(String) : [])],
+    roles: s.roles && typeof s.roles === "object" ? s.roles : {},
+    params: s.params && typeof s.params === "object" ? s.params : {},
+    returns: contractOf(s.returns != null ? s : defaults.returns ? { returns: defaults.returns } : {}),
+    dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn.map(String) : [],
+  };
+}
+
 export function int(v: unknown, fallback: number, min = 1): number {
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
@@ -76,6 +100,20 @@ export function blockedQuestion(o: Record<string, unknown>): string | null {
   if (o["blocked"] !== true) return null;
   const q = str(o, "question").trim();
   return q || "(the worker reported blocked without a question)";
+}
+
+/** What a role that does work hands back: the inline result (cut to the contract) and the artifact paths. */
+export type WorkOutput = { result: string; artifacts: string[] };
+
+/**
+ * Read a working role's structured output: its result and artifacts, plus the
+ * question when it reported blocked. The caller decides what a blocked or
+ * done output becomes; the shape of the read is the same for every role.
+ */
+export function readWorkOutput(out: Record<string, unknown>, maxLines: number): WorkOutput & { question?: string } {
+  const q = blockedQuestion(out);
+  const work: WorkOutput = { result: cutLines(str(out, "result"), maxLines), artifacts: strArr(out, "artifacts") };
+  return q ? { ...work, question: q } : work;
 }
 
 export function roleEntry(spec: DispatchSpec, name: RoleName): RoleEntry | undefined {

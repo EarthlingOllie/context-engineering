@@ -1,20 +1,13 @@
 // ---------- chain ----------
 import type { ChainParams, DispatchResult, DispatchSpec } from "../types.ts";
-import { type TopologyContext, type TopologyImpl, contractOf, cutLines, dispatchEvent, fail, forwardLines, uniq } from "./shared.ts";
+import { type TopologyContext, type TopologyImpl, contractOf, cutLines, dispatchEvent, fail, forwardLines, normaliseSpec, uniq } from "./shared.ts";
 import { agentDemand, runDispatch } from "./dispatch.ts";
 
+/** A stage is a dispatch spec numbered after its parent, seeing the parent's context, then its own, then what the previous stage forwarded. */
 function normaliseStage(parent: DispatchSpec, stage: unknown, index: number, forwarded: string[]): DispatchSpec {
-  const s = (stage && typeof stage === "object" ? stage : {}) as Partial<DispatchSpec>;
-  return {
-    id: typeof s.id === "string" && s.id ? s.id : `${parent.id}-s${index + 1}`,
-    topology: s.topology as DispatchSpec["topology"],
-    task: typeof s.task === "string" ? s.task : "",
-    context: [...parent.context, ...(Array.isArray(s.context) ? s.context : []), ...forwarded],
-    roles: s.roles && typeof s.roles === "object" ? s.roles : {},
-    params: s.params && typeof s.params === "object" ? s.params : {},
-    returns: s.returns ?? parent.returns,
-    dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn : [],
-  };
+  const s = normaliseSpec(stage, { id: `${parent.id}-s${index + 1}`, context: parent.context, returns: parent.returns });
+  s.context.push(...forwarded);
+  return s;
 }
 
 async function runChain(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {

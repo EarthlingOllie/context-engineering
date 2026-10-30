@@ -7,7 +7,7 @@
  */
 import type { DispatchResult, DispatchSpec, Topology } from "../types.ts";
 import { TOPOLOGIES } from "../types.ts";
-import { type TopologyContext, type TopologyImpl, contractOf, fail } from "./shared.ts";
+import { type TopologyContext, type TopologyImpl, fail, normaliseSpec } from "./shared.ts";
 import { single } from "./single.ts";
 import { generatorEvaluator } from "./generator-evaluator.ts";
 import { fanOut } from "./fan-out.ts";
@@ -44,15 +44,7 @@ export async function runDispatch(ctx: TopologyContext, raw: DispatchSpec): Prom
   if (!raw || typeof raw !== "object") return fail({ id: "?" }, "dispatch spec is not an object");
   if (typeof raw.id !== "string" || !raw.id) return fail({ id: "?" }, "dispatch spec has no id");
   if (!isTopology(raw.topology)) return fail(raw, `unknown topology "${String(raw.topology)}"; valid: ${TOPOLOGIES.join(", ")}`);
-  const spec: DispatchSpec = {
-    ...raw,
-    task: typeof raw.task === "string" ? raw.task : "",
-    context: Array.isArray(raw.context) ? raw.context.map(String) : [],
-    roles: raw.roles && typeof raw.roles === "object" ? raw.roles : {},
-    params: raw.params && typeof raw.params === "object" ? raw.params : {},
-    returns: contractOf(raw),
-    dependsOn: Array.isArray(raw.dependsOn) ? raw.dependsOn.map(String) : [],
-  };
+  const spec = normaliseSpec(raw);
   if (!spec.task) return fail(spec, "dispatch spec has no task");
   try {
     return await REGISTRY[spec.topology].run(ctx, spec);

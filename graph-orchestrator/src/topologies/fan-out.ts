@@ -1,7 +1,7 @@
 // ---------- fan-out ----------
 import type { DispatchResult, DispatchSpec, DispatchStatus, FanOutParams, ReturnContract } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { DEFAULT_WIDTH, MAX_WIDTH, type TopologyContext, type TopologyImpl, blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, roleEntry, str, strArr, uniq } from "./shared.ts";
+import { DEFAULT_WIDTH, MAX_WIDTH, type TopologyContext, type TopologyImpl, blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, readWorkOutput, roleEntry, strArr, uniq } from "./shared.ts";
 
 type Branch = { index: number; task: string; status: DispatchStatus; result: string; artifacts: string[]; question?: string };
 
@@ -79,9 +79,9 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
         `branch ${i + 1}/${n}`,
       );
       if (!out) return { index: i, task, status: "failed", result: "worker returned nothing", artifacts: [] };
-      const q = blockedQuestion(out);
-      const b: Branch = { index: i, task, status: q ? "blocked" : "done", result: cutLines(str(out, "result"), branchReturns.maxLines), artifacts: strArr(out, "artifacts") };
-      if (q) b.question = q;
+      const { question, ...work } = readWorkOutput(out, branchReturns.maxLines);
+      const b: Branch = { index: i, task, status: question ? "blocked" : "done", ...work };
+      if (question) b.question = question;
       return b;
     }),
   );
@@ -113,11 +113,11 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
       "reducer",
     );
     if (red) {
-      const rq = blockedQuestion(red);
+      const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);
       // A blocked reducer blocks the dispatch; the blocked branches' questions still travel with it, as on the done path.
-      if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: gapQuestion ? `${rq}\n${gapQuestion}` : rq, iterations: 1 };
-      result = cutLines(str(red, "result"), returns.maxLines);
-      extraArtifacts = strArr(red, "artifacts");
+      if (rq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: gapQuestion ? `${rq}\n${gapQuestion}` : rq, iterations: 1 };
+      result = work.result;
+      extraArtifacts = work.artifacts;
     } else {
       ctx.rt.log(`${spec.id}: reducer returned nothing; the branch results are concatenated instead`);
       result = concatenated();

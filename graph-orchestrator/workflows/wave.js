@@ -160,6 +160,20 @@ function contractOf(spec) {
   const maxLines = Number.isFinite(raw) && raw >= 1 ? Math.min(Math.floor(raw), MAX_LINES) : MAX_LINES;
   return { shape, maxLines };
 }
+function normaliseSpec(raw, defaults = {}) {
+  const s = raw && typeof raw === "object" ? raw : {};
+  return {
+    ...s,
+    id: typeof s.id === "string" && s.id ? s.id : defaults.id ?? "?",
+    topology: s.topology,
+    task: typeof s.task === "string" ? s.task : "",
+    context: [...defaults.context ?? [], ...Array.isArray(s.context) ? s.context.map(String) : []],
+    roles: s.roles && typeof s.roles === "object" ? s.roles : {},
+    params: s.params && typeof s.params === "object" ? s.params : {},
+    returns: contractOf(s.returns != null ? s : defaults.returns ? { returns: defaults.returns } : {}),
+    dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn.map(String) : []
+  };
+}
 function int(v, fallback, min = 1) {
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
@@ -177,6 +191,11 @@ function blockedQuestion(o) {
   if (o["blocked"] !== true) return null;
   const q = str(o, "question").trim();
   return q || "(the worker reported blocked without a question)";
+}
+function readWorkOutput(out, maxLines) {
+  const q = blockedQuestion(out);
+  const work = { result: cutLines(str(out, "result"), maxLines), artifacts: strArr(out, "artifacts") };
+  return q ? { ...work, question: q } : work;
 }
 function roleEntry(spec, name) {
   const roles = spec.roles && typeof spec.roles === "object" ? spec.roles : {};
@@ -235,9 +254,9 @@ async function runSingle(ctx, spec) {
     "worker"
   );
   if (!out) return fail(spec, "worker returned nothing", 1);
-  const q = blockedQuestion(out);
-  const base = { id: spec.id, result: cutLines(str(out, "result"), returns.maxLines), artifacts: strArr(out, "artifacts"), iterations: 1 };
-  return q ? { ...base, status: "blocked", question: q } : { ...base, status: "done" };
+  const { question, ...work } = readWorkOutput(out, returns.maxLines);
+  const base = { id: spec.id, ...work, iterations: 1 };
+  return question ? { ...base, status: "blocked", question } : { ...base, status: "done" };
 }
 var single = { demand: () => 1, run: runSingle };
 
@@ -266,8 +285,8 @@ async function runGeneratorEvaluator(ctx, spec) {
       `generator r${round}`
     );
     if (!gen) return { ...fail(spec, `generator returned nothing in round ${round}`, round), artifacts: last?.artifacts ?? [] };
-    const gq = blockedQuestion(gen);
-    last = { result: cutLines(str(gen, "result"), returns.maxLines), artifacts: strArr(gen, "artifacts") };
+    const { question: gq, ...work } = readWorkOutput(gen, returns.maxLines);
+    last = work;
     if (gq) return { id: spec.id, status: "blocked", result: last.result, artifacts: last.artifacts, question: gq, iterations: round };
     const ev = await callRole(
       ctx,
@@ -381,9 +400,9 @@ async function runFanOut(ctx, spec) {
         `branch ${i + 1}/${n}`
       );
       if (!out) return { index: i, task, status: "failed", result: "worker returned nothing", artifacts: [] };
-      const q = blockedQuestion(out);
-      const b = { index: i, task, status: q ? "blocked" : "done", result: cutLines(str(out, "result"), branchReturns.maxLines), artifacts: strArr(out, "artifacts") };
-      if (q) b.question = q;
+      const { question, ...work } = readWorkOutput(out, branchReturns.maxLines);
+      const b = { index: i, task, status: question ? "blocked" : "done", ...work };
+      if (question) b.question = question;
       return b;
     })
   );
@@ -413,11 +432,11 @@ GAP: ${b.question ?? b.result}`).join("\n\n");
       "reducer"
     );
     if (red) {
-      const rq = blockedQuestion(red);
-      if (rq) return { id: spec.id, status: "blocked", result: cutLines(str(red, "result"), returns.maxLines), artifacts, question: gapQuestion ? `${rq}
+      const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);
+      if (rq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: gapQuestion ? `${rq}
 ${gapQuestion}` : rq, iterations: 1 };
-      result = cutLines(str(red, "result"), returns.maxLines);
-      extraArtifacts = strArr(red, "artifacts");
+      result = work.result;
+      extraArtifacts = work.artifacts;
     } else {
       ctx.rt.log(`${spec.id}: reducer returned nothing; the branch results are concatenated instead`);
       result = concatenated();
@@ -459,17 +478,9 @@ var debate = {
 
 // src/topologies/chain.ts
 function normaliseStage(parent, stage, index, forwarded) {
-  const s = stage && typeof stage === "object" ? stage : {};
-  return {
-    id: typeof s.id === "string" && s.id ? s.id : `${parent.id}-s${index + 1}`,
-    topology: s.topology,
-    task: typeof s.task === "string" ? s.task : "",
-    context: [...parent.context, ...Array.isArray(s.context) ? s.context : [], ...forwarded],
-    roles: s.roles && typeof s.roles === "object" ? s.roles : {},
-    params: s.params && typeof s.params === "object" ? s.params : {},
-    returns: s.returns ?? parent.returns,
-    dependsOn: Array.isArray(s.dependsOn) ? s.dependsOn : []
-  };
+  const s = normaliseSpec(stage, { id: `${parent.id}-s${index + 1}`, context: parent.context, returns: parent.returns });
+  s.context.push(...forwarded);
+  return s;
 }
 async function runChain(ctx, spec) {
   const returns = contractOf(spec);
@@ -529,15 +540,7 @@ async function runDispatch(ctx, raw) {
   if (!raw || typeof raw !== "object") return fail({ id: "?" }, "dispatch spec is not an object");
   if (typeof raw.id !== "string" || !raw.id) return fail({ id: "?" }, "dispatch spec has no id");
   if (!isTopology(raw.topology)) return fail(raw, `unknown topology "${String(raw.topology)}"; valid: ${TOPOLOGIES.join(", ")}`);
-  const spec = {
-    ...raw,
-    task: typeof raw.task === "string" ? raw.task : "",
-    context: Array.isArray(raw.context) ? raw.context.map(String) : [],
-    roles: raw.roles && typeof raw.roles === "object" ? raw.roles : {},
-    params: raw.params && typeof raw.params === "object" ? raw.params : {},
-    returns: contractOf(raw),
-    dependsOn: Array.isArray(raw.dependsOn) ? raw.dependsOn.map(String) : []
-  };
+  const spec = normaliseSpec(raw);
   if (!spec.task) return fail(spec, "dispatch spec has no task");
   try {
     return await REGISTRY[spec.topology].run(ctx, spec);

@@ -1,7 +1,7 @@
 // ---------- generator-evaluator ----------
 import type { DispatchResult, DispatchSpec, GeneratorEvaluatorParams } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { DEFAULT_ITERATIONS, type TopologyContext, type TopologyImpl, blockedQuestion, callRole, contractOf, cutLines, fail, firstLine, int, roleEntry, str, strArr } from "./shared.ts";
+import { DEFAULT_ITERATIONS, type TopologyContext, type TopologyImpl, type WorkOutput, blockedQuestion, callRole, contractOf, cutLines, fail, firstLine, int, readWorkOutput, roleEntry, str } from "./shared.ts";
 
 async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
@@ -12,7 +12,7 @@ async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): 
   const evalEntry = roleEntry(spec, "evaluator");
 
   let feedback: string | null = null;
-  let last: { result: string; artifacts: string[] } | null = null;
+  let last: WorkOutput | null = null;
 
   for (let round = 1; round <= maxIterations; round++) {
     const sections: Array<{ title: string; body: string }> = [];
@@ -29,8 +29,8 @@ async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): 
       `generator r${round}`,
     );
     if (!gen) return { ...fail(spec, `generator returned nothing in round ${round}`, round), artifacts: last?.artifacts ?? [] };
-    const gq = blockedQuestion(gen);
-    last = { result: cutLines(str(gen, "result"), returns.maxLines), artifacts: strArr(gen, "artifacts") };
+    const { question: gq, ...work } = readWorkOutput(gen, returns.maxLines);
+    last = work;
     if (gq) return { id: spec.id, status: "blocked", result: last.result, artifacts: last.artifacts, question: gq, iterations: round };
 
     const ev = await callRole(
