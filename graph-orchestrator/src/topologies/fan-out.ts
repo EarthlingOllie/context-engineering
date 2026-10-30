@@ -3,7 +3,8 @@ import type { DispatchResult, DispatchSpec, DispatchStatus, FanOutParams, Return
 import { buildPrompt } from "../roles.ts";
 import { DEFAULT_WIDTH, MAX_WIDTH, type TopologyContext, type TopologyImpl, blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, readWorkOutput, roleEntry, strArr, uniq } from "./shared.ts";
 
-type Branch = { index: number; task: string; status: DispatchStatus; result: string; artifacts: string[]; question?: string };
+/** One branch's outcome: the result fields a dispatch would carry, plus which sub-task it was. */
+type Branch = Pick<DispatchResult, "status" | "result" | "artifacts" | "question"> & { index: number; task: string };
 
 async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
