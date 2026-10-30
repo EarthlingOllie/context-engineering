@@ -1,0 +1,14 @@
+{
+  "name": "earthlingollie",
+  "owner": { "name": "Ollie Bullen" },
+  "description": "Ollie's Claude Code plugins.",
+  "plugins": [
+    {
+      "name": "graph-orchestrator",
+      "source": "./graph-orchestrator",
+      "description": "An orchestrator skill that plans waves of dispatches, each a topology run by one Workflow script, and leaves a Mermaid trace.",
+      "category": "productivity",
+      "keywords": ["orchestration", "workflow", "subagents"]
+    }
+  ]
+}

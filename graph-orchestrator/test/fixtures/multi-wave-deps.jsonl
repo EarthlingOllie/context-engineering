@@ -1,0 +1,10 @@
+{"type":"wave_start","wave":1,"at":"2026-10-30T10:00:00Z","dispatches":2,"demand":6,"cap":16}
+{"type":"dispatch","wave":1,"id":"w1-d1","topology":"fan-out","iterations":1,"status":"done","dependsOn":[]}
+{"type":"dispatch","wave":1,"id":"w1-d2","topology":"single","iterations":1,"status":"done","dependsOn":[]}
+{"type":"wave_end","wave":1,"at":"2026-10-30T10:00:00Z","done":2,"blocked":0,"exhausted":0,"over_budget":0,"failed":0}
+{"type":"wave_start","wave":2,"at":"2026-10-30T10:20:00Z","dispatches":2,"demand":9,"cap":16}
+{"type":"dispatch","wave":2,"id":"w2-s1","topology":"single","iterations":1,"status":"done","dependsOn":[],"parent":"w2-d1"}
+{"type":"dispatch","wave":2,"id":"w2-s2","topology":"generator-evaluator","iterations":2,"status":"done","dependsOn":[],"parent":"w2-d1"}
+{"type":"dispatch","wave":2,"id":"w2-d1","topology":"chain","iterations":2,"status":"done","dependsOn":["w1-d1","w1-d2"],"stages":["w2-s1:done","w2-s2:done"]}
+{"type":"dispatch","wave":2,"id":"w2-d2","topology":"debate","iterations":0,"status":"failed","dependsOn":["w1-d2","w0-ghost"]}
+{"type":"wave_end","wave":2,"at":"2026-10-30T10:20:00Z","done":1,"blocked":0,"exhausted":0,"over_budget":0,"failed":1}
