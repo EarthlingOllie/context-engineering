@@ -12,21 +12,72 @@ type Wave = { number: number; at?: string; dispatches: Dispatch[]; stages: Map<s
 
 export type ParsedTrace = { items: Array<{ kind: "wave"; wave: Wave } | { kind: "human"; human: Human; index: number }>; skipped: number };
 
+const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
+const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : []);
+
+/**
+ * A line the renderer can draw, or null for one it cannot. A dispatch needs an
+ * id and a status, a human intervention a trigger and a question; every other
+ * field defaults, so one malformed line is skipped rather than aborting the
+ * whole render. Other event types pass through as they are.
+ */
+function normalise(raw: unknown): TraceEvent | null {
+  if (!raw || typeof raw !== "object") return null;
+  const e = raw as Record<string, unknown>;
+  if (typeof e.type !== "string") return null;
+  if (e.type === "dispatch") {
+    const id = str(e.id);
+    const status = str(e.status);
+    if (!id || !status) return null;
+    const d: Dispatch = {
+      type: "dispatch",
+      wave: typeof e.wave === "number" ? e.wave : NaN,
+      id,
+      topology: str(e.topology) ?? "unknown",
+      iterations: typeof e.iterations === "number" && Number.isFinite(e.iterations) ? e.iterations : 0,
+      status: status as Dispatch["status"],
+      dependsOn: strs(e.dependsOn),
+    };
+    if (Array.isArray(e.stages)) d.stages = strs(e.stages);
+    const parent = str(e.parent);
+    if (parent) d.parent = parent;
+    const question = str(e.question);
+    if (question) d.question = question;
+    return d;
+  }
+  if (e.type === "human") {
+    const trigger = str(e.trigger);
+    const question = str(e.question);
+    if (!trigger || !question) return null;
+    const h: Human = { type: "human", trigger: trigger as Human["trigger"], question, answer: str(e.answer) ?? "" };
+    const at = str(e.at);
+    if (at) h.at = at;
+    const dispatch = str(e.dispatch);
+    if (dispatch) h.dispatch = dispatch;
+    if (e.mode === "attended" || e.mode === "autonomous") h.mode = e.mode;
+    return h;
+  }
+  return raw as TraceEvent;
+}
+
 export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace {
   const events: TraceEvent[] = [];
   let skipped = 0;
+  const take = (raw: unknown): void => {
+    const e = normalise(raw);
+    if (e) events.push(e);
+    else skipped++;
+  };
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line) continue;
     try {
-      const e = JSON.parse(line);
-      if (e && typeof e === "object" && typeof e.type === "string") events.push(e as TraceEvent);
-      else skipped++;
+      take(JSON.parse(line));
     } catch {
       skipped++;
     }
   }
-  events.push(...extra);
+  for (const e of extra) take(e);
 
   const items: ParsedTrace["items"] = [];
   const waves = new Map<number, Wave>();

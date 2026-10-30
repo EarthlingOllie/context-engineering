@@ -5,21 +5,64 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 
 // src/trace/render.ts
+var str = (v) => typeof v === "string" && v ? v : void 0;
+var strs = (v) => Array.isArray(v) ? v.filter((s) => typeof s === "string") : [];
+function normalise(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const e = raw;
+  if (typeof e.type !== "string") return null;
+  if (e.type === "dispatch") {
+    const id = str(e.id);
+    const status = str(e.status);
+    if (!id || !status) return null;
+    const d = {
+      type: "dispatch",
+      wave: typeof e.wave === "number" ? e.wave : NaN,
+      id,
+      topology: str(e.topology) ?? "unknown",
+      iterations: typeof e.iterations === "number" && Number.isFinite(e.iterations) ? e.iterations : 0,
+      status,
+      dependsOn: strs(e.dependsOn)
+    };
+    if (Array.isArray(e.stages)) d.stages = strs(e.stages);
+    const parent = str(e.parent);
+    if (parent) d.parent = parent;
+    const question = str(e.question);
+    if (question) d.question = question;
+    return d;
+  }
+  if (e.type === "human") {
+    const trigger = str(e.trigger);
+    const question = str(e.question);
+    if (!trigger || !question) return null;
+    const h = { type: "human", trigger, question, answer: str(e.answer) ?? "" };
+    const at = str(e.at);
+    if (at) h.at = at;
+    const dispatch = str(e.dispatch);
+    if (dispatch) h.dispatch = dispatch;
+    if (e.mode === "attended" || e.mode === "autonomous") h.mode = e.mode;
+    return h;
+  }
+  return raw;
+}
 function parseTrace(text, extra = []) {
   const events = [];
   let skipped = 0;
+  const take = (raw) => {
+    const e = normalise(raw);
+    if (e) events.push(e);
+    else skipped++;
+  };
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line) continue;
     try {
-      const e = JSON.parse(line);
-      if (e && typeof e === "object" && typeof e.type === "string") events.push(e);
-      else skipped++;
+      take(JSON.parse(line));
     } catch {
       skipped++;
     }
   }
-  events.push(...extra);
+  for (const e of extra) take(e);
   const items = [];
   const waves = /* @__PURE__ */ new Map();
   let current = null;

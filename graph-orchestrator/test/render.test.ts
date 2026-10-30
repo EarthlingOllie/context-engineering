@@ -122,3 +122,17 @@ test("the CLI validates every --human before writing: a bad one leaves the trace
   const humans = readFileSync(trace, "utf8").trim().split("\n").filter((l) => l.includes('"type":"human"'));
   assert.equal(humans.length, 1, "the retry appends the human line exactly once");
 });
+
+test("malformed dispatch and human lines: without id and status, or trigger and question, they are skipped and counted; other missing fields default", () => {
+  const out = renderTrace(fixture("malformed-lines.jsonl"));
+  const L = lines(out);
+  assert.ok(L.includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z"]'));
+  assert.ok(L.includes('w1_d4["w1-d4<br/>unknown ×0"]:::done'), "topology, iterations, dependsOn, stages and question default when absent or mistyped");
+  assert.ok(!L.some((l) => l.startsWith("w1_d1[") || l.startsWith("w1_d3[") || l.startsWith("undefined[")), "a dispatch without id or status draws no node");
+  assert.ok(L.includes('human_1(["human · blocked<br/>on w1-d4<br/>Continue?"]):::human'), "a missing answer defaults to none");
+  assert.ok(!L.some((l) => l.startsWith("human_2(")), "a human without trigger or question draws no node");
+  assert.ok(L.includes("w1_d4 --> human_1"));
+  assert.ok(!out.includes("undefined"));
+  assert.ok(L.includes("%% 5 unreadable line(s) skipped"));
+  assert.equal(parseTrace(fixture("malformed-lines.jsonl")).skipped, 5);
+});
