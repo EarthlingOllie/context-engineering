@@ -1,0 +1,4 @@
+# Third-party repository clones downloaded by the research agents.
+# They contain nested .git directories and total about 2 GB, so they stay out of version control.
+dl/
+src/
