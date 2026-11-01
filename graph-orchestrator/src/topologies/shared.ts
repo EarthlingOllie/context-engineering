@@ -12,6 +12,14 @@ export const MAX_PARTICIPANTS = 6;
 export const DEFAULT_ITERATIONS = 3;
 export const DEFAULT_ROUNDS = 2;
 export const DEFAULT_WIDTH = 3;
+/** relay: sessions per dispatch. */
+export const MAX_SESSIONS = 10;
+export const DEFAULT_SESSIONS = 3;
+/** iterative-fan-out: gap-filling rounds per dispatch. */
+export const MAX_GAP_ROUNDS = 3;
+export const DEFAULT_GAP_ROUNDS = 2;
+/** debate: rounds per dispatch (worst case 6 × 4 + 1 = 25 agents). */
+export const MAX_DEBATE_ROUNDS = 4;
 
 export type TopologyContext = {
   rt: Runtime;
@@ -30,6 +38,13 @@ export type TopologyImpl = {
   demand(spec: Partial<DispatchSpec>, params: Record<string, unknown>): number;
   run(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult>;
 };
+
+/**
+ * A topology's own param check, run before any agent is spent: either the
+ * narrowed params, or the result to return unrun (`over_budget` for a cap
+ * breach, `failed` for malformed or missing params).
+ */
+export type Checked<P> = { ok: true; params: P } | { ok: false; result: DispatchResult };
 
 // ---------- small helpers ----------
 
@@ -96,10 +111,11 @@ export function strArr(o: Record<string, unknown>, key: string): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.length > 0) : [];
 }
 
-export function blockedQuestion(o: Record<string, unknown>): string | null {
+/** The question when the output reported blocked (a placeholder naming `who` when it gave none), else null. */
+export function blockedQuestion(o: Record<string, unknown>, who = "worker"): string | null {
   if (o["blocked"] !== true) return null;
   const q = str(o, "question").trim();
-  return q || "(the worker reported blocked without a question)";
+  return q || `(the ${who} reported blocked without a question)`;
 }
 
 /** What a role that does work hands back: the inline result (cut to the contract) and the artifact paths. */
@@ -116,11 +132,16 @@ export function readWorkOutput(out: Record<string, unknown>, maxLines: number): 
   return q ? { ...work, question: q } : work;
 }
 
+/** A role entry as written (JSON, any shape) normalised to `{ skill?, instructions }`; undefined when it is not an object. */
+export function entryOf(raw: unknown): RoleEntry | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const e = raw as Partial<RoleEntry>;
+  return { ...(e.skill ? { skill: String(e.skill) } : {}), instructions: String(e.instructions ?? "") };
+}
+
 export function roleEntry(spec: DispatchSpec, name: RoleName): RoleEntry | undefined {
   const roles = spec.roles && typeof spec.roles === "object" ? spec.roles : {};
-  const e = roles[name];
-  if (e && typeof e === "object") return { ...(e.skill ? { skill: String(e.skill) } : {}), instructions: String(e.instructions ?? "") };
-  return undefined;
+  return entryOf(roles[name]);
 }
 
 export function uniq(xs: string[]): string[] {

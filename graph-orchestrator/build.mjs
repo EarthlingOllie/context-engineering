@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
 const META = `export const meta = {
   name: 'wave',
-  description: 'graph-orchestrator: run one wave of dispatches (single, generator-evaluator, fan-out, chain) and write the trace',
+  description: 'graph-orchestrator: run one wave of dispatches (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) and write the trace',
   whenToUse: 'Invoked by the graph-orchestrator skill once per wave with { now, traceFile, maxAgents, dispatches } as args. Not for direct use.',
   phases: [{ title: 'scribe', detail: 'append the wave events to the trace file' }],
 }

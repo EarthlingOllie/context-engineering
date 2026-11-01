@@ -1,7 +1,7 @@
 {
   "name": "graph-orchestrator",
-  "version": "0.1.0",
-  "description": "An orchestrator skill that plans waves of dispatches, each a reusable topology (single, generator-evaluator, fan-out, chain) run by one Workflow script, and leaves a Mermaid trace of the session.",
+  "version": "0.2.0",
+  "description": "An orchestrator skill that plans waves of dispatches, each a reusable topology (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) run by one Workflow script, and leaves a Mermaid trace of the session.",
   "author": { "name": "Ollie Bullen" },
   "repository": "https://github.com/earthlingollie/context-management",
   "license": "MIT",
