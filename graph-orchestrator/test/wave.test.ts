@@ -15,9 +15,9 @@ const wave = (dispatches: DispatchSpec[], script = {}, extra: Record<string, unk
 test("single: one worker call, one done result, prompt carries stance, context, skill, instructions and contract", async () => {
   const { out, calls, labels } = await wave(
     [spec({ id: "w1-d1", topology: "single", task: "Write the leap-year helper", context: ["tests live in test/", "use node:test"], roles: { worker: { skill: "tdd", instructions: "red first" } } })],
-    { worker: { result: "/scratch/t/leap.js\nexports isLeap", artifacts: ["/scratch/t/leap.js"], blocked: false } },
+    { Worker: { result: "/scratch/t/leap.js\nexports isLeap", artifacts: ["/scratch/t/leap.js"], blocked: false } },
   );
-  assert.deepEqual(labels(), ["w1-d1 worker", "wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · d1 Worker — Write the leap-year helper", "Wave 1 · Trace scribe"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 1);
@@ -38,7 +38,7 @@ test("single: one worker call, one done result, prompt carries stance, context, 
 });
 
 test("single: blocked output short-circuits to a blocked result with the question", async () => {
-  const { out } = await wave([spec({ id: "w1-d1", topology: "single" })], { worker: { result: "", artifacts: [], blocked: true, question: "Which database?" } });
+  const { out } = await wave([spec({ id: "w1-d1", topology: "single" })], { Worker: { result: "", artifacts: [], blocked: true, question: "Which database?" } });
   assert.equal(out.results[0]!.status, "blocked");
   assert.equal(out.results[0]!.question, "Which database?");
   const ev = out.events.find((e) => e.type === "dispatch")!;
@@ -51,13 +51,19 @@ test("generator-evaluator: stops on first pass; round 2 generator sees feedback 
   const { out, calls, labels } = await wave(
     [spec({ id: "w1-d1", topology: "generator-evaluator", params: { max_iterations: 3, pass_criteria: "tests pass" }, roles: { generator: { instructions: "gen" }, evaluator: { skill: "code-review", instructions: "eval" } } })],
     {
-      "generator r1": { result: "FIRST-ATTEMPT-TEXT", artifacts: ["/scratch/t/a.js"], blocked: false },
-      "generator r2": { result: "second attempt", artifacts: ["/scratch/t/a.js"], blocked: false },
-      "evaluator r1": { pass: false, feedback: "1. missing null check at a.js:3", blocked: false },
-      "evaluator r2": { pass: true, feedback: "", blocked: false },
+      "Generator, round 1": { result: "FIRST-ATTEMPT-TEXT", artifacts: ["/scratch/t/a.js"], blocked: false },
+      "Generator, round 2": { result: "second attempt", artifacts: ["/scratch/t/a.js"], blocked: false },
+      "Evaluator, round 1": { pass: false, feedback: "1. missing null check at a.js:3", blocked: false },
+      "Evaluator, round 2": { pass: true, feedback: "", blocked: false },
     },
   );
-  assert.deepEqual(labels(), ["w1-d1 generator r1", "w1-d1 evaluator r1", "w1-d1 generator r2", "w1-d1 evaluator r2", "wave 1 scribe"]);
+  assert.deepEqual(labels(), [
+    "Wave 1 · d1 Generator, round 1 of 3 — do w1-d1",
+    "Wave 1 · d1 Evaluator, round 1 of 3 — do w1-d1",
+    "Wave 1 · d1 Generator, round 2 of 3 — do w1-d1",
+    "Wave 1 · d1 Evaluator, round 2 of 3 — do w1-d1",
+    "Wave 1 · Trace scribe",
+  ]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
@@ -77,7 +83,7 @@ test("generator-evaluator: stops on first pass; round 2 generator sees feedback 
 test("generator-evaluator: returns exhausted at the iteration cap; the feedback line survives a full-length result", async () => {
   const { out, labels } = await wave(
     [spec({ id: "w1-d1", topology: "generator-evaluator", params: { max_iterations: 2, pass_criteria: "x" }, returns: { shape: "x", maxLines: 3 } })],
-    { generator: { result: "l1\nl2\nl3", artifacts: [], blocked: false }, evaluator: { pass: false, feedback: "still wrong\nmore detail", blocked: false } },
+    { Generator: { result: "l1\nl2\nl3", artifacts: [], blocked: false }, Evaluator: { pass: false, feedback: "still wrong\nmore detail", blocked: false } },
   );
   assert.equal(labels().length, 5);
   const r = out.results[0]!;
@@ -90,9 +96,9 @@ test("generator-evaluator: returns exhausted at the iteration cap; the feedback 
 test("generator-evaluator: defaults to 3 iterations and short-circuits when the evaluator is blocked", async () => {
   const { out, labels } = await wave(
     [spec({ id: "w1-d1", topology: "generator-evaluator", params: { pass_criteria: "x" } })],
-    { generator: { result: "attempt", artifacts: [], blocked: false }, "evaluator r1": { pass: false, feedback: "", blocked: true, question: "Is the legacy API in scope?" } },
+    { Generator: { result: "attempt", artifacts: [], blocked: false }, "Evaluator, round 1": { pass: false, feedback: "", blocked: true, question: "Is the legacy API in scope?" } },
   );
-  assert.deepEqual(labels(), ["w1-d1 generator r1", "w1-d1 evaluator r1", "wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · d1 Generator, round 1 of 3 — do w1-d1", "Wave 1 · d1 Evaluator, round 1 of 3 — do w1-d1", "Wave 1 · Trace scribe"]);
   assert.equal(out.results[0]!.status, "blocked");
   assert.equal(out.results[0]!.question, "Is the legacy API in scope?");
   assert.equal(out.results[0]!.iterations, 1);
@@ -104,9 +110,9 @@ test("generator-evaluator: defaults to 3 iterations and short-circuits when the 
 test("fan-out: explicit split runs one branch per sub-task in parallel and concatenates without a reducer", async () => {
   const { out, calls, labels } = await wave(
     [spec({ id: "w1-d1", topology: "fan-out", task: "Survey the three modules", params: { split: ["module a", "module b", "module c"] }, returns: { shape: "a line per module", maxLines: 6 } })],
-    { "branch 1/3": { result: "a: fine", artifacts: ["/scratch/t/a.md"], blocked: false }, "branch 2/3": { result: "b: fine", artifacts: [], blocked: false }, "branch 3/3": { result: "c: fine", artifacts: [], blocked: false } },
+    { "branch 1 of 3": { result: "a: fine", artifacts: ["/scratch/t/a.md"], blocked: false }, "branch 2 of 3": { result: "b: fine", artifacts: [], blocked: false }, "branch 3 of 3": { result: "c: fine", artifacts: [], blocked: false } },
   );
-  assert.deepEqual(labels(), ["w1-d1 branch 1/3", "w1-d1 branch 2/3", "w1-d1 branch 3/3", "wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · d1 Worker, branch 1 of 3 — module a", "Wave 1 · d1 Worker, branch 2 of 3 — module b", "Wave 1 · d1 Worker, branch 3 of 3 — module c", "Wave 1 · Trace scribe"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.result, "[1] a: fine\n[2] b: fine\n[3] c: fine");
@@ -118,7 +124,7 @@ test("fan-out: explicit split runs one branch per sub-task in parallel and conca
 
 test("fan-out: a split wider than 9 returns over_budget without spending agents", async () => {
   const { out, labels } = await wave([spec({ id: "w1-d1", topology: "fan-out", params: { split: Array.from({ length: 10 }, (_, i) => `part ${i}`) } })]);
-  assert.deepEqual(labels(), ["wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · Trace scribe"]);
   assert.equal(out.results[0]!.status, "over_budget");
   assert.match(out.results[0]!.result, /width cap of 9/);
 });
@@ -127,10 +133,10 @@ test("fan-out: the reducer runs over finished branches and a blocked branch bloc
   const { out, calls } = await wave(
     [spec({ id: "w1-d1", topology: "fan-out", params: { split: ["x", "y", "z"] }, roles: { reducer: { instructions: "merge by theme" } } })],
     {
-      "branch 1/3": { result: "x done", artifacts: [], blocked: false },
-      "branch 2/3": { result: "", artifacts: [], blocked: true, question: "Need prod credentials for y" },
-      "branch 3/3": { result: "z done", artifacts: ["/scratch/t/z.md"], blocked: false },
-      reducer: { result: "merged x and z; y missing", artifacts: ["/scratch/t/merged.md"], blocked: false },
+      "branch 1 of 3": { result: "x done", artifacts: [], blocked: false },
+      "branch 2 of 3": { result: "", artifacts: [], blocked: true, question: "Need prod credentials for y" },
+      "branch 3 of 3": { result: "z done", artifacts: ["/scratch/t/z.md"], blocked: false },
+      Reducer: { result: "merged x and z; y missing", artifacts: ["/scratch/t/merged.md"], blocked: false },
     },
   );
   const r = out.results[0]!;
@@ -138,7 +144,7 @@ test("fan-out: the reducer runs over finished branches and a blocked branch bloc
   assert.equal(r.result, "merged x and z; y missing");
   assert.match(r.question!, /branch 2 \(y\): Need prod credentials for y/);
   assert.deepEqual(r.artifacts, ["/scratch/t/z.md", "/scratch/t/merged.md"]);
-  const red = calls.find((c) => c.opts.label === "w1-d1 reducer")!.prompt;
+  const red = calls.find((c) => c.opts.label === "Wave 1 · d1 Reducer — do w1-d1")!.prompt;
   assert.match(red, /ROLE: reducer/);
   assert.match(red, /BRANCH RESULTS:/);
   assert.match(red, /branch 1 \(done\) — x\nx done/);
@@ -152,9 +158,9 @@ test("fan-out: a blocked reducer keeps the blocked branches' questions alongside
   const { out } = await wave(
     [spec({ id: "w1-d1", topology: "fan-out", params: { split: ["x", "y"] }, roles: { reducer: { instructions: "merge" } } })],
     {
-      "branch 1/2": { result: "x done", artifacts: ["/scratch/t/x.md"], blocked: false },
-      "branch 2/2": { result: "", artifacts: [], blocked: true, question: "Need prod credentials for y" },
-      reducer: { result: "partial merge", artifacts: [], blocked: true, question: "Merge x alone, or wait for y?" },
+      "branch 1 of 2": { result: "x done", artifacts: ["/scratch/t/x.md"], blocked: false },
+      "branch 2 of 2": { result: "", artifacts: [], blocked: true, question: "Need prod credentials for y" },
+      Reducer: { result: "partial merge", artifacts: [], blocked: true, question: "Merge x alone, or wait for y?" },
     },
   );
   const r = out.results[0]!;
@@ -168,10 +174,10 @@ test("fan-out: a reducer that returns nothing is logged and the finished branch 
   const { out, logs } = await wave(
     [spec({ id: "w1-d1", topology: "fan-out", params: { split: ["x", "y", "z"] }, roles: { reducer: { instructions: "merge by theme" } } })],
     {
-      "branch 1/3": { result: "x done", artifacts: ["/scratch/t/x.md"], blocked: false },
-      "branch 2/3": { result: "", artifacts: [], blocked: true, question: "Need prod credentials for y" },
-      "branch 3/3": { result: "z done", artifacts: [], blocked: false },
-      reducer: null,
+      "branch 1 of 3": { result: "x done", artifacts: ["/scratch/t/x.md"], blocked: false },
+      "branch 2 of 3": { result: "", artifacts: [], blocked: true, question: "Need prod credentials for y" },
+      "branch 3 of 3": { result: "z done", artifacts: [], blocked: false },
+      Reducer: null,
     },
   );
   const r = out.results[0]!;
@@ -191,9 +197,9 @@ test("fan-out: all branches blocked makes the dispatch blocked", async () => {
 test("fan-out: a partition instruction runs a partition agent first, then at most `width` branches", async () => {
   const { out, calls, labels } = await wave(
     [spec({ id: "w1-d1", topology: "fan-out", params: { width: 2, split: "split by package" } })],
-    { partition: { subtasks: ["pkg a", "pkg b", "pkg c"], blocked: false } },
+    { Partition: { subtasks: ["pkg a", "pkg b", "pkg c"], blocked: false } },
   );
-  assert.deepEqual(labels(), ["w1-d1 partition", "w1-d1 branch 1/2", "w1-d1 branch 2/2", "wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · d1 Partition — do w1-d1", "Wave 1 · d1 Worker, branch 1 of 2 — pkg a", "Wave 1 · d1 Worker, branch 2 of 2 — pkg b", "Wave 1 · Trace scribe"]);
   assert.match(calls[0]!.prompt, /PARTITION INSTRUCTION:\nsplit by package/);
   assert.match(calls[0]!.prompt, /at most 2 independent sub-tasks/);
   assert.match(calls[1]!.prompt, /TASK: pkg a/);
@@ -208,7 +214,7 @@ test("debate: not built in this version; returns failed without spending agents,
     spec({ id: "w1-d1", topology: "debate", params: { participants: [{ name: "a", stance: "for" }, { name: "b", stance: "against" }], judge: { instructions: "decide" } } }),
     spec({ id: "w1-d2", topology: "debate", params: { participants: Array.from({ length: 7 }, (_, i) => ({ name: `p${i}`, stance: "s" })) } }),
   ]);
-  assert.deepEqual(labels(), ["wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · Trace scribe"]);
   assert.equal(out.results[0]!.status, "failed");
   assert.match(out.results[0]!.result, /dogfood task/);
   assert.equal(out.results[1]!.status, "over_budget");
@@ -233,11 +239,11 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
       }),
     ],
     {
-      "w3-s1 worker": { result: "/scratch/t/research.md\nthree findings", artifacts: ["/scratch/t/research.md"], blocked: false },
-      generator: { result: "/scratch/t/writeup.md", artifacts: ["/scratch/t/writeup.md"], blocked: false },
+      "Wave 3 · s1 Worker": { result: "/scratch/t/research.md\nthree findings", artifacts: ["/scratch/t/research.md"], blocked: false },
+      Generator: { result: "/scratch/t/writeup.md", artifacts: ["/scratch/t/writeup.md"], blocked: false },
     },
   );
-  assert.deepEqual(labels(), ["w3-s1 worker", "w3-s2 generator r1", "w3-s2 evaluator r1", "wave 3 scribe"]);
+  assert.deepEqual(labels(), ["Wave 3 · s1 Worker — research", "Wave 3 · s2 Generator, round 1 of 2 — write it up", "Wave 3 · s2 Evaluator, round 1 of 2 — write it up", "Wave 3 · Trace scribe"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
@@ -256,9 +262,9 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
 test("chain: stops at the first stage that is not done and carries its status and question", async () => {
   const { out, labels } = await wave(
     [spec({ id: "w1-d1", topology: "chain", params: { stages: [{ topology: "single", task: "a" }, { topology: "single", task: "b" }] } })],
-    { "w1-d1-s1 worker": { result: "", artifacts: [], blocked: true, question: "Which region?" } },
+    { "Wave 1 · d1-s1 Worker": { result: "", artifacts: [], blocked: true, question: "Which region?" } },
   );
-  assert.deepEqual(labels(), ["w1-d1-s1 worker", "wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · d1-s1 Worker — a", "Wave 1 · Trace scribe"]);
   const r = out.results[0]!;
   assert.equal(r.status, "blocked");
   assert.equal(r.question, "Which region?");
@@ -273,7 +279,7 @@ test("result shaping: inline result is cut to maxLines and maxLines is clamped t
   const six = ["1", "2", "3", "4", "5", "6"].join("\n");
   const { out, calls } = await wave(
     [spec({ id: "w1-d1", topology: "single", returns: { shape: "x", maxLines: 3 } }), spec({ id: "w1-d2", topology: "single", returns: { shape: "y", maxLines: 50 } })],
-    { worker: { result: six, artifacts: [], blocked: false } },
+    { Worker: { result: six, artifacts: [], blocked: false } },
   );
   assert.equal(out.results[0]!.result, "1\n2\n3");
   assert.equal(out.results[1]!.result, six);
@@ -287,7 +293,7 @@ test("malformed specs: unknown topology, missing id, missing task and non-object
     spec({ id: "w1-d3", topology: "single", task: "" }),
     null as never,
   ]);
-  assert.deepEqual(labels(), ["wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · Trace scribe"]);
   assert.deepEqual(
     out.results.map((r) => r.status),
     ["failed", "failed", "failed", "failed"],
@@ -298,13 +304,13 @@ test("malformed specs: unknown topology, missing id, missing task and non-object
 
 test("an agent that throws yields a failed result for that dispatch and the wave still returns", async () => {
   const { out, logs } = await wave([spec({ id: "w1-d1", topology: "single" }), spec({ id: "w1-d2", topology: "single" })], {
-    "w1-d1 worker": () => {
+    "Wave 1 · d1 Worker": () => {
       throw new Error("boom");
     },
   });
   assert.equal(out.results[0]!.status, "failed");
   assert.match(out.results[0]!.result, /worker returned nothing/);
-  assert.ok(logs.some((l) => /w1-d1 worker threw: boom/.test(l)), "the error is logged");
+  assert.ok(logs.some((l) => /^w1-d1: Wave 1 · d1 Worker — do w1-d1 threw: boom/.test(l)), "the error is logged");
   assert.equal(out.results[1]!.status, "done");
   assert.equal(out.scribe?.appended, 4);
 });
@@ -316,14 +322,14 @@ test("a role that throws mid-topology is logged and the result keeps what the to
       spec({ id: "w1-d2", topology: "generator-evaluator", params: { max_iterations: 3 } }),
     ],
     {
-      "branch 1/2": { result: "a done", artifacts: ["/scratch/t/a.md"], blocked: false },
-      "branch 2/2": { result: "b done", artifacts: ["/scratch/t/b.md"], blocked: false },
-      reducer: () => {
+      "branch 1 of 2": { result: "a done", artifacts: ["/scratch/t/a.md"], blocked: false },
+      "branch 2 of 2": { result: "b done", artifacts: ["/scratch/t/b.md"], blocked: false },
+      Reducer: () => {
         throw new Error("reducer crashed");
       },
-      generator: { result: "draft", artifacts: ["/scratch/t/gen.md"], blocked: false },
-      "evaluator r1": { pass: false, feedback: "again", blocked: false },
-      "evaluator r2": () => {
+      Generator: { result: "draft", artifacts: ["/scratch/t/gen.md"], blocked: false },
+      "Evaluator, round 1": { pass: false, feedback: "again", blocked: false },
+      "Evaluator, round 2": () => {
         throw new Error("evaluator crashed");
       },
     },
@@ -340,8 +346,8 @@ test("a role that throws mid-topology is logged and the result keeps what the to
   assert.match(ge.result, /evaluator returned nothing in round 2/);
   assert.equal(ge.iterations, 2);
   assert.deepEqual(ge.artifacts, ["/scratch/t/gen.md"], "the generator's artifacts from the rounds already spent survive");
-  assert.ok(logs.some((l) => /w1-d1 reducer threw: reducer crashed/.test(l)), "the reducer's error is logged");
-  assert.ok(logs.some((l) => /w1-d2 evaluator r2 threw: evaluator crashed/.test(l)), "the evaluator's error is logged");
+  assert.ok(logs.some((l) => /^w1-d1: Wave 1 · d1 Reducer — do w1-d1 threw: reducer crashed/.test(l)), "the reducer's error is logged");
+  assert.ok(logs.some((l) => /^w1-d2: Wave 1 · d2 Evaluator, round 2 of 3 — do w1-d2 threw: evaluator crashed/.test(l)), "the evaluator's error is logged");
 });
 
 // ---------- demand logging and budgets ----------
@@ -370,7 +376,7 @@ test("hard limit: dispatches beyond the 1000-agent run limit return over_budget 
   const statuses = out.results.map((r) => r.status);
   assert.equal(statuses.filter((s) => s === "done").length, 99); // 1 + 99*10 = 991 ≤ 1000; the 100th would make 1001
   assert.equal(statuses.filter((s) => s === "over_budget").length, 21);
-  assert.equal(labels().filter((l) => l.includes("generator")).length, 99);
+  assert.equal(labels().filter((l) => l.includes("Generator")).length, 99);
 });
 
 test("hard limit: refused dispatches and cap-refused zero-spend specs do not count, so later dispatches that fit still run", async () => {
@@ -391,8 +397,8 @@ test("hard limit: refused dispatches and cap-refused zero-spend specs do not cou
   assert.equal(byId["w1-big"]!.status, "over_budget");
   assert.match(byId["w1-big"]!.result, /1000-agent run limit/);
   assert.equal(byId["w1-last"]!.status, "done");
-  assert.equal(labels().filter((l) => l.includes("generator")).length, 99);
-  assert.equal(labels().filter((l) => l.endsWith("worker")).length, 1);
+  assert.equal(labels().filter((l) => l.includes("Generator")).length, 99);
+  assert.equal(labels().filter((l) => l.includes("Worker")).length, 1);
   assert.equal(agentDemand(dispatches[0]), 0);
   assert.equal(agentDemand(dispatches[1]), 0);
   assert.equal(agentDemand(spec({ id: "x", topology: "fan-out", params: { width: 10, split: "s" } })), 0);
@@ -411,14 +417,14 @@ test("same-wave dependsOn: the dependant waits for its dependency and receives t
       spec({ id: "w1-d1", topology: "single" }),
     ],
     {
-      worker: (c: { opts: { label?: string } }) => {
+      Worker: (c: { opts: { label?: string; phase?: string } }) => {
         order.push(c.opts.label ?? "");
-        return { result: "r", artifacts: [`/scratch/t/${(c.opts.label ?? "").split(" ")[0]}.md`], blocked: false };
+        return { result: "r", artifacts: [`/scratch/t/${c.opts.phase}.md`], blocked: false };
       },
     },
   );
-  assert.deepEqual(order, ["w1-d1 worker", "w1-d2 worker"]);
-  assert.match(calls.find((c) => c.opts.label === "w1-d2 worker")!.prompt, /- w1-d1 \(done\) returned: r\n- artifacts from w1-d1: \/scratch\/t\/w1-d1\.md/);
+  assert.deepEqual(order, ["Wave 1 · d1 Worker — do w1-d1", "Wave 1 · d2 Worker — do w1-d2"]);
+  assert.match(calls.find((c) => c.opts.label === "Wave 1 · d2 Worker — do w1-d2")!.prompt, /- w1-d1 \(done\) returned: r\n- artifacts from w1-d1: \/scratch\/t\/w1-d1\.md/);
   assert.deepEqual(
     out.results.map((r) => r.status),
     ["done", "done", "failed", "failed", "failed"],
@@ -434,9 +440,9 @@ test("same-wave dependsOn: a dependant whose dependency did not finish done is s
       spec({ id: "w1-d2", topology: "single", dependsOn: ["w1-d1"] }),
       spec({ id: "w1-d3", topology: "single", dependsOn: ["w1-d2"] }),
     ],
-    { "w1-d1 worker": { result: "need a decision", artifacts: [], blocked: true, question: "Which DB?" } },
+    { "Wave 1 · d1 Worker": { result: "need a decision", artifacts: [], blocked: true, question: "Which DB?" } },
   );
-  assert.deepEqual(labels(), ["w1-d1 worker", "wave 1 scribe"], "neither dependant runs a worker");
+  assert.deepEqual(labels(), ["Wave 1 · d1 Worker — do w1-d1", "Wave 1 · Trace scribe"], "neither dependant runs a worker");
   assert.deepEqual(
     out.results.map((r) => [r.id, r.status, r.iterations]),
     [
@@ -460,7 +466,7 @@ test("humans passed in args are written by the scribe before the wave, stamped w
   assert.equal(first.answer, "postgres");
   assert.equal(out.events[1]!.type, "wave_start");
   const scribe = calls.at(-1)!;
-  assert.equal(scribe.opts.label, "wave 2 scribe");
+  assert.equal(scribe.opts.label, "Wave 2 · Trace scribe");
   assert.match(scribe.prompt, /Append the 4 line\(s\)/);
   assert.match(scribe.prompt, /to the file \/scratch\/t\/trace\.jsonl/);
   for (const e of out.events) assert.ok(scribe.prompt.includes(JSON.stringify(e)), `scribe prompt carries ${e.type}`);

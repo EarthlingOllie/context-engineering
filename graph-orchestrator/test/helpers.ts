@@ -2,7 +2,7 @@ import type { AgentOptions, DispatchSpec, Runtime } from "../src/types.ts";
 
 export type Call = { prompt: string; opts: AgentOptions; n: number };
 
-/** Script agent outputs by a substring of the call's label ("worker", "generator r2", "branch 1/3", "scribe"...). */
+/** Script agent outputs by a substring of the call's label ("Worker", "Generator, round 2", "branch 1 of 3", "scribe"...). */
 export type Script = Record<string, unknown | ((call: Call) => unknown)>;
 
 export function fakeRuntime(script: Script = {}) {
@@ -10,8 +10,8 @@ export function fakeRuntime(script: Script = {}) {
   const logs: string[] = [];
   const defaults: Script = {
     scribe: (c: Call) => ({ appended: c.prompt.split("\n").filter((l) => l.startsWith("{")).length, totalLines: 99 }),
-    evaluator: { pass: true, feedback: "", blocked: false },
-    partition: { subtasks: ["part a", "part b"], blocked: false },
+    Evaluator: { pass: true, feedback: "", blocked: false },
+    Partition: { subtasks: ["part a", "part b"], blocked: false },
   };
   const rt: Runtime = {
     agent: async (prompt, opts = {}) => {
@@ -19,7 +19,7 @@ export function fakeRuntime(script: Script = {}) {
       calls.push(call);
       const label = opts.label ?? "";
       const merged = { ...defaults, ...script };
-      // Longest matching key wins, so "generator r2" beats "generator".
+      // Longest matching key wins, so "Generator, round 2" beats "Generator".
       const key = Object.keys(merged)
         .filter((k) => label.includes(k))
         .sort((a, b) => b.length - a.length)[0];

@@ -39,7 +39,7 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
         artifactDir: ctx.artifactDir,
         sections: [{ title: "PARTITION INSTRUCTION", body: split }],
       }),
-      "partition",
+      { role: "partition" },
       {
         type: "object",
         properties: {
@@ -77,7 +77,7 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
           returns: branchReturns,
           artifactDir: ctx.artifactDir,
         }),
-        `branch ${i + 1}/${n}`,
+        { role: "worker", branch: i + 1, branches: n, task },
       );
       if (!out) return { index: i, task, status: "failed", result: "worker returned nothing", artifacts: [] };
       const { question, ...work } = readWorkOutput(out, branchReturns.maxLines);
@@ -111,7 +111,7 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
       spec,
       "reducer",
       buildPrompt({ role: "reducer", task: spec.task, context: spec.context, entry: reducerEntry, returns, artifactDir: ctx.artifactDir, sections: [{ title: "BRANCH RESULTS", body }] }),
-      "reducer",
+      { role: "reducer" },
     );
     if (red) {
       const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);
