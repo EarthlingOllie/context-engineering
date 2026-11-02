@@ -1,5 +1,5 @@
 // Shell behaviour under `claude plugin test`: features 17 (pane per surface), 18 (live hooks), 19 (prompt.submit).
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
 
@@ -100,5 +100,129 @@ test('feature 19: prompt.submit resets a model focus to the new question; meta p
   const r = await $.prompt.submit({ text: 'why?', wait: false } as never)
   expect(r).toEqual({ text: 'why?' })
   expect(await statusText(ui)).toMatch(/focus: auto$/)
+  await ui.unmount()
+})
+
+const run = ($: { command: { run: (e: never) => Promise<{ text?: string }> } }, args: string) =>
+  $.command.run({ command: 'context-graph', args } as never)
+
+test('feature 20: /context-graph open | focus | clear | stats | export | reset', async ($, on) => {
+  engine(on)
+  const writes: { path: string; text: string }[] = []
+  ;(on as never as (ev: string, h: (...a: never[]) => unknown) => void)('fs.write', (_: unknown, e: { path: string; text: string }) => {
+    writes.push(e)
+    return { value: undefined }
+  })
+  ;(on as never as (ev: string, h: (...a: never[]) => unknown) => void)('session.cwd', () => ({ value: '/work' }))
+  await feedTurn($ as never, 1)
+  expect((await run($ as never, '')).text).toBe('Opened.')
+  expect((await run($ as never, 'open')).text).toBe('Opened.')
+  expect((await run($ as never, 'focus a.ts')).text).toBe('Focused on 1 nodes.')
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await statusText(ui)).toMatch(/focus: model$/)
+  expect((await run($ as never, 'focus zzz')).text).toBe('No node matches.')
+  expect((await run($ as never, 'clear')).text).toBe('Focus cleared.')
+  expect(await statusText(ui)).toMatch(/focus: auto$/)
+  const st = (await run($ as never, 'stats')).text ?? ''
+  expect(st).toContain('prompt: 1')
+  expect(st).toContain('file: 1')
+  expect((await run($ as never, 'export /tmp/g.html')).text).toBe('Exported 4 nodes to /tmp/g.html.')
+  expect((await run($ as never, 'export')).text).toBe('Exported 4 nodes to /work/context-graph.html.')
+  expect(writes.length).toBe(2)
+  expect(writes[0]!.path).toBe('/tmp/g.html')
+  expect(writes[0]!.text.startsWith('<!doctype html>')).toBe(true)
+  expect((await run($ as never, 'reset')).text).toBe('Graph reset.')
+  expect(await statusText(ui)).toMatch(/^0 nodes/)
+  expect((await run($ as never, 'bogus')).text).toMatch(/^Unknown subcommand "bogus"/)
+  await ui.unmount()
+})
+
+const TOOL = 'mcp__context-graph__context_graph'
+const callTool = ($: { tool: { call: (e: never) => Promise<unknown> } }, input: object) =>
+  $.tool.call({ tool: TOOL, ...input } as never) as Promise<{ result: string }>
+
+test('feature 21: session.start registers context_graph; inspect, focus and clear serve the model', async ($, on) => {
+  engine(on)
+  const specs: { name: string; isDeferred?: boolean; inputSchema?: { properties?: { action?: { enum?: string[] } } } }[] = []
+  ;(on as never as (ev: string, h: (...a: never[]) => unknown) => void)('tool.register', (_: unknown, e: never) => {
+    specs.push(e)
+    return { value: { tool: TOOL } }
+  })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true } as never)
+  expect(specs.length).toBe(1)
+  expect(specs[0]!.name).toBe('context_graph')
+  expect(specs[0]!.isDeferred).toBe(false)
+  expect(specs[0]!.inputSchema?.properties?.action?.enum).toEqual(['inspect', 'focus', 'clear'])
+
+  for (let i = 1; i <= 8; i++) await feedTurn($ as never, i, `/repo/f${i}.ts`)
+  const inspected = await callTool($ as never, { action: 'inspect' })
+  const body = JSON.parse(inspected.result) as { nodes: { id: string; kind: string; tokens: number; hop: number | null; weight: number }[] }
+  expect(body.nodes.length).toBeGreaterThan(0)
+  expect(body.nodes.length).toBeLessThanOrEqual(25)
+  for (const n of body.nodes) for (const k of ['id', 'kind', 'tokens', 'hop', 'weight']) expect(k in n).toBe(true)
+
+  const focused = await callTool($ as never, { action: 'focus', match: 'f3.ts', nodeIds: ['nope:1'], note: 'n' })
+  expect(focused.result).toContain('Focused on 1 nodes')
+  expect(focused.result).toContain('nope:1')
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await statusText(ui)).toMatch(/focus: model "n"$/)
+  const cleared = await callTool($ as never, { action: 'clear' })
+  expect(cleared.result).toBe('Focus cleared.')
+  expect(await statusText(ui)).toMatch(/focus: auto$/)
+  const bad = await callTool($ as never, { action: 'focus', nodeIds: ['nope:2'] })
+  expect(bad.result).toContain('No node matches')
+  expect(bad.result).toContain('nope:2')
+  await ui.unmount()
+})
+
+const viewText = async (ui: { find: (q: { type?: string; text?: RegExp }) => Promise<{ text?: string } | undefined> }) =>
+  (await ui.find({ type: 'Text', text: /^yaw / }))?.text ?? ''
+const svgSource = async (ui: { find: (q: { type?: string }) => Promise<{ props: Record<string, unknown> } | undefined> }) => String((await ui.find({ type: 'Svg' }))?.props.source)
+
+test('feature 22: view buttons turn, tilt and zoom within bounds; refocus resets to auto-fit', async ($, on) => {
+  engine(on)
+  await feedTurn($ as never, 1)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await viewText(ui)).toBe('yaw 30° · pitch 20° · zoom 1.00×')
+  const before = await svgSource(ui)
+  await ui.press({ key: 'yaw+' })
+  expect(await viewText(ui)).toBe('yaw 45° · pitch 20° · zoom 1.00×')
+  expect(await svgSource(ui)).not.toBe(before)
+  await ui.press({ key: 'yaw-' })
+  await ui.press({ key: 'yaw-' })
+  await ui.press({ key: 'pitch-' })
+  expect(await viewText(ui)).toBe('yaw 15° · pitch 5° · zoom 1.00×')
+  for (let i = 0; i < 12; i++) await ui.press({ key: 'zoom+' })
+  expect(await viewText(ui)).toMatch(/zoom 4\.00×$/)
+  for (let i = 0; i < 20; i++) await ui.press({ key: 'zoom-' })
+  expect(await viewText(ui)).toMatch(/zoom 0\.25×$/)
+  await ui.press({ key: 'refocus' })
+  expect(await viewText(ui)).toBe('yaw 30° · pitch 20° · zoom 1.00×')
+  expect(await svgSource(ui)).toBe(before)
+  await ui.unmount()
+})
+
+test('feature 22: auto-orbit blits the terminal Raster on each clock tick and stops when toggled off', async ($, on) => {
+  engine(on)
+  const clock = mock.clock(on as never)
+  const blits: { requestId: string; key: string; cells?: string }[] = []
+  ;(on as never as (ev: string, h: (...a: never[]) => unknown) => void)('ui.blit', (_: unknown, e: never) => {
+    blits.push(e)
+    return { value: {} }
+  })
+  await feedTurn($ as never, 1)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'orbit' })
+  await clock.advance(1000)
+  expect(blits.length).toBeGreaterThan(0)
+  expect(blits[0]!.requestId).toBe('context-graph')
+  expect(blits[0]!.key).toBe('g')
+  expect(typeof blits[0]!.cells).toBe('string')
+  const frames = new Set(blits.map((b) => b.cells))
+  expect(frames.size).toBeGreaterThan(1)
+  await ui.press({ key: 'orbit' })
+  const n = blits.length
+  await clock.advance(1000)
+  expect(blits.length).toBe(n)
   await ui.unmount()
 })

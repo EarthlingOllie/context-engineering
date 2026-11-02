@@ -41,13 +41,20 @@ export function appendToEvents(input: unknown, cursor: AppendCursor): { events: 
   return { events: [], cursor: next } // notices: the model never reads them
 }
 
-/** Node ids whose label or file path contains `query` (case-insensitive). Blank queries match nothing. */
+/**
+ * Node ids a free-text query names. A file whose path or basename equals the query wins outright;
+ * otherwise any node whose label or file path contains it (case-insensitive). Blank queries match nothing.
+ */
 export function matchNodes(g: Graph, query: string): string[] {
   const q = query.trim().toLowerCase()
   if (!q) return []
-  return Object.values(g.nodes)
-    .filter((n) => n.label.toLowerCase().includes(q) || (n.meta?.path ?? '').toLowerCase().includes(q))
-    .map((n) => n.id)
+  const nodes = Object.values(g.nodes)
+  const exact = nodes.filter((n) => {
+    const path = (n.meta?.path ?? '').toLowerCase()
+    return n.kind === 'file' && path !== '' && (path === q || path.endsWith(`/${q}`))
+  })
+  if (exact.length) return exact.map((n) => n.id)
+  return nodes.filter((n) => n.label.toLowerCase().includes(q) || (n.meta?.path ?? '').toLowerCase().includes(q)).map((n) => n.id)
 }
 
 /** What tool.call learns after the tool ran; only fills what session.append has not already given. */

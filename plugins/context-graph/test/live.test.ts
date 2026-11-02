@@ -45,13 +45,15 @@ test('subagent rows, notices and non-objects add nothing; meta user rows are inj
   assert.deepEqual(appendToEvents({ uuid: 'm', message: { type: 'user', isMeta: true, content: [{ type: 'text', text: 'abcd' }] } }, emptyCursor()).events, [{ kind: 'injected', chars: 4 }])
 })
 
-test('matchNodes finds nodes by label or path, case-insensitively', () => {
+test('matchNodes prefers file nodes whose basename or path equals the query, else matches label or path', () => {
   const g = applyEvents(emptyGraph(), [
     { kind: 'prompt', id: 'p', text: 'q' },
     { kind: 'assistant', messageId: 'm', text: 'ok' },
     { kind: 'tool_use', id: 't', messageId: 'm', name: 'Read', input: { file_path: '/src/A.ts' } },
   ])
-  assert.deepEqual(matchNodes(g, 'a.TS').sort(), ['file:/src/A.ts', 'tool:t'])
+  assert.deepEqual(matchNodes(g, 'a.TS'), ['file:/src/A.ts'])
+  assert.deepEqual(matchNodes(g, '/src/a.ts'), ['file:/src/A.ts'])
+  assert.deepEqual(matchNodes(g, 'src/').sort(), ['file:/src/A.ts', 'tool:t'])
   assert.deepEqual(matchNodes(g, 'zzz'), [])
   assert.deepEqual(matchNodes(g, '  '), [])
 })

@@ -3,7 +3,7 @@
 // or a text list. Every hook calls or returns next exactly once and is guarded, so the mod cannot block
 // a tool, a prompt or a row.
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 import { applyEvents, emptyGraph } from '../src/core/ingest.ts'
 import { appendToEvents, applyTurnUsage, emptyCursor, enrichTool, matchNodes } from '../src/core/live.ts'
 import { blastRadius } from '../src/core/blast.ts'
@@ -11,7 +11,8 @@ import { layout } from '../src/core/layout.ts'
 import { buildScene } from '../src/core/scene.ts'
 import { renderSvg } from '../src/core/svg.ts'
 import { rasterize, toBase64 } from '../src/core/raster.ts'
-import type { Focus, Graph, GraphEvent, Seed } from '../src/core/types.ts'
+import { exportHtml } from '../src/core/exportHtml.ts'
+import type { BlastRadius, Focus, Graph, GraphEvent, Seed, Vec3 } from '../src/core/types.ts'
 import type { ContextGraphView as ViewState } from '../types/index.d.ts'
 
 const PLUGIN = 'context-graph'
@@ -21,6 +22,25 @@ const TOOL = 'context_graph'
 const TOOL_ID = `mcp__${PLUGIN}__${TOOL}`
 
 export const DEFAULT_VIEW: ViewState = { yaw: 30, pitch: 20, distance: 0, fov: 50, zoom: 1, autoOrbit: false }
+export const ZOOM_MIN = 0.25
+export const ZOOM_MAX = 4
+export const ORBIT_MS = 100
+export const ORBIT_STEP = 3
+const INSPECT_LIMIT = 25
+
+export const TOOL_SCHEMA = {
+  type: 'object',
+  properties: {
+    action: { type: 'string', enum: ['inspect', 'focus', 'clear'], description: 'inspect: list the nodes the current question reaches; focus: set the blast-radius seeds; clear: back to the latest prompt.' },
+    match: { type: 'string', description: 'focus: free text matched against node labels and file paths (a file basename such as "a.ts" picks that file).' },
+    nodeIds: { type: 'array', items: { type: 'string' }, description: 'focus: node ids as inspect lists them.' },
+    note: { type: 'string', description: 'focus: a short note shown in the pane status line.' },
+  },
+  required: ['action'],
+  additionalProperties: false,
+} as const
+const TOOL_DESCRIPTION =
+  'The context graph: the conversation as nodes (system, prompts, turns, tool calls, files, compactions) sized by tokens, with the blast radius of the current question highlighted in the context-graph pane. inspect lists the reached nodes (id, kind, tokens, hop, weight); focus points the blast radius at the nodes that matter for the question; clear returns it to the latest prompt.'
 
 const graphAtom = atom({ plugin: 'context-graph', key: 'graph' } as const, emptyGraph(), { shape: 'graph-1' })
 const posAtom = atom({ plugin: 'context-graph', key: 'positions' } as const, {}, { shape: 'pos-1' })
@@ -58,6 +78,98 @@ function focusOn(g: Graph, ids: string[], note?: string): Focus {
   return f
 }
 
+/** Module state for the orbit animation only (resets on reload; session.start restarts the timer). */
+const orbit: { deg: number; timer: Timer | null; term: { cols: number; rows: number } | null } = { deg: 0, timer: null, term: null }
+
+async function drawInput($: Dollar) {
+  const [graph, positions, focus, view] = await Promise.all([read($, graphAtom), read($, posAtom), read($, focusAtom), read($, viewAtom)])
+  const blast = blastRadius(graph, focus.seeds)
+  const shown = view.autoOrbit ? { ...view, yaw: (view.yaw + orbit.deg) % 360 } : view
+  return { graph, positions, blast, view: shown, focus, rawView: view }
+}
+
+const terminalCells = (input: Parameters<typeof buildScene>[0], cols: number, rows: number) =>
+  toBase64(rasterize(buildScene(input, { w: cols * 2, h: rows * 4 }), cols, rows))
+
+function startOrbit($: Dollar): void {
+  if (orbit.timer) return
+  orbit.timer = $.clock.every(ORBIT_MS, () => {
+    void (async () => {
+      orbit.deg = (orbit.deg + ORBIT_STEP) % 360
+      if (orbit.term) {
+        const input = await drawInput($)
+        await $.ui.blit({ requestId: PANE, key: 'g', cells: terminalCells(input, orbit.term.cols, orbit.term.rows) })
+      }
+      $.ui.invalidate('ui.render')
+    })().catch(() => undefined)
+  })
+}
+
+async function stopOrbit($: Dollar): Promise<void> {
+  orbit.timer?.cancel()
+  orbit.timer = null
+  const deg = orbit.deg
+  orbit.deg = 0
+  await update($, viewAtom, (v) => ({ ...v, yaw: (v.yaw + deg) % 360, autoOrbit: false }))
+}
+
+function inspectReport(g: Graph, focus: Focus, blast: BlastRadius): string {
+  const reached = Object.values(g.nodes)
+    .map((n) => ({ id: n.id, kind: n.kind, label: n.label, tokens: n.tokens, inWindow: n.inWindow, hop: blast.hops[n.id] ?? null, weight: Math.round((blast.weights[n.id] ?? 0) * 1000) / 1000 }))
+    .sort((a, b) => b.weight - a.weight || b.tokens - a.tokens || a.id.localeCompare(b.id))
+    .slice(0, INSPECT_LIMIT)
+  const windowTokens = Object.values(g.nodes).filter((n) => n.inWindow).reduce((a, n) => a + n.tokens, 0)
+  return JSON.stringify({
+    question: focus.question ?? null,
+    focus: focus.seeds.some((x) => x.source === 'model') ? 'model' : 'auto',
+    note: focus.note ?? null,
+    seeds: blast.seeds,
+    totalNodes: Object.keys(g.nodes).length,
+    blastNodes: Object.keys(blast.weights).length,
+    blastTokens: blast.tokens,
+    windowTokens,
+    nodes: reached,
+  })
+}
+
+/** Resolve a focus request to known ids; unknown ids are reported, never thrown. */
+function resolveFocus(g: Graph, match: string | undefined, nodeIds: string[] | undefined): { ids: string[]; unknown: string[] } {
+  const ids = new Set(match ? matchNodes(g, match) : [])
+  const unknown: string[] = []
+  for (const id of nodeIds ?? []) (g.nodes[id] ? ids.add(id) : unknown.push(id))
+  return { ids: [...ids].sort(), unknown }
+}
+
+async function serveTool($: Dollar, input: Record<string, unknown>): Promise<string> {
+  const action = String(input.action ?? '')
+  const g = await read($, graphAtom)
+  if (action === 'inspect') {
+    const focus = await read($, focusAtom)
+    return inspectReport(g, focus, blastRadius(g, focus.seeds))
+  }
+  if (action === 'clear') {
+    await update($, focusAtom, (f) => ({ seeds: [], ...(f.question ? { question: f.question } : {}) }))
+    return 'Focus cleared.'
+  }
+  if (action === 'focus') {
+    const match = typeof input.match === 'string' ? input.match : undefined
+    const nodeIds = Array.isArray(input.nodeIds) ? input.nodeIds.map(String) : undefined
+    const note = typeof input.note === 'string' && input.note.trim() ? input.note.trim().slice(0, 80) : undefined
+    const { ids, unknown } = resolveFocus(g, match, nodeIds)
+    const tail = unknown.length ? ` Unknown ids: ${unknown.join(', ')}.` : ''
+    if (!ids.length) return `No node matches.${tail}`
+    const prev = await read($, focusAtom)
+    const f = focusOn(g, ids, note)
+    if (prev.question) f.question = prev.question
+    await update($, focusAtom, () => f)
+    const blast = blastRadius(g, f.seeds)
+    return `Focused on ${ids.length} nodes (blast: ${Object.keys(blast.weights).length} nodes / ${blast.tokens} tok).${tail}`
+  }
+  return `Unknown action "${action}". Use inspect | focus | clear.`
+}
+
+const resolvePath = (cwd: string, p: string) => (p.startsWith('/') ? p : `${cwd.replace(/\/$/, '')}/${p}`)
+
 export const register: Register = (on) => {
   // ------------------------------------------------------------------ live graph
   on('session.append', async ($, e, next) => {
@@ -92,7 +204,13 @@ export const register: Register = (on) => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', async ($, e, next) => {
-    if (String(e.tool) === TOOL_ID) return next(e)
+    if (String(e.tool) === TOOL_ID) {
+      try {
+        return { result: await serveTool($, e as unknown as Record<string, unknown>) }
+      } catch (err) {
+        return { result: `context_graph failed: ${String(err)}`, isError: true }
+      }
+    }
     const r = await next(e)
     if (e.agentId === undefined && 'isError' in r && r.isError === true) await writeGraph($, (g) => enrichTool(g, e.tool_use_id, { isError: true }))
     return r
@@ -101,12 +219,11 @@ export const register: Register = (on) => {
   // ------------------------------------------------------------------ pane
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
-    const [g, positions, focus, view] = await Promise.all([read($, graphAtom), read($, posAtom), read($, focusAtom), read($, viewAtom)])
-    const blast = blastRadius(g, focus.seeds)
-    const s = stats(g, focus)
+    const { rawView, ...input } = await drawInput($)
+    const g = input.graph, blast = input.blast
+    const s = stats(g, input.focus)
     const cols = Math.max(20, Math.min(512, e.props.bodyColumns ?? e.viewport?.columns ?? 80))
     const bodyRows = e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30
-    const input = { graph: g, positions, blast, view, focus }
 
     let drawing: unknown
     if (e.surface === 'desktop' || e.surface === 'vscode' || e.surface === 'mobile') {
@@ -117,7 +234,8 @@ export const register: Register = (on) => {
     } else if (e.surface === 'terminal') {
       const { Raster } = $.ui.resolve(e)
       const rows = Math.max(4, Math.min(bodyRows - 4, 60))
-      const cells = toBase64(rasterize(buildScene(input, { w: cols * 2, h: rows * 4 }), cols, rows))
+      orbit.term = { cols, rows }
+      const cells = terminalCells(input, cols, rows)
       drawing = <Raster key="g" columns={cols} rows={rows} cells={cells} />
     } else {
       const top = Object.entries(blast.weights).sort((a, b) => b[1] - a[1]).slice(0, 10)
@@ -128,7 +246,17 @@ export const register: Register = (on) => {
       )
     }
     const turn = (dyaw: number, dpitch: number) => () => update($, viewAtom, (v) => ({ ...v, yaw: (v.yaw + dyaw + 360) % 360, pitch: Math.max(-85, Math.min(85, v.pitch + dpitch)) }))
-    const zoom = (k: number) => () => update($, viewAtom, (v) => ({ ...v, zoom: Math.max(0.25, Math.min(4, v.zoom * k)) }))
+    const zoom = (k: number) => () => update($, viewAtom, (v) => ({ ...v, zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(v.zoom * k * 1000) / 1000)) }))
+    const toggleOrbit = async () => {
+      if (rawView.autoOrbit || orbit.timer) return stopOrbit($)
+      await update($, viewAtom, (v) => ({ ...v, autoOrbit: true }))
+      startOrbit($)
+    }
+    const refocus = async () => {
+      orbit.deg = 0
+      await update($, viewAtom, (v) => ({ ...DEFAULT_VIEW, autoOrbit: v.autoOrbit }))
+    }
+    const viewLine = `yaw ${Math.round(input.view.yaw)}° · pitch ${Math.round(rawView.pitch)}° · zoom ${rawView.zoom.toFixed(2)}×${rawView.autoOrbit ? ' · orbiting' : ''}`
     return (
       <Box flexDirection="column">
         {drawing as never}
@@ -139,9 +267,10 @@ export const register: Register = (on) => {
           <Button key="pitch-" label="▼" onPress={turn(0, -15)} />
           <Button key="zoom+" label="+" onPress={zoom(1.25)} />
           <Button key="zoom-" label="−" onPress={zoom(0.8)} />
-          <Button key="orbit" label="⟳" onPress={() => update($, viewAtom, (v) => ({ ...v, autoOrbit: !v.autoOrbit }))} />
-          <Button key="refocus" label="◎" onPress={() => update($, viewAtom, (v) => ({ ...DEFAULT_VIEW, autoOrbit: v.autoOrbit }))} />
+          <Button key="orbit" label="⟳" onPress={toggleOrbit} />
+          <Button key="refocus" label="◎" onPress={refocus} />
         </Box>
+        <Text key="view">{viewLine}</Text>
         <Text key="status">{s.line}</Text>
       </Box>
     )
@@ -149,7 +278,9 @@ export const register: Register = (on) => {
 
   // ------------------------------------------------------------------ command (registered in session.start)
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: PLUGIN, description: 'Context graph: open | focus <text> | clear | stats' })
+    await $.command.register({ name: PLUGIN, description: 'Context graph: open | focus <text> | clear | stats | export [path] | reset' })
+    await $.tool.register({ name: TOOL, description: TOOL_DESCRIPTION, inputSchema: TOOL_SCHEMA as unknown as Record<string, unknown>, isDeferred: false }).catch(() => undefined)
+    if ((await read($, viewAtom)).autoOrbit) startOrbit($)
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -176,8 +307,21 @@ export const register: Register = (on) => {
         const f = await read($, focusAtom)
         return { text: `${Object.entries(counts).map(([k, n]) => `${k}: ${n}`).join(', ') || 'empty graph'}\n${stats(g, f).line}` }
       }
+      case 'export': {
+        const [positions, f] = await Promise.all([read($, posAtom), read($, focusAtom)])
+        const path = resolvePath(await $.session.cwd(), arg || 'context-graph.html')
+        const html = exportHtml(g, positions as Record<string, Vec3>, blastRadius(g, f.seeds), { title: 'Context graph', ...(f.note ? { note: f.note } : {}) })
+        await $.fs.write(path, html)
+        return { text: `Exported ${Object.keys(g.nodes).length} nodes to ${path}.` }
+      }
+      case 'reset':
+        await update($, graphAtom, () => emptyGraph())
+        await update($, posAtom, () => ({}))
+        await update($, cursorAtom, () => emptyCursor())
+        await update($, focusAtom, () => ({ seeds: [] }))
+        return { text: 'Graph reset.' }
       default:
-        return { text: `Unknown subcommand "${sub}". Use open | focus <text> | clear | stats.` }
+        return { text: `Unknown subcommand "${sub}". Use open | focus <text> | clear | stats | export [path] | reset.` }
     }
   })
 }
