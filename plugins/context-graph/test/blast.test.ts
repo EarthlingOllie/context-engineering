@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { blastRadius } from '../src/core/blast.ts'
-import type { Graph, GraphEdge, GraphNode, NodeKind } from '../src/core/types.ts'
+import type { Graph, GraphEdge, GraphEvent, GraphNode, NodeKind } from '../src/core/types.ts'
 
 let seq = 0
 const node = (id: string, kind: NodeKind, tokens: number, inWindow = true): GraphNode => ({ id, kind, label: id, tokens, seq: ++seq, inWindow })
@@ -90,4 +90,22 @@ test('feature 8: an out-of-window model seed still caps at 0.1', () => {
   const b = blastRadius(g, [{ id: 'z', source: 'model' }])
   assert.equal(b.weights.z, 0.1)
   assert.equal(b.weights.p, undefined, 'explicit seeds replace the latest-prompt default')
+})
+
+test('the latest prompt reaches every tool and file of its turns, however long the turn chain', async () => {
+  const { applyEvents, emptyGraph } = await import('../src/core/ingest.ts')
+  const evs: GraphEvent[] = [{ kind: 'prompt', id: 'q', text: 'long task' }]
+  for (let i = 0; i < 12; i++) {
+    evs.push({ kind: 'assistant', messageId: `m${i}`, text: `step ${i}` })
+    evs.push({ kind: 'tool_use', id: `u${i}`, messageId: `m${i}`, name: 'Read', input: { file_path: `/repo/f${i}.ts` } })
+    evs.push({ kind: 'tool_result', toolUseId: `u${i}`, chars: 400, isError: false })
+  }
+  const g = applyEvents(emptyGraph(), evs)
+  const b = blastRadius(g, [])
+  for (let i = 0; i < 12; i++) {
+    assert.equal(b.hops[`turn:m${i}`], 1, `turn m${i} is one hop from its prompt`)
+    assert.equal(b.hops[`tool:u${i}`], 2, `tool u${i} is two hops from its prompt`)
+    assert.equal(b.hops[`file:/repo/f${i}.ts`], 3, `file f${i} is three hops from its prompt`)
+    assert.equal(b.weights[`tool:u${i}`], 0.25)
+  }
 })

@@ -5,8 +5,9 @@ const OUT_OF_WINDOW_CAP = 0.1
 const CENTROID_MIN = 0.5
 
 /**
- * BFS over edges treated as undirected from each seed. Weight = falloff^hop; the max
- * weight wins across seeds; out-of-window nodes are reached but capped at 0.1.
+ * 0-1 BFS over edges treated as undirected from each seed. A turn-turn edge costs no hop, so
+ * every turn of a prompt is one hop from it however long the chain. Weight = falloff^hop; the
+ * max weight wins across seeds; out-of-window nodes are reached but capped at 0.1.
  * With no seeds the latest prompt is the seed. Deterministic and edge-order independent.
  */
 export function blastRadius(g: Graph, seeds: Seed[], opts?: { falloff?: number; maxHops?: number }): BlastRadius {
@@ -14,39 +15,41 @@ export function blastRadius(g: Graph, seeds: Seed[], opts?: { falloff?: number; 
   const maxHops = opts?.maxHops ?? 3
   const seedIds = [...new Set((seeds.length ? seeds.map((s) => s.id) : g.latestPromptId ? [g.latestPromptId] : []).filter((id) => g.nodes[id]))].sort()
 
-  const adj = new Map<string, string[]>()
-  const link = (a: string, b: string) => {
+  const adj = new Map<string, [string, number][]>()
+  const link = (a: string, b: string, cost: number) => {
     const list = adj.get(a)
-    if (list) list.push(b)
-    else adj.set(a, [b])
+    if (list) list.push([b, cost])
+    else adj.set(a, [[b, cost]])
   }
   for (const e of g.edges) {
     if (!g.nodes[e.from] || !g.nodes[e.to]) continue
-    link(e.from, e.to)
-    link(e.to, e.from)
+    const cost = e.kind === 'turn-turn' ? 0 : 1
+    link(e.from, e.to, cost)
+    link(e.to, e.from, cost)
   }
-  for (const list of adj.values()) list.sort()
+  for (const list of adj.values()) list.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] - b[1]))
 
   const weights: Record<string, number> = {}
   const hops: Record<string, number> = {}
   for (const seed of seedIds) {
-    const seen = new Map<string, number>([[seed, 0]])
-    let frontier = [seed]
-    for (let hop = 0; frontier.length && hop <= maxHops; hop++) {
-      const next: string[] = []
-      for (const id of frontier) {
-        const n = g.nodes[id]!
-        const w = n.inWindow ? falloff ** hop : Math.min(OUT_OF_WINDOW_CAP, falloff ** hop)
-        if (w > (weights[id] ?? -1)) weights[id] = w
-        if (hop < (hops[id] ?? Infinity)) hops[id] = hop
-        for (const nb of adj.get(id) ?? []) {
-          if (!seen.has(nb)) {
-            seen.set(nb, hop + 1)
-            next.push(nb)
-          }
-        }
+    const dist = new Map<string, number>([[seed, 0]])
+    const deque = [seed]
+    while (deque.length) {
+      const id = deque.shift()!
+      const d = dist.get(id)!
+      for (const [nb, cost] of adj.get(id) ?? []) {
+        const nd = d + cost
+        if (nd > maxHops || nd >= (dist.get(nb) ?? Infinity)) continue
+        dist.set(nb, nd)
+        if (cost === 0) deque.unshift(nb)
+        else deque.push(nb)
       }
-      frontier = next
+    }
+    for (const [id, hop] of dist) {
+      const n = g.nodes[id]!
+      const w = n.inWindow ? falloff ** hop : Math.min(OUT_OF_WINDOW_CAP, falloff ** hop)
+      if (w > (weights[id] ?? -1)) weights[id] = w
+      if (hop < (hops[id] ?? Infinity)) hops[id] = hop
     }
   }
 

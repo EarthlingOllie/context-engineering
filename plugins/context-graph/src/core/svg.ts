@@ -15,8 +15,9 @@ const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y <
 export interface SvgOptions { width: number; height: number; maxChars?: number; theme: 'dark' | 'light' }
 
 const THEMES = {
-  dark: { bg: '#0d1117', fg: '#c9d1d9', edge: '#8b949e', ring: '#ffd866' },
-  light: { bg: '#ffffff', fg: '#24292f', edge: '#57606a', ring: '#bf8700' },
+  dark: { bg: '#0d1117', fg: '#c9d1d9', edge: '#8b949e', ring: '#ffd866', shade: 1 },
+  // kind colours are tuned for a dark ground; scaling them by 0.65 keeps >= 3:1 contrast on white
+  light: { bg: '#ffffff', fg: '#24292f', edge: '#57606a', ring: '#bf8700', shade: 0.65 },
 }
 
 export function escapeXml(s: string): string {
@@ -24,6 +25,7 @@ export function escapeXml(s: string): string {
 }
 const f1 = (v: number) => String(Math.round(v * 10) / 10)
 const hex = (c: number) => '#' + (c & 0xffffff).toString(16).padStart(6, '0')
+const shade = (c: number, k: number) => k === 1 ? c : [16, 8, 0].reduce((out, sh) => out | (Math.round(((c >> sh) & 0xff) * k) << sh), 0)
 
 interface Plan { items: SceneItem[]; edges: SceneEdge[]; labels: boolean }
 
@@ -46,7 +48,7 @@ function draw(scene: Scene, plan: Plan, o: SvgOptions): string {
     const x = f1(n.x * sx), y = f1(n.y * sy), r = n.r
     const tip = `${n.kind} · ${n.label} · ${n.tokens} tok${n.hop !== undefined ? ` · hop ${n.hop}` : ''}${n.inWindow ? '' : ' · compacted'}`
     out.push(`<g class="n${n.seed ? ' seed' : ''}" opacity="${Math.round(op * 100) / 100}"><title>${escapeXml(tip)}</title>`)
-    out.push(`<circle cx="${x}" cy="${y}" r="${f1(r)}" fill="${hex(n.color)}"${n.inWindow ? '' : ' fill-opacity="0.5"'}/>`)
+    out.push(`<circle cx="${x}" cy="${y}" r="${f1(r)}" fill="${hex(shade(n.color, t.shade))}"${n.inWindow ? '' : ' fill-opacity="0.5"'}/>`)
     if (!n.seed && n.weight >= HALO_MIN) {
       out.push(`<circle class="halo" cx="${x}" cy="${y}" r="${f1(r + 2.5)}" fill="none" stroke="${t.ring}" stroke-width="${f1(1 + 1.5 * n.weight)}" stroke-opacity="${f1(0.35 + 0.6 * n.weight)}"/>`)
     }

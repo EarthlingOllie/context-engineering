@@ -104,3 +104,18 @@ test('labels never overlap one another', () => {
     assert.ok(!overlap, `labels ${a} and ${b} overlap`)
   }
 })
+
+test('the light theme darkens node fills so every kind colour keeps at least 3:1 contrast on white', () => {
+  const lum = (h: string) => {
+    const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!
+  }
+  const kinds = [0x8a8f98, 0xf2b84b, 0x6ea8fe, 0x5ccf91, 0xc792ea, 0xef6f6c]
+  const items = kinds.map((color, i) => item(`k${i}`, { color, weight: 1 }))
+  const light = renderSvg(scene(items), { width: 400, height: 300, theme: 'light' })
+  const fills = [...light.matchAll(/<circle cx="[^"]+" cy="[^"]+" r="[^"]+" fill="(#[0-9a-f]{6})"/g)].map((m) => m[1]!)
+  assert.equal(fills.length, kinds.length)
+  for (const f of fills) assert.ok(1.05 / (lum(f) + 0.05) >= 3, `${f} on white`)
+  const dark = renderSvg(scene([item('d', { weight: 1 })]), { width: 400, height: 300, theme: 'dark' })
+  assert.match(dark, /fill="#5ccf91"/, 'the dark theme keeps the kind colour')
+})

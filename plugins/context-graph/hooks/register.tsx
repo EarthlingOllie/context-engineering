@@ -81,6 +81,16 @@ function focusOn(g: Graph, ids: string[], note?: string): Focus {
 /** Module state for the orbit animation only (resets on reload; session.start restarts the timer). */
 const orbit: { deg: number; timer: Timer | null; term: { cols: number; rows: number } | null } = { deg: 0, timer: null, term: null }
 
+/** The person's /config theme as the svg palette: any `light*` theme is light; dark, auto or unreadable is dark. */
+async function svgTheme($: Dollar): Promise<'light' | 'dark'> {
+  try {
+    const row = (await $.config.list()).find((r) => r.key === 'theme')
+    return typeof row?.value === 'string' && row.value.startsWith('light') ? 'light' : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
+
 async function drawInput($: Dollar) {
   const [graph, positions, focus, view] = await Promise.all([read($, graphAtom), read($, posAtom), read($, focusAtom), read($, viewAtom)])
   const blast = blastRadius(graph, focus.seeds)
@@ -250,7 +260,7 @@ export const register: Register = (on) => {
     if (e.surface === 'desktop' || e.surface === 'vscode' || e.surface === 'mobile') {
       const { Svg } = $.ui.resolve(e)
       const w = cols * 8, ht = Math.round((w * 3) / 4)
-      const source = renderSvg(buildScene(input, { w, h: ht }), { width: w, height: ht, theme: 'dark' })
+      const source = renderSvg(buildScene(input, { w, h: ht }), { width: w, height: ht, theme: await svgTheme($) })
       drawing = <Svg source={source} alt={`Context graph: ${s.line}`} width={w} height={ht} isInteractive />
     } else if (e.surface === 'terminal') {
       const { Raster } = $.ui.resolve(e)

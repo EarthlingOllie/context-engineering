@@ -59,6 +59,28 @@ test('feature 17: the pane draws Svg on desktop/vscode/mobile and a Raster on th
   }
 })
 
+const themeRow = (value: string) => ({ key: 'theme', label: 'Theme', kind: 'choice', value, provider: { kind: 'engine' }, isLocked: false })
+
+test('the desktop pane draws on a light background when the theme is light, a dark one when dark or unknown', async ($, on) => {
+  engine(on)
+  let theme: string | null = 'light'
+  ;(on as unknown as (ev: string, h: () => unknown) => void)('config.list', () => ({ value: theme === null ? [] : [themeRow(theme)] }))
+  await feedTurn($ as never, 1)
+  const bg = async () => {
+    const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+    const source = String((await ui.find({ type: 'Svg' }))!.props.source)
+    await ui.unmount()
+    return /<rect width="100%" height="100%" fill="(#[0-9a-f]{6})"/.exec(source)?.[1]
+  }
+  expect(await bg()).toBe('#ffffff')
+  theme = 'light-daltonized'
+  expect(await bg()).toBe('#ffffff')
+  theme = 'dark'
+  expect(await bg()).toBe('#0d1117')
+  theme = null
+  expect(await bg()).toBe('#0d1117')
+})
+
 test('feature 18: session.append grows prompt+turn+tool+file; subagent rows add nothing', async ($, on) => {
   engine(on)
   await feedTurn($ as never, 1)
