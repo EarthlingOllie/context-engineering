@@ -111,16 +111,15 @@ async function runBestOfN(ctx: TopologyContext, spec: DispatchSpec): Promise<Dis
         { title: "CRITERIA", body: criteria },
         { title: "CANDIDATE DIR", body: `write your candidate under ${ctx.artifactDir}/${spec.id}-c${index}/ ; do not modify the working tree` },
       ];
-      const label = `attempt ${index}/${n}`;
       const out = await callRole(
         ctx,
         spec,
         "worker",
         buildPrompt({ role: "worker", task: spec.task, context: spec.context, entry: workerEntry, returns, artifactDir: ctx.artifactDir, sections }),
-        label,
+        { role: "worker", attempt: index, attempts: n },
       );
       if (!out) {
-        ctx.rt.log(`${spec.id} ${label} returned nothing; dropped`);
+        ctx.rt.log(`${spec.id}: attempt ${index}/${n} returned nothing; dropped`);
         return { index, kind: "empty" };
       }
       const { question, ...work } = readWorkOutput(out, returns.maxLines);
@@ -170,7 +169,7 @@ async function runBestOfN(ctx: TopologyContext, spec: DispatchSpec): Promise<Dis
     spec,
     "judge",
     buildPrompt({ role: "judge", task: spec.task, context: spec.context, entry: roleEntry(spec, "judge"), returns, artifactDir: ctx.artifactDir, sections }),
-    "judge",
+    { role: "judge" },
     JUDGE_SCHEMA,
   );
   if (!j) return withQuestion({ ...fail(spec, "best-of-n: judge returned nothing", 1), artifacts: candidateArtifacts });

@@ -13,9 +13,9 @@ test("best-of-n select: n workers in parallel, then a judge that sees every cand
   const { out, calls, labels } = await wave(
     [bon({ variants: ["minimal change", "restructure"] }, { roles: { worker: { instructions: "write a patch" }, judge: { instructions: "pick the smallest" } } })],
     {
-      "attempt 1/2": work("patch A", ["/a.diff"]),
-      "attempt 2/2": work("patch B", ["/b.diff"]),
-      judge: { verdict: "candidate 2: /b.diff", reasoning: "smaller", chosen: 2, artifacts: ["/verdict.md"], blocked: false },
+      "attempt 1 of 2": work("patch A", ["/a.diff"]),
+      "attempt 2 of 2": work("patch B", ["/b.diff"]),
+      Judge: { verdict: "candidate 2: /b.diff", reasoning: "smaller", chosen: 2, artifacts: ["/verdict.md"], blocked: false },
     },
   );
   const r = out.results[0]!;
@@ -23,9 +23,9 @@ test("best-of-n select: n workers in parallel, then a judge that sees every cand
   assert.equal(r.iterations, 1);
   assert.match(r.result, /^candidate 2: \/b\.diff/);
   assert.deepEqual(r.artifacts, ["/b.diff", "/a.diff", "/verdict.md"]);
-  assert.deepEqual(labels().filter((l) => !l.includes("scribe")), ["w1-d1 attempt 1/2", "w1-d1 attempt 2/2", "w1-d1 judge"]);
+  assert.deepEqual(labels().filter((l) => !l.includes("scribe")), ["Wave 1 · d1 Worker, attempt 1 of 2 — do w1-d1", "Wave 1 · d1 Worker, attempt 2 of 2 — do w1-d1", "Wave 1 · d1 Judge — do w1-d1"]);
 
-  const a1 = calls.find((c) => c.opts.label === "w1-d1 attempt 1/2")!.prompt;
+  const a1 = calls.find((c) => c.opts.label === "Wave 1 · d1 Worker, attempt 1 of 2 — do w1-d1")!.prompt;
   assert.match(a1, /ROLE: worker/);
   assert.match(a1, /ATTEMPT 1 of 2/);
   assert.match(a1, /APPROACH:\nminimal change/);
@@ -34,7 +34,7 @@ test("best-of-n select: n workers in parallel, then a judge that sees every cand
   assert.match(a1, /do not modify the working tree/);
   assert.match(a1, /write a patch/);
 
-  const j = calls.find((c) => c.opts.label === "w1-d1 judge")!.prompt;
+  const j = calls.find((c) => c.opts.label === "Wave 1 · d1 Judge — do w1-d1")!.prompt;
   assert.match(j, /ROLE: judge/);
   assert.match(j, /CRITERIA:\nsmallest diff/);
   assert.match(j, /CANDIDATES:\n\[1\] patch A\nartifacts: \/a\.diff\n\n\[2\] patch B\nartifacts: \/b\.diff/);
@@ -44,61 +44,61 @@ test("best-of-n select: n workers in parallel, then a judge that sees every cand
 
 test("best-of-n: without variants there is no APPROACH section, and n defaults to 3", async () => {
   const { calls, labels } = await wave([bon({})]);
-  assert.deepEqual(labels().filter((l) => l.includes("attempt")), ["w1-d1 attempt 1/3", "w1-d1 attempt 2/3", "w1-d1 attempt 3/3"]);
-  assert.doesNotMatch(calls.find((c) => c.opts.label === "w1-d1 attempt 2/3")!.prompt, /APPROACH/);
+  assert.deepEqual(labels().filter((l) => l.includes("attempt")), ["Wave 1 · d1 Worker, attempt 1 of 3 — do w1-d1", "Wave 1 · d1 Worker, attempt 2 of 3 — do w1-d1", "Wave 1 · d1 Worker, attempt 3 of 3 — do w1-d1"]);
+  assert.doesNotMatch(calls.find((c) => c.opts.label === "Wave 1 · d1 Worker, attempt 2 of 3 — do w1-d1")!.prompt, /APPROACH/);
 });
 
 test("best-of-n vote: a strict majority of normalised first lines wins with no judge", async () => {
   const { out, labels } = await wave([bon({ n: 3, mode: "vote" })], {
-    "attempt 1/3": work("  Option   B\nbecause x", ["/1.md"]),
-    "attempt 2/3": work("option a", ["/2.md"]),
-    "attempt 3/3": work("option b\nbecause y", ["/3.md"]),
+    "attempt 1 of 3": work("  Option   B\nbecause x", ["/1.md"]),
+    "attempt 2 of 3": work("option a", ["/2.md"]),
+    "attempt 3 of 3": work("option b\nbecause y", ["/3.md"]),
   });
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.result, "  Option   B\nbecause x");
   assert.deepEqual(r.artifacts, ["/1.md", "/2.md", "/3.md"]);
-  assert.equal(labels().filter((l) => l.includes("judge")).length, 0);
+  assert.equal(labels().filter((l) => l.includes("Judge")).length, 0);
 });
 
 test("best-of-n vote: a tie falls through to the judge", async () => {
   const { out, labels } = await wave([bon({ n: 4, mode: "vote" })], {
-    "attempt 1/4": work("A", ["/1"]),
-    "attempt 2/4": work("B", ["/2"]),
-    "attempt 3/4": work("a", ["/3"]),
-    "attempt 4/4": work("b", ["/4"]),
-    judge: { verdict: "B wins", reasoning: "r", chosen: 4, artifacts: [], blocked: false },
+    "attempt 1 of 4": work("A", ["/1"]),
+    "attempt 2 of 4": work("B", ["/2"]),
+    "attempt 3 of 4": work("a", ["/3"]),
+    "attempt 4 of 4": work("b", ["/4"]),
+    Judge: { verdict: "B wins", reasoning: "r", chosen: 4, artifacts: [], blocked: false },
   });
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.result, "B wins");
   assert.deepEqual(r.artifacts, ["/4", "/1", "/2", "/3"]);
-  assert.deepEqual(labels().filter((l) => l.includes("judge")), ["w1-d1 judge"]);
+  assert.deepEqual(labels().filter((l) => l.includes("Judge")), ["Wave 1 · d1 Judge — do w1-d1"]);
 });
 
 test("best-of-n vote: a majority counts against n, so a plurality among survivors still goes to the judge", async () => {
   const { labels } = await wave([bon({ n: 3, mode: "vote" })], {
-    "attempt 1/3": work("A"),
-    "attempt 2/3": { result: "", artifacts: [], blocked: true, question: "which db?" },
-    "attempt 3/3": work("B"),
-    judge: { verdict: "A", reasoning: "r", chosen: 1, artifacts: [], blocked: false },
+    "attempt 1 of 3": work("A"),
+    "attempt 2 of 3": { result: "", artifacts: [], blocked: true, question: "which db?" },
+    "attempt 3 of 3": work("B"),
+    Judge: { verdict: "A", reasoning: "r", chosen: 1, artifacts: [], blocked: false },
   });
-  assert.deepEqual(labels().filter((l) => l.includes("judge")), ["w1-d1 judge"]);
+  assert.deepEqual(labels().filter((l) => l.includes("Judge")), ["Wave 1 · d1 Judge — do w1-d1"]);
 });
 
 test("best-of-n: blocked and empty attempts drop out; the judge sees them as notes and the questions travel", async () => {
   const { out, calls, logs } = await wave([bon({ n: 3 })], {
-    "attempt 1/3": { result: "", artifacts: [], blocked: true, question: "which db?" },
-    "attempt 2/3": null,
-    "attempt 3/3": work("patch C", ["/c.diff"]),
-    judge: { verdict: "C", reasoning: "only one", chosen: 3, artifacts: [], blocked: false },
+    "attempt 1 of 3": { result: "", artifacts: [], blocked: true, question: "which db?" },
+    "attempt 2 of 3": null,
+    "attempt 3 of 3": work("patch C", ["/c.diff"]),
+    Judge: { verdict: "C", reasoning: "only one", chosen: 3, artifacts: [], blocked: false },
   });
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.result, "C");
   assert.deepEqual(r.artifacts, ["/c.diff"]);
   assert.match(r.question ?? "", /attempt 1: which db\?/);
-  const j = calls.find((c) => c.opts.label === "w1-d1 judge")!.prompt;
+  const j = calls.find((c) => c.opts.label === "Wave 1 · d1 Judge — do w1-d1")!.prompt;
   assert.match(j, /CANDIDATES:\n\[3\] patch C/);
   assert.doesNotMatch(j, /\[1\] /);
   assert.match(j, /BLOCKED ATTEMPTS:\n.*attempt 1 blocked: which db\?\n.*attempt 2 returned nothing/);
@@ -107,44 +107,44 @@ test("best-of-n: blocked and empty attempts drop out; the judge sees them as not
 
 test("best-of-n: every attempt dropped out -> blocked if any blocked (with questions), else failed; no judge", async () => {
   const blocked = await wave([bon({ n: 2 })], {
-    "attempt 1/2": { result: "", artifacts: [], blocked: true, question: "q1" },
-    "attempt 2/2": null,
+    "attempt 1 of 2": { result: "", artifacts: [], blocked: true, question: "q1" },
+    "attempt 2 of 2": null,
   });
   assert.equal(blocked.out.results[0]!.status, "blocked");
   assert.match(blocked.out.results[0]!.question ?? "", /attempt 1: q1/);
-  assert.equal(blocked.labels().filter((l) => l.includes("judge")).length, 0);
+  assert.equal(blocked.labels().filter((l) => l.includes("Judge")).length, 0);
 
-  const failed = await wave([bon({ n: 2 })], { "attempt 1/2": null, "attempt 2/2": null });
+  const failed = await wave([bon({ n: 2 })], { "attempt 1 of 2": null, "attempt 2 of 2": null });
   assert.equal(failed.out.results[0]!.status, "failed");
-  assert.equal(failed.labels().filter((l) => l.includes("judge")).length, 0);
+  assert.equal(failed.labels().filter((l) => l.includes("Judge")).length, 0);
 });
 
 test("best-of-n: a blocked judge blocks the dispatch; a judge returning nothing fails it; candidate artifacts kept", async () => {
   const b = await wave([bon({ n: 2 })], {
-    "attempt 1/2": work("A", ["/a"]),
-    "attempt 2/2": work("B", ["/b"]),
-    judge: { verdict: "", reasoning: "", artifacts: [], blocked: true, question: "which matters more?" },
+    "attempt 1 of 2": work("A", ["/a"]),
+    "attempt 2 of 2": work("B", ["/b"]),
+    Judge: { verdict: "", reasoning: "", artifacts: [], blocked: true, question: "which matters more?" },
   });
   assert.equal(b.out.results[0]!.status, "blocked");
   assert.equal(b.out.results[0]!.question, "which matters more?");
   assert.deepEqual(b.out.results[0]!.artifacts, ["/a", "/b"]);
 
-  const f = await wave([bon({ n: 2 })], { "attempt 1/2": work("A", ["/a"]), "attempt 2/2": work("B", ["/b"]), judge: null });
+  const f = await wave([bon({ n: 2 })], { "attempt 1 of 2": work("A", ["/a"]), "attempt 2 of 2": work("B", ["/b"]), Judge: null });
   assert.equal(f.out.results[0]!.status, "failed");
   assert.deepEqual(f.out.results[0]!.artifacts, ["/a", "/b"]);
 });
 
 test("best-of-n: an invalid `chosen` falls back to the [i] in the verdict, else candidate order", async () => {
   const { out } = await wave([bon({ n: 2 })], {
-    "attempt 1/2": work("A", ["/a"]),
-    "attempt 2/2": work("B", ["/b"]),
-    judge: { verdict: "pick [2]", reasoning: "r", chosen: 7, artifacts: [], blocked: false },
+    "attempt 1 of 2": work("A", ["/a"]),
+    "attempt 2 of 2": work("B", ["/b"]),
+    Judge: { verdict: "pick [2]", reasoning: "r", chosen: 7, artifacts: [], blocked: false },
   });
   assert.deepEqual(out.results[0]!.artifacts, ["/b", "/a"]); // falls back to the [i] in the verdict
   const none = await wave([bon({ n: 2 })], {
-    "attempt 1/2": work("A", ["/a"]),
-    "attempt 2/2": work("B", ["/b"]),
-    judge: { verdict: "neither stands out", reasoning: "r", artifacts: [], blocked: false },
+    "attempt 1 of 2": work("A", ["/a"]),
+    "attempt 2 of 2": work("B", ["/b"]),
+    Judge: { verdict: "neither stands out", reasoning: "r", artifacts: [], blocked: false },
   });
   assert.deepEqual(none.out.results[0]!.artifacts, ["/a", "/b"]);
 });
@@ -159,7 +159,7 @@ test("best-of-n param check: caps -> over_budget, malformed -> failed, no agent 
     spec({ id: "w1-d6", topology: "best-of-n", params: { criteria: "c", mode: "synthesize" } }),
     spec({ id: "w1-d7", topology: "best-of-n", params: { criteria: "c", variants: ["a", ""] } }),
   ]);
-  assert.deepEqual(labels(), ["wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · Trace scribe"]);
   assert.deepEqual(out.results.map((r) => r.status), ["over_budget", "over_budget", "failed", "failed", "failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /width cap of 9/);
   assert.match(out.results[2]!.result, /disagrees/);
@@ -181,16 +181,16 @@ test("best-of-n demand: n + 1 in both modes, variants set n, 0 above the cap", (
 test("best-of-n vote: empty first lines are no votes and cannot win without the judge", async () => {
   const { out, labels } = await wave([bon({ n: 3, mode: "vote" })], {
     attempt: work(""),
-    judge: { verdict: "[1] none useful", reasoning: "r", chosen: 1, artifacts: [], blocked: false },
+    Judge: { verdict: "[1] none useful", reasoning: "r", chosen: 1, artifacts: [], blocked: false },
   });
-  assert.deepEqual(labels().filter((l) => l.includes("judge")), ["w1-d1 judge"]);
+  assert.deepEqual(labels().filter((l) => l.includes("Judge")), ["Wave 1 · d1 Judge — do w1-d1"]);
   assert.equal(out.results[0]!.result, "[1] none useful");
 });
 
 test("best-of-n: a judge with an empty verdict -> failed, candidate artifacts kept", async () => {
   const { out } = await wave([bon({ n: 2 })], {
     attempt: work("patch", ["/p.diff"]),
-    judge: { verdict: "  ", reasoning: "", chosen: 1, artifacts: [], blocked: false },
+    Judge: { verdict: "  ", reasoning: "", chosen: 1, artifacts: [], blocked: false },
   });
   const r = out.results[0]!;
   assert.equal(r.status, "failed");

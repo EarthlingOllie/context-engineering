@@ -87,7 +87,7 @@ async function runPanel(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
             { title: "SUBMISSION", body: `the artifact(s) named in CONTEXT, produced for: ${spec.task}` },
           ],
         }),
-        `evaluator ${lens.name}`,
+        { role: "evaluator", name: lens.name },
       );
       if (!out) return { lens, missing: true };
       const q = blockedQuestion(out, "evaluator");
@@ -135,7 +135,7 @@ async function runPanel(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
         { title: "LENS FEEDBACK", body },
       ],
     }),
-    "reducer",
+    { role: "reducer" },
   );
   if (!red) return fail(spec, `panel: reducer returned nothing; pooled verdict was ${verdict}`, 1);
   const { question, ...work } = readWorkOutput(red, redReturns.maxLines);

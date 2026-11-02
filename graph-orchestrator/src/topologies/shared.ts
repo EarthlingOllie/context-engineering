@@ -5,6 +5,10 @@
  */
 import type { DispatchResult, DispatchSpec, ReturnContract, RoleEntry, Runtime, Topology, TraceEvent } from "../types.ts";
 import { ROLE_SCHEMAS, type RoleName } from "../roles.ts";
+import { type AgentLabelParts, agentLabel } from "../labels.ts";
+
+/** What a role call says about itself for its agent label; the dispatch id and (by default) the task come from the spec. */
+export type RoleLabel = Omit<Extract<AgentLabelParts, { id: string }>, "id">;
 
 export const MAX_LINES = 20;
 export const MAX_WIDTH = 9;
@@ -167,14 +171,15 @@ export async function callRole(
   spec: DispatchSpec,
   role: RoleName,
   prompt: string,
-  label: string,
+  roleLabel: RoleLabel,
   schema: Record<string, unknown> = ROLE_SCHEMAS[role],
 ): Promise<Record<string, unknown> | null> {
+  const label = agentLabel({ task: spec.task, ...roleLabel, id: spec.id });
   let out: unknown;
   try {
-    out = await ctx.rt.agent(prompt, { label: `${spec.id} ${label}`, phase: spec.id, schema });
+    out = await ctx.rt.agent(prompt, { label, phase: spec.id, schema });
   } catch (err) {
-    ctx.rt.log(`${spec.id} ${label} threw: ${err instanceof Error ? err.message : String(err)}`);
+    ctx.rt.log(`${spec.id}: ${label} threw: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
   if (!out || typeof out !== "object") return null;

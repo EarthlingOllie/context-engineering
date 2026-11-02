@@ -10,7 +10,7 @@ async function runSingle(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
     spec,
     "worker",
     buildPrompt({ role: "worker", task: spec.task, context: spec.context, entry: roleEntry(spec, "worker"), returns, artifactDir: ctx.artifactDir }),
-    "worker",
+    { role: "worker" },
   );
   if (!out) return fail(spec, "worker returned nothing", 1);
   const { question, ...work } = readWorkOutput(out, returns.maxLines);

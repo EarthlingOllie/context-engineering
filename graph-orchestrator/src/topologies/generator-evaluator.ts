@@ -26,7 +26,7 @@ async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): 
       spec,
       "generator",
       buildPrompt({ role: "generator", task: spec.task, context: spec.context, entry: genEntry, returns, artifactDir: ctx.artifactDir, sections }),
-      `generator r${round}`,
+      { role: "generator", round, rounds: maxIterations },
     );
     if (!gen) return { ...fail(spec, `generator returned nothing in round ${round}`, round), artifacts: last?.artifacts ?? [] };
     const { question: gq, ...work } = readWorkOutput(gen, returns.maxLines);
@@ -49,7 +49,7 @@ async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): 
           { title: `SUBMISSION (round ${round})`, body: `${last.result}\nartifacts: ${last.artifacts.length ? last.artifacts.join(", ") : "none"}` },
         ],
       }),
-      `evaluator r${round}`,
+      { role: "evaluator", round, rounds: maxIterations },
     );
     if (!ev) return { ...fail(spec, `evaluator returned nothing in round ${round}`, round), artifacts: last.artifacts };
     const eq = blockedQuestion(ev);

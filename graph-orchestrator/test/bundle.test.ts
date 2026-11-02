@@ -34,7 +34,7 @@ test("the bundle is one plain script: meta literal first, no imports or requires
 test("the script body runs under a harness-shaped scope and returns the wave as data", async () => {
   const { body } = splitScript(source);
   const run = new AsyncFunction("agent", "parallel", "log", "phase", "pipeline", "workflow", "budget", "args", body);
-  const f = fakeRuntime({ worker: { result: "/scratch/t/out.md\nsummary", artifacts: ["/scratch/t/out.md"], blocked: false } });
+  const f = fakeRuntime({ Worker: { result: "/scratch/t/out.md\nsummary", artifacts: ["/scratch/t/out.md"], blocked: false } });
   const args = {
     ...baseArgs,
     dispatches: [

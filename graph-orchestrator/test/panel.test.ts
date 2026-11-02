@@ -20,9 +20,9 @@ test("panel: all lenses pass -> done, PASS, one evaluator per lens with its own 
   assert.equal(r.status, "done");
   assert.equal(r.result, "PASS");
   assert.equal(r.iterations, 1);
-  const evals = calls.filter((c) => /evaluator/.test(c.opts.label ?? ""));
+  const evals = calls.filter((c) => /Evaluator/.test(c.opts.label ?? ""));
   assert.equal(evals.length, 3);
-  assert.deepEqual(labels().filter((l) => !l.includes("scribe")), ["w1-d1 evaluator correctness", "w1-d1 evaluator caps", "w1-d1 evaluator docs"]);
+  assert.deepEqual(labels().filter((l) => !l.includes("scribe")), ["Wave 1 · d1 Evaluator correctness — do w1-d1", "Wave 1 · d1 Evaluator caps — do w1-d1", "Wave 1 · d1 Evaluator docs — do w1-d1"]);
   const p = evals[0]!.prompt;
   assert.match(p, /LENS: correctness — behaviour vs spec/);
   assert.match(p, /judge only this lens/);
@@ -34,8 +34,8 @@ test("panel: all lenses pass -> done, PASS, one evaluator per lens with its own 
 
 test("panel: pool all, one lens fails -> done with FAIL (p/k) and a [name] FAIL line per failing lens", async () => {
   const { out } = await wave([panel({})], {
-    "evaluator caps": fails("1. MAX_WIDTH unchecked at fan-out.ts:20\n2. second point"),
-    "evaluator docs": fails("1. catalog lists 4 topologies"),
+    "Evaluator caps": fails("1. MAX_WIDTH unchecked at fan-out.ts:20\n2. second point"),
+    "Evaluator docs": fails("1. catalog lists 4 topologies"),
   });
   const r = out.results[0]!;
   assert.equal(r.status, "done");
@@ -44,38 +44,38 @@ test("panel: pool all, one lens fails -> done with FAIL (p/k) and a [name] FAIL 
 
 test("panel: FAIL lines are cut to maxLines", async () => {
   const { out } = await wave([panel({}, { returns: { shape: "verdict", maxLines: 2 } })], {
-    "evaluator caps": fails("caps bad"),
-    "evaluator docs": fails("docs bad"),
+    "Evaluator caps": fails("caps bad"),
+    "Evaluator docs": fails("docs bad"),
   });
   assert.equal(out.results[0]!.result, "FAIL (1/3)\n[caps] FAIL: caps bad");
 });
 
 test("panel: pool majority passes on strictly more than k/2, fails at exactly half", async () => {
-  const two = { "evaluator docs": fails("docs bad") };
+  const two = { "Evaluator docs": fails("docs bad") };
   const maj = await wave([panel({ pool: "majority" })], two);
   assert.equal(maj.out.results[0]!.status, "done");
   assert.match(maj.out.results[0]!.result, /^PASS\n\[docs\] FAIL: docs bad$/);
   const allPool = await wave([panel({ pool: "all" })], two);
   assert.match(allPool.out.results[0]!.result, /^FAIL \(2\/3\)/);
-  const half = await wave([panel({ pool: "majority", lenses: lenses.slice(0, 2) })], { "evaluator caps": fails("caps bad") });
+  const half = await wave([panel({ pool: "majority", lenses: lenses.slice(0, 2) })], { "Evaluator caps": fails("caps bad") });
   assert.match(half.out.results[0]!.result, /^FAIL \(1\/2\)\n\[caps\] FAIL: caps bad$/);
 });
 
 test("panel: a lens skill overrides roles.evaluator.skill; others keep the role's", async () => {
   const ls = [lenses[0], { ...lenses[2], skill: "writing-for-agents" }];
   const { calls } = await wave([panel({ lenses: ls }, { roles: { evaluator: { skill: "code-review", instructions: "cite file:line" } } })]);
-  const byLabel = (s: string) => calls.find((c) => (c.opts.label ?? "").endsWith(s))!.prompt;
-  assert.match(byLabel("evaluator correctness"), /skill `code-review`/);
-  assert.match(byLabel("evaluator docs"), /skill `writing-for-agents`/);
-  assert.doesNotMatch(byLabel("evaluator docs"), /code-review/);
-  assert.match(byLabel("evaluator docs"), /cite file:line/);
+  const byLabel = (s: string) => calls.find((c) => (c.opts.label ?? "").includes(s))!.prompt;
+  assert.match(byLabel("Evaluator correctness"), /skill `code-review`/);
+  assert.match(byLabel("Evaluator docs"), /skill `writing-for-agents`/);
+  assert.doesNotMatch(byLabel("Evaluator docs"), /code-review/);
+  assert.match(byLabel("Evaluator docs"), /cite file:line/);
 });
 
 test("panel: with a reducer it gets the verdict and all feedback; result is verdict line then reducer result, artifacts its", async () => {
   let reducerCall: Call | undefined;
   const { out, labels } = await wave([panel({ reducer: true })], {
-    "evaluator caps": fails("1. caps bad"),
-    reducer: (c: Call) => {
+    "Evaluator caps": fails("1. caps bad"),
+    Reducer: (c: Call) => {
       reducerCall = c;
       return { result: "merged: 1 blocking defect", artifacts: ["/scratch/merged.md"], blocked: false };
     },
@@ -84,7 +84,7 @@ test("panel: with a reducer it gets the verdict and all feedback; result is verd
   assert.equal(r.status, "done");
   assert.equal(r.result, "FAIL (2/3)\nmerged: 1 blocking defect");
   assert.deepEqual(r.artifacts, ["/scratch/merged.md"]);
-  assert.equal(labels().filter((l) => l.includes("reducer")).length, 1);
+  assert.equal(labels().filter((l) => l.includes("Reducer")).length, 1);
   const p = reducerCall!.prompt;
   assert.match(p, /ROLE: reducer/);
   assert.match(p, /VERDICT:\nFAIL \(2\/3\)/);
@@ -96,36 +96,36 @@ test("panel: with a reducer it gets the verdict and all feedback; result is verd
 
 test("panel: roles.reducer entry is used as the reducer", async () => {
   const { out, calls } = await wave([panel({}, { roles: { reducer: { instructions: "dedupe by file" } } })], {
-    reducer: { result: "nothing to merge", artifacts: [], blocked: false },
+    Reducer: { result: "nothing to merge", artifacts: [], blocked: false },
   });
   assert.equal(out.results[0]!.result, "PASS\nnothing to merge");
-  assert.match(calls.find((c) => (c.opts.label ?? "").includes("reducer"))!.prompt, /dedupe by file/);
+  assert.match(calls.find((c) => (c.opts.label ?? "").includes("Reducer"))!.prompt, /dedupe by file/);
 });
 
 test("panel: a blocked lens -> blocked with its question, no reducer runs", async () => {
   const { out, labels } = await wave([panel({ reducer: true })], {
-    "evaluator caps": { pass: false, feedback: "", blocked: true, question: "which cap table is current?" },
+    "Evaluator caps": { pass: false, feedback: "", blocked: true, question: "which cap table is current?" },
   });
   const r = out.results[0]!;
   assert.equal(r.status, "blocked");
   assert.match(r.question ?? "", /caps.*which cap table is current\?/);
-  assert.equal(labels().filter((l) => l.includes("reducer")).length, 0);
+  assert.equal(labels().filter((l) => l.includes("Reducer")).length, 0);
 });
 
 test("panel: a blocked reducer -> blocked", async () => {
-  const { out } = await wave([panel({ reducer: true })], { reducer: { result: "", artifacts: [], blocked: true, question: "merge how?" } });
+  const { out } = await wave([panel({ reducer: true })], { Reducer: { result: "", artifacts: [], blocked: true, question: "merge how?" } });
   assert.equal(out.results[0]!.status, "blocked");
   assert.equal(out.results[0]!.question, "merge how?");
 });
 
 test("panel: a lens or reducer returning nothing -> failed", async () => {
-  const lens = await wave([panel({ reducer: true })], { "evaluator docs": null });
+  const lens = await wave([panel({ reducer: true })], { "Evaluator docs": null });
   assert.equal(lens.out.results[0]!.status, "failed");
   assert.match(lens.out.results[0]!.result, /docs/);
-  assert.equal(lens.labels().filter((l) => l.includes("reducer")).length, 0);
-  const thrown = await wave([panel({})], { "evaluator caps": () => { throw new Error("boom"); } });
+  assert.equal(lens.labels().filter((l) => l.includes("Reducer")).length, 0);
+  const thrown = await wave([panel({})], { "Evaluator caps": () => { throw new Error("boom"); } });
   assert.equal(thrown.out.results[0]!.status, "failed");
-  const red = await wave([panel({ reducer: true })], { reducer: null });
+  const red = await wave([panel({ reducer: true })], { Reducer: null });
   assert.equal(red.out.results[0]!.status, "failed");
   assert.match(red.out.results[0]!.result, /reducer returned nothing/);
 });
@@ -139,7 +139,7 @@ test("panel: param check before any agent; caps -> over_budget; malformed -> fai
     spec({ id: "w1-d6", topology: "panel", params: { lenses: [], pass_criteria: "p" } }),
     spec({ id: "w1-d7", topology: "panel", params: { lenses: [{ name: "x" }], pass_criteria: "p" } }),
   ]);
-  assert.deepEqual(labels(), ["wave 1 scribe"]);
+  assert.deepEqual(labels(), ["Wave 1 · Trace scribe"]);
   assert.deepEqual(out.results.map((r) => r.status), ["over_budget", "failed", "failed", "failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /cap of 6/);
   assert.match(out.results[1]!.result, /duplicate/);
@@ -157,6 +157,6 @@ test("panel: demand is k, +1 with a reducer, 0 over the cap", () => {
 
 test("panel: each lens evaluator gets the evaluator contract, not the dispatch's", async () => {
   const { calls } = await wave([panel({}, { returns: { shape: "verdict", maxLines: 2 } })]);
-  const p = calls.find((c) => (c.opts.label ?? "").includes("evaluator caps"))!.prompt;
+  const p = calls.find((c) => (c.opts.label ?? "").includes("Evaluator caps"))!.prompt;
   assert.match(p, /RETURN: at most 10 lines — pass or fail with numbered feedback/);
 });

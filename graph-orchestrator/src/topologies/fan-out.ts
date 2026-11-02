@@ -1,7 +1,7 @@
 // ---------- fan-out ----------
 import type { DispatchResult, DispatchSpec, DispatchStatus, FanOutParams, ReturnContract, RoleEntry } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { DEFAULT_WIDTH, MAX_WIDTH, type TopologyContext, type TopologyImpl, blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, readWorkOutput, roleEntry, strArr, uniq } from "./shared.ts";
+import { DEFAULT_WIDTH, MAX_WIDTH, type TopologyContext, type TopologyImpl, type RoleLabel, blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, readWorkOutput, roleEntry, strArr, uniq } from "./shared.ts";
 
 /** One branch's outcome: the result fields a dispatch would carry, plus which sub-task it was (`index` is 0-based). */
 export type Branch = Pick<DispatchResult, "status" | "result" | "artifacts" | "question"> & { index: number; task: string };
@@ -17,7 +17,7 @@ export async function partitionStep(
   spec: DispatchSpec,
   instruction: string,
   width: number,
-  opts: { name: string; label: string; workerEntry: RoleEntry | undefined },
+  opts: { name: string; label: RoleLabel; workerEntry: RoleEntry | undefined },
 ): Promise<{ ok: true; subtasks: string[] } | { ok: false; result: DispatchResult }> {
   const part = await callRole(
     ctx,
@@ -61,7 +61,7 @@ export async function branchStep(
   ctx: TopologyContext,
   spec: DispatchSpec,
   subtasks: string[],
-  opts: { branchReturns: ReturnContract; workerEntry: RoleEntry | undefined; context: string[]; label: (i: number, n: number) => string; kind: string },
+  opts: { branchReturns: ReturnContract; workerEntry: RoleEntry | undefined; context: string[]; label: (i: number, n: number, task: string) => RoleLabel; kind: string },
 ): Promise<Branch[]> {
   const n = subtasks.length;
   const raw = await ctx.rt.parallel(
@@ -78,7 +78,7 @@ export async function branchStep(
           returns: opts.branchReturns,
           artifactDir: ctx.artifactDir,
         }),
-        opts.label(i + 1, n),
+        opts.label(i + 1, n, task),
       );
       if (!out) return { index: i, task, status: "failed", result: "worker returned nothing", artifacts: [] };
       const { question, ...work } = readWorkOutput(out, opts.branchReturns.maxLines);
@@ -124,7 +124,7 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
   } else if (typeof split === "string" && split.trim()) {
     const width = int(params.width, DEFAULT_WIDTH);
     if (width > MAX_WIDTH) return overBudget(spec, `fan-out: width ${width} exceeds the cap of ${MAX_WIDTH}`);
-    const part = await partitionStep(ctx, spec, split, width, { name: "fan-out", label: "partition", workerEntry });
+    const part = await partitionStep(ctx, spec, split, width, { name: "fan-out", label: { role: "partition" }, workerEntry });
     if (!part.ok) return part.result;
     subtasks = part.subtasks;
   } else {
@@ -134,7 +134,7 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
   // 2. Branches in parallel. Without a reducer the inline results are concatenated, so each gets a share of the lines.
   const n = subtasks.length;
   const branchReturns: ReturnContract = hasReducer ? returns : { shape: returns.shape, maxLines: Math.max(1, Math.floor(returns.maxLines / n)) };
-  const branches = await branchStep(ctx, spec, subtasks, { branchReturns, workerEntry, context: spec.context, label: (i, k) => `branch ${i}/${k}`, kind: "a fan-out" });
+  const branches = await branchStep(ctx, spec, subtasks, { branchReturns, workerEntry, context: spec.context, label: (i, k, task) => ({ role: "worker", branch: i, branches: k, task }), kind: "a fan-out" });
   const finished = branches.filter((b) => b.status === "done");
   const artifacts = uniq(branches.flatMap((b) => b.artifacts));
   const gapQuestion = branchQuestions(branches);
@@ -154,7 +154,7 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
       spec,
       "reducer",
       buildPrompt({ role: "reducer", task: spec.task, context: spec.context, entry: reducerEntry, returns, artifactDir: ctx.artifactDir, sections: [{ title: "BRANCH RESULTS", body }] }),
-      "reducer",
+      { role: "reducer" },
     );
     if (red) {
       const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);

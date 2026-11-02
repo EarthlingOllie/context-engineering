@@ -7,6 +7,7 @@
  * the trace file in a single write.
  */
 import type { DispatchResult, DispatchSpec, HumanEvent, Runtime, TraceEvent, WaveArgs, WaveReturn } from "./types.ts";
+import { agentLabel } from "./labels.ts";
 import { agentDemand, dispatchEvent, fail, firstLine, forwardLines, runDispatch, type TopologyContext } from "./topologies.ts";
 
 /** The runtime's hard limit on agents per run. The only thing a wave refuses. */
@@ -147,7 +148,7 @@ export async function runWave(args: WaveArgs, rt: Runtime): Promise<WaveReturn> 
   const lines = events.map((e) => JSON.stringify(e));
   let scribe: WaveReturn["scribe"] = null;
   try {
-    const out = await rt.agent(scribePrompt(traceFile, lines), { label: `wave ${wave} scribe`, phase: "scribe", schema: SCRIBE_SCHEMA });
+    const out = await rt.agent(scribePrompt(traceFile, lines), { label: agentLabel({ wave, role: "scribe" }), phase: "scribe", schema: SCRIBE_SCHEMA });
     if (out && typeof out === "object") {
       const o = out as Record<string, unknown>;
       scribe = { appended: Number(o["appended"]) || 0, totalLines: Number(o["totalLines"]) || 0 };

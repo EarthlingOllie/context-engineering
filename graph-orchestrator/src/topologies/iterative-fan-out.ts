@@ -90,12 +90,12 @@ async function branchRound(
   let tasks: string[];
   if (Array.isArray(split)) tasks = split;
   else {
-    const part = await partitionStep(ctx, spec, split, width, { name: "iterative-fan-out", label: `r${round} partition`, workerEntry });
+    const part = await partitionStep(ctx, spec, split, width, { name: "iterative-fan-out", label: { role: "partition", round }, workerEntry });
     if (!part.ok) return part;
     tasks = part.subtasks;
   }
   const context = round === 1 ? spec.context : [...spec.context, `round ${round} of ${rounds} of an iterative fan-out: this sub-task fills a coverage gap the evaluator found`];
-  const branches = await branchStep(ctx, spec, tasks, { branchReturns: contractOf(spec), workerEntry, context, label: (i, n) => `r${round} branch ${i}/${n}`, kind: "an iterative fan-out round" });
+  const branches = await branchStep(ctx, spec, tasks, { branchReturns: contractOf(spec), workerEntry, context, label: (i, n, task) => ({ role: "worker", round, branch: i, branches: n, task }), kind: "an iterative fan-out round" });
   return { ok: true, tasks, branches };
 }
 
@@ -153,7 +153,7 @@ async function runIterativeFanOut(ctx: TopologyContext, spec: DispatchSpec): Pro
           { title: "FINDINGS SO FAR", body },
         ],
       }),
-      `evaluator r${round}`,
+      { role: "evaluator", round },
     );
     if (!ev) return { ...fail(spec, `iterative-fan-out: evaluator returned nothing in round ${round}`, round), artifacts: artifacts() };
     const eq = blockedQuestion(ev, "evaluator");
@@ -181,7 +181,7 @@ async function runIterativeFanOut(ctx: TopologyContext, spec: DispatchSpec): Pro
     spec,
     "reducer",
     buildPrompt({ role: "reducer", task: spec.task, context: spec.context, entry: roleEntry(spec, "reducer"), returns, artifactDir: ctx.artifactDir, sections }),
-    "reducer",
+    { role: "reducer" },
   );
   if (!red) return { ...fail(spec, "iterative-fan-out: reducer returned nothing", round), artifacts: artifacts() };
   const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);

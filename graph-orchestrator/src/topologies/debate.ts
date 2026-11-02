@@ -84,7 +84,7 @@ async function runDebate(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
           spec,
           "debater",
           buildPrompt({ role: "debater", task: spec.task, context: spec.context, entry: debaterEntry, returns: { shape: "your position this round", maxLines: POSITION_LINES }, artifactDir: ctx.artifactDir, sections }),
-          `debater ${p.name} r${r}`,
+          { role: "debater", name: p.name, round: r, rounds },
         );
       }),
     );
@@ -118,7 +118,7 @@ async function runDebate(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
         { title: "TRANSCRIPT", body: transcript.map((round, i) => `ROUND ${i + 1}\n${roundLines(round)}`).join("\n") },
       ],
     }),
-    "judge",
+    { role: "judge" },
   );
   if (!out) return fail(spec, "debate: judge returned nothing", rounds);
   const artifacts = strArr(out, "artifacts");
