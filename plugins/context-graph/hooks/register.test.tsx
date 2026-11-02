@@ -1,5 +1,7 @@
-// Shell behaviour under `claude plugin test`: features 17 (pane per surface), 18 (live hooks), 19 (prompt.submit).
+// Shell behaviour under `claude plugin test`: features 17-22 (pane, live hooks, command, tool, view),
+// 23 (bootstrap on start) and 24 (fail-safe hooks).
 import { expect, mock, test } from 'claude-code/testing'
+import { buildGraph } from '../src/core/ingest.ts'
 
 const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
 
@@ -225,4 +227,145 @@ test('feature 22: auto-orbit blits the terminal Raster on each clock tick and st
   await clock.advance(1000)
   expect(blits.length).toBe(n)
   await ui.unmount()
+})
+
+// The test env has no fs, so the transcript fixture is inline: an attachment, two prompts, a response with a Read
+// (two block rows sharing message.id) and its result, then a second response.
+const env = { parentUuid: null, isSidechain: false, sessionId: 'S1', cwd: '/repo', version: '2.1.316', timestamp: '2026-11-02T10:00:00Z' }
+const FIXTURE = [
+  { type: 'queue-operation', operation: 'enqueue', sessionId: 'S1', content: 'hi' },
+  { ...env, type: 'attachment', uuid: 'att1', attachment: { type: 'skill_listing' }, rendered: [{ content: 's'.repeat(400) }] },
+  { ...env, type: 'user', uuid: 'p1', message: { role: 'user', content: 'Read a.ts and fix the failing test' } },
+  { ...env, type: 'assistant', uuid: 'a1', message: { id: 'msg1', role: 'assistant', content: [{ type: 'text', text: 'Reading a.ts.' }], usage: { input_tokens: 2, cache_creation_input_tokens: 1000, cache_read_input_tokens: 3000, output_tokens: 20 } } },
+  { ...env, type: 'assistant', uuid: 'a2', message: { id: 'msg1', role: 'assistant', content: [{ type: 'tool_use', id: 'tu1', name: 'Read', input: { file_path: '/repo/a.ts' } }], usage: { input_tokens: 2, cache_creation_input_tokens: 1000, cache_read_input_tokens: 3000, output_tokens: 20 } } },
+  { ...env, type: 'user', uuid: 'r1', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu1', content: 'x'.repeat(1200) }] } },
+  { ...env, type: 'assistant', uuid: 'a3', message: { id: 'msg2', role: 'assistant', content: [{ type: 'tool_use', id: 'tu2', name: 'Edit', input: { file_path: '/repo/a.ts', old_string: 'a', new_string: 'b' } }] } },
+  { ...env, type: 'user', uuid: 'r2', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu2', content: 'ok' }] } },
+  { ...env, type: 'user', uuid: 'p2', message: { role: 'user', content: 'now explain it' } },
+].map((r) => JSON.stringify(r)).join('\n') + '\n'
+
+type On = (ev: string, h: (...a: never[]) => unknown) => void
+const START = { cwd: '/repo', surface: 'desktop', isInteractive: true } as never
+
+function bootEnv(on: unknown, fsRead: (path: string) => unknown) {
+  const o = on as On
+  const reads: string[] = []
+  o('session.id', () => ({ value: 'S1' }))
+  o('session.cwd', () => ({ value: '/repo' }))
+  o('env.get', () => ({ value: '/home/me' }))
+  o('tool.register', () => ({ value: { tool: TOOL } }))
+  o('fs.read', (_: unknown, e: { path: string }) => {
+    reads.push(e.path)
+    return fsRead(e.path)
+  })
+  return reads
+}
+
+test('feature 23: session.start with an empty graph rebuilds it from the transcript JSONL', async ($, on) => {
+  engine(on)
+  const reads = bootEnv(on, () => ({ value: FIXTURE }))
+  await $.session.start(START)
+  expect(reads).toEqual(['/home/me/.claude/projects/-repo/S1.jsonl'])
+  const want = Object.keys(buildGraph(FIXTURE).nodes).length
+  expect(want).toBeGreaterThan(4)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await statusText(ui)).toMatch(new RegExp(`^${want} nodes · blast: [1-9]`))
+  await ui.unmount()
+})
+
+test('feature 23: a non-empty graph is not rebuilt on start (reload keeps the live graph)', async ($, on) => {
+  engine(on)
+  const reads = bootEnv(on, () => ({ value: FIXTURE }))
+  await feedTurn($ as never, 1)
+  await $.session.start(START)
+  expect(reads.length).toBe(0)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await statusText(ui)).toMatch(/^4 nodes/)
+  await ui.unmount()
+})
+
+test('feature 23: when $.fs throws, start falls back to $.session.messages() and still makes prompt nodes', async ($, on) => {
+  engine(on)
+  bootEnv(on, () => {
+    throw new Error('ENOENT')
+  })
+  ;(on as On)('session.messages', () => ({
+    value: [
+      { role: 'user', text: 'first question', toolUses: [] },
+      { role: 'assistant', text: 'ok', toolUses: [{ tool_use_id: 'q1', tool: 'Read', input: { file_path: '/repo/z.ts' }, text: 'zz' }] },
+      { role: 'user', text: 'second question', toolUses: [] },
+    ],
+  }))
+  const r = await $.session.start(START)
+  expect(r).toEqual({ cwd: '/repo' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await statusText(ui)).toMatch(/^5 nodes/)
+  expect(String((await ui.find({ type: 'Svg' }))!.props.source)).toContain('second question')
+  await ui.unmount()
+})
+
+/** Engine stubs that count how often each hook's next(e) reaches the engine. */
+function countingEngine(on: unknown) {
+  const o = on as On
+  const calls = { append: 0, prompt: 0, tool: 0 }
+  o('session.append', (_: unknown, e: never, next: (e: never) => unknown) => {
+    calls.append++
+    return next(e)
+  })
+  o('prompt.submit', (_: unknown, e: { text: string }) => {
+    calls.prompt++
+    return { text: `engine:${e.text}` }
+  })
+  o('tool.call', () => {
+    calls.tool++
+    return { result: 'boom', isError: true }
+  })
+  return calls
+}
+
+const MALFORMED = [
+  { uuid: 'bad1', door: 'prompt', origin, message: null },
+  { uuid: 'bad2', door: 'response', origin, message: { type: 'assistant', role: 'assistant', content: null } },
+  { uuid: 'bad3', door: 'prompt', origin, message: { type: 'user', role: 'user', content: [null, 7, { type: 'tool_result' }] } },
+  { door: 'response' },
+]
+
+test('feature 24: malformed session.append rows call next once each and add nothing', async ($, on) => {
+  const calls = countingEngine(on)
+  for (const m of MALFORMED) {
+    const before = calls.append
+    await $.session.append(m as never)
+    expect(calls.append).toBe(before + 1)
+  }
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await statusText(ui)).toMatch(/^0 nodes/)
+  await ui.unmount()
+})
+
+test('feature 24: after a malformed session.append (message: null), tool.call / prompt.submit / session.append each call next once and return its result', async ($, on) => {
+  const calls = countingEngine(on)
+  await $.session.append(MALFORMED[0] as never)
+  await $.session.append(row('u1', 'user', [{ type: 'text', text: 'q' }], 'prompt'))
+  expect(calls.append).toBe(2)
+
+  const p = await $.prompt.submit({ text: 'why?', wait: false } as never)
+  expect(calls.prompt).toBe(1)
+  expect(p).toEqual({ text: 'engine:why?' })
+
+  for (const tool of ['Read', 'Bash', 'mcp__other__thing']) {
+    const before = calls.tool
+    const r = await $.tool.call({ tool, tool_use_id: `x-${tool}` } as never)
+    expect(calls.tool).toBe(before + 1)
+    expect(r).toEqual({ result: 'boom', isError: true })
+    expect('deny' in (r as object)).toBe(false)
+  }
+})
+
+test('feature 24: no deny is returned for a tool the plugin does not own, even with a malformed input', async ($, on) => {
+  engine(on)
+  for (const input of [{ tool: 'Write' }, { tool: 'Bash', tool_use_id: null }, { tool: 'mcp__context-graph__other' }]) {
+    const r = await $.tool.call(input as never)
+    expect('deny' in (r as object)).toBe(false)
+    expect(r).toEqual({ result: { file: { content: 'abc' } } })
+  }
 })

@@ -70,3 +70,45 @@ export function applyTurnUsage(g: Graph, usage: { input_tokens?: number; cache_c
   if (!usage || !id || !g.nodes[id]) return g
   return applyEvents(g, [{ kind: 'assistant', messageId: id.slice('turn:'.length), text: '', usage }])
 }
+
+/** The main transcript the CLI writes: ~/.claude/projects/<cwd with every non-alphanumeric as '-'>/<session>.jsonl. */
+export function transcriptPath(home: string, cwd: string, sessionId: string): string {
+  return `${home.replace(/\/+$/, '')}/.claude/projects/${cwd.replace(/[^A-Za-z0-9]/g, '-')}/${sessionId}.jsonl`
+}
+
+/**
+ * `$.session.messages()` entries ({ role, text, toolUses, toolResults? }) -> events. The bootstrap fallback when the
+ * transcript cannot be read: no usage, and tool sizes come from the result text.
+ */
+export function messagesToEvents(msgs: unknown): GraphEvent[] {
+  if (!Array.isArray(msgs)) return []
+  const out: GraphEvent[] = []
+  const answered = new Set<string>()
+  msgs.forEach((m, i) => {
+    if (!isObj(m)) return
+    const text = typeof m.text === 'string' ? m.text : ''
+    if (m.role === 'user') {
+      const results = Array.isArray(m.toolResults) ? m.toolResults.filter(isObj) : []
+      for (const r of results) {
+        const id = String(r.tool_use_id ?? '')
+        if (!id || answered.has(id)) continue
+        answered.add(id)
+        out.push({ kind: 'tool_result', toolUseId: id, chars: typeof r.text === 'string' ? r.text.length : 0, isError: r.isError === true })
+      }
+      if (text && !results.length) out.push({ kind: 'prompt', id: `m${i}`, text })
+    } else if (m.role === 'assistant') {
+      const messageId = `m${i}`
+      out.push({ kind: 'assistant', messageId, text })
+      for (const u of Array.isArray(m.toolUses) ? m.toolUses.filter(isObj) : []) {
+        const id = String(u.tool_use_id ?? '')
+        if (!id) continue
+        out.push({ kind: 'tool_use', id, messageId, name: String(u.tool ?? 'tool'), input: u.input ?? {} })
+        if (typeof u.text === 'string' && !answered.has(id)) {
+          answered.add(id)
+          out.push({ kind: 'tool_result', toolUseId: id, chars: u.text.length, isError: u.isError === true })
+        }
+      }
+    }
+  })
+  return out
+}

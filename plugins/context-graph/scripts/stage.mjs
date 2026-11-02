@@ -1,11 +1,11 @@
-// Copy the mod's runtime files (what the engine loads) to <dest>: .claude-plugin (minus types/), hooks, src, types,
-// vendor, LICENSE. Used by install-dev (dest = ~/.claude/dev-mods/<session>/context-graph) and test:mod (a temp dir,
+// Copy the mod's runtime files (what the engine loads) to <dest>: .claude-plugin (minus types/), hooks, src, types and
+// vendor, nothing else. Used by install-dev (dest = ~/.claude/dev-mods/<session>/context-graph) and test:mod (a temp dir,
 // so `claude plugin test` sees only hooks/*.test.tsx and not the node:test suites under test/).
 import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const MOD_FILES = ['.claude-plugin', 'hooks', 'src', 'types', 'vendor', 'LICENSE', 'README.md']
+export const MOD_FILES = ['.claude-plugin', 'hooks', 'src', 'types', 'vendor']
 
 export function stage(dest, { withTests = false } = {}) {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')

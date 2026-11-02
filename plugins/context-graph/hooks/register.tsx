@@ -4,8 +4,8 @@
 // a tool, a prompt or a row.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
-import { applyEvents, emptyGraph } from '../src/core/ingest.ts'
-import { appendToEvents, applyTurnUsage, emptyCursor, enrichTool, matchNodes } from '../src/core/live.ts'
+import { applyEvents, buildGraph, emptyGraph } from '../src/core/ingest.ts'
+import { appendToEvents, applyTurnUsage, emptyCursor, enrichTool, matchNodes, messagesToEvents, transcriptPath } from '../src/core/live.ts'
 import { blastRadius } from '../src/core/blast.ts'
 import { layout } from '../src/core/layout.ts'
 import { buildScene } from '../src/core/scene.ts'
@@ -168,6 +168,27 @@ async function serveTool($: Dollar, input: Record<string, unknown>): Promise<str
   return `Unknown action "${action}". Use inspect | focus | clear.`
 }
 
+/**
+ * Fill an empty graph atom from what the session already holds: the transcript JSONL, or, when that cannot be
+ * read, $.session.messages(). A non-empty atom (a reload) is kept as it is. Never throws.
+ */
+async function bootstrap($: Dollar): Promise<void> {
+  if (Object.keys((await read($, graphAtom)).nodes).length) return
+  let g: Graph | null = null
+  try {
+    const [home, cwd, id] = await Promise.all([$.env.get('HOME'), $.session.cwd(), $.session.id()])
+    const text = await $.fs.read(transcriptPath(home || '/root', cwd, id))
+    if (typeof text === 'string') g = buildGraph(text)
+  } catch {
+    g = null
+  }
+  if (!g || !Object.keys(g.nodes).length) {
+    const msgs = await $.session.messages().catch(() => [])
+    g = applyEvents(emptyGraph(), messagesToEvents(Array.isArray(msgs) ? msgs : []))
+  }
+  if (Object.keys(g.nodes).length) await writeGraph($, (cur) => (Object.keys(cur.nodes).length ? cur : g!))
+}
+
 const resolvePath = (cwd: string, p: string) => (p.startsWith('/') ? p : `${cwd.replace(/\/$/, '')}/${p}`)
 
 export const register: Register = (on) => {
@@ -181,7 +202,7 @@ export const register: Register = (on) => {
       await addEvents($, events)
     }
     return r
-  }).catch(($, e, next) => (next.called ? next(e) : next(e)))
+  }).catch(($, e, next) => next(e)) // replay-safe: after next was called, next(e) resolves to its earlier result
 
   on('prompt.submit', async ($, e, next) => {
     const r = await next(e)
@@ -281,6 +302,7 @@ export const register: Register = (on) => {
     await $.command.register({ name: PLUGIN, description: 'Context graph: open | focus <text> | clear | stats | export [path] | reset' })
     await $.tool.register({ name: TOOL, description: TOOL_DESCRIPTION, inputSchema: TOOL_SCHEMA as unknown as Record<string, unknown>, isDeferred: false }).catch(() => undefined)
     if ((await read($, viewAtom)).autoOrbit) startOrbit($)
+    await bootstrap($).catch(() => undefined)
     return next(e)
   }).catch(($, e, next) => next(e))
 

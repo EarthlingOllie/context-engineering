@@ -76,3 +76,31 @@ test('turn usage sets output tokens and window occupancy on the latest turn, onc
   assert.equal(g2.nodes['turn:m']!.meta?.windowTokens, 1002)
   assert.equal(applyTurnUsage(g, undefined), g)
 })
+
+// Feature 23 (core half): where the transcript lives, and the $.session.messages() fallback.
+import { messagesToEvents, transcriptPath } from '../src/core/live.ts'
+
+test('transcriptPath maps the cwd to the projects folder name the CLI uses', () => {
+  assert.equal(transcriptPath('/root', '/home/user/context-management', 'abc-1'), '/root/.claude/projects/-home-user-context-management/abc-1.jsonl')
+  assert.equal(transcriptPath('/home/o/', '/w/my.repo', 's'), '/home/o/.claude/projects/-w-my-repo/s.jsonl')
+})
+
+test('messagesToEvents turns { role, text, toolUses } into prompt, turn, tool and file nodes', () => {
+  const msgs = [
+    { role: 'user', text: 'fix a.ts', toolUses: [] },
+    { role: 'assistant', text: 'Reading.', toolUses: [{ tool_use_id: 't1', tool: 'Read', input: { file_path: '/r/a.ts' }, text: 'x'.repeat(400) }] },
+    { role: 'user', text: '', toolUses: [], toolResults: [{ tool_use_id: 't1', text: 'x'.repeat(400) }] },
+    { role: 'user', text: 'and b?', toolUses: [] },
+  ]
+  const g = applyEvents(emptyGraph(), messagesToEvents(msgs))
+  const kinds = Object.values(g.nodes).map((n) => n.kind).sort()
+  assert.deepEqual(kinds, ['file', 'prompt', 'prompt', 'tool', 'turn'])
+  assert.ok(g.nodes['tool:t1']!.tokens >= 100)
+  assert.ok(g.latestPromptId)
+  assert.equal(g.nodes[g.latestPromptId!]!.label.startsWith('and b?'), true)
+})
+
+test('messagesToEvents ignores junk', () => {
+  assert.deepEqual(messagesToEvents(null as never), [])
+  assert.deepEqual(messagesToEvents([null, 3, { role: 'x' }] as never), [])
+})
