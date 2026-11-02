@@ -92,3 +92,6 @@ export interface Focus {
   question?: string
   updatedAt?: number
 }
+
+// v2 solution layer
+export * from './solution-types.ts'
