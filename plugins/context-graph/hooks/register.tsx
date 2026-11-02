@@ -313,6 +313,8 @@ export const register: Register = (on) => {
     await $.tool.register({ name: TOOL, description: TOOL_DESCRIPTION, inputSchema: TOOL_SCHEMA as unknown as Record<string, unknown>, isDeferred: false }).catch(() => undefined)
     if ((await read($, viewAtom)).autoOrbit) startOrbit($)
     await bootstrap($).catch(() => undefined)
+    // Open the pane on load (and on every hot-reload) so it appears without a command.
+    void $.ui.open({ id: PANE, title: TITLE })
     return next(e)
   }).catch(($, e, next) => next(e))
 
