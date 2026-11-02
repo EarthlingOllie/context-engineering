@@ -6,10 +6,24 @@
  * The scribe belongs to the wave, not a dispatch: "Wave 1 · Trace scribe".
  */
 
-export type LabelRole = "worker" | "generator" | "evaluator" | "partition" | "reducer";
+export type LabelRole = "worker" | "generator" | "evaluator" | "partition" | "reducer" | "judge" | "debater";
 
 export type AgentLabelParts =
-  | { id: string; role: LabelRole; task?: string; round?: number; rounds?: number; branch?: number; branches?: number }
+  | {
+      id: string;
+      role: LabelRole;
+      /** Who the agent is within its role: a debater's name, a panel lens. */
+      name?: string;
+      task?: string;
+      round?: number;
+      rounds?: number;
+      session?: number;
+      sessions?: number;
+      attempt?: number;
+      attempts?: number;
+      branch?: number;
+      branches?: number;
+    }
   | { wave: number; role: "scribe" };
 
 export const EXCERPT_MAX = 40;
@@ -21,6 +35,8 @@ const TITLES: Record<LabelRole, string> = {
   evaluator: "Evaluator",
   partition: "Partition",
   reducer: "Reducer",
+  judge: "Judge",
+  debater: "Debater",
 };
 
 /** One line of the task, whitespace collapsed, at most EXCERPT_MAX characters including the ellipsis. */
@@ -37,8 +53,14 @@ function displayId(id: string): string {
 export function agentLabel(parts: AgentLabelParts): string {
   if (parts.role === "scribe") return `Wave ${parts.wave} · ${SCRIBE}`;
   let role = TITLES[parts.role];
-  if (parts.round !== undefined) role += `, round ${parts.round}${parts.rounds !== undefined ? ` of ${parts.rounds}` : ""}`;
-  if (parts.branch !== undefined) role += `, branch ${parts.branch}${parts.branches !== undefined ? ` of ${parts.branches}` : ""}`;
+  if (parts.name) role += ` ${parts.name}`;
+  const ofN = (word: string, i: number | undefined, n: number | undefined) => {
+    if (i !== undefined) role += `, ${word} ${i}${n !== undefined ? ` of ${n}` : ""}`;
+  };
+  ofN("round", parts.round, parts.rounds);
+  ofN("session", parts.session, parts.sessions);
+  ofN("attempt", parts.attempt, parts.attempts);
+  ofN("branch", parts.branch, parts.branches);
   const excerpt = taskExcerpt(parts.task);
   return `${displayId(parts.id)} ${role}${excerpt ? ` — ${excerpt}` : ""}`;
 }

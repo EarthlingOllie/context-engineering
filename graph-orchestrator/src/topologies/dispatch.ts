@@ -13,6 +13,10 @@ import { generatorEvaluator } from "./generator-evaluator.ts";
 import { fanOut } from "./fan-out.ts";
 import { debate } from "./debate.ts";
 import { chain } from "./chain.ts";
+import { relay } from "./relay.ts";
+import { bestOfN } from "./best-of-n.ts";
+import { iterativeFanOut } from "./iterative-fan-out.ts";
+import { panel } from "./panel.ts";
 
 const REGISTRY: Record<Topology, TopologyImpl> = {
   single,
@@ -20,6 +24,10 @@ const REGISTRY: Record<Topology, TopologyImpl> = {
   "fan-out": fanOut,
   debate,
   chain,
+  relay,
+  "best-of-n": bestOfN,
+  "iterative-fan-out": iterativeFanOut,
+  panel,
 };
 
 function isTopology(t: unknown): t is Topology {

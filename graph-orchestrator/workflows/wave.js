@@ -1,6 +1,6 @@
 export const meta = {
   name: 'wave',
-  description: 'graph-orchestrator: run one wave of dispatches (single, generator-evaluator, fan-out, chain) and write the trace',
+  description: 'graph-orchestrator: run one wave of dispatches (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) and write the trace',
   whenToUse: 'Invoked by the graph-orchestrator skill once per wave with { now, traceFile, maxAgents, dispatches } as args. Not for direct use.',
   phases: [{ title: 'scribe', detail: 'append the wave events to the trace file' }],
 }
@@ -14,7 +14,9 @@ var TITLES = {
   generator: "Generator",
   evaluator: "Evaluator",
   partition: "Partition",
-  reducer: "Reducer"
+  reducer: "Reducer",
+  judge: "Judge",
+  debater: "Debater"
 };
 function taskExcerpt(task) {
   const line = String(task ?? "").replace(/\s+/g, " ").trim();
@@ -27,8 +29,14 @@ function displayId(id) {
 function agentLabel(parts) {
   if (parts.role === "scribe") return `Wave ${parts.wave} \xB7 ${SCRIBE}`;
   let role = TITLES[parts.role];
-  if (parts.round !== void 0) role += `, round ${parts.round}${parts.rounds !== void 0 ? ` of ${parts.rounds}` : ""}`;
-  if (parts.branch !== void 0) role += `, branch ${parts.branch}${parts.branches !== void 0 ? ` of ${parts.branches}` : ""}`;
+  if (parts.name) role += ` ${parts.name}`;
+  const ofN = (word, i, n) => {
+    if (i !== void 0) role += `, ${word} ${i}${n !== void 0 ? ` of ${n}` : ""}`;
+  };
+  ofN("round", parts.round, parts.rounds);
+  ofN("session", parts.session, parts.sessions);
+  ofN("attempt", parts.attempt, parts.attempts);
+  ofN("branch", parts.branch, parts.branches);
   const excerpt = taskExcerpt(parts.task);
   return `${displayId(parts.id)} ${role}${excerpt ? ` \u2014 ${excerpt}` : ""}`;
 }
@@ -109,13 +117,13 @@ var ROLE_STANCES = {
     "pass=true only when every criterion is met. Otherwise feedback is a numbered list of specific, actionable points with locations, and nothing else."
   ].join("\n"),
   judge: [
-    "You are the judge. You receive the task and the full debate transcript; you return one verdict in the RETURN shape.",
+    "You are the judge. You receive the task and the candidates or debate transcript; you return one verdict in the RETURN shape.",
     "Decide on the arguments and evidence presented. Do not introduce a new position. Name the decisive consideration.",
-    "You may read files the debaters cite to check a claim. Change nothing on disk."
+    "You may read files the candidates or debaters cite to check a claim. Change nothing on disk."
   ].join("\n"),
   reducer: [
-    "You are the reducer of a fan-out. Merge the BRANCH RESULTS into one answer in the RETURN shape.",
-    "A blocked branch is a gap: note it in one line, do not redo its work. Prefer the branches' artifacts over re-deriving anything.",
+    "You are the reducer. Merge the results in the sections below (fan-out branch results, panel lens feedback, or iterative fan-out rounds) into one answer in the RETURN shape.",
+    "A blocked branch, lens or round is a gap: note it in one line, do not redo its work. Prefer the inputs' artifacts over re-deriving anything.",
     "Read artifacts as needed; write a merged artifact if the result exceeds the line limit. Do not narrate."
   ].join("\n"),
   debater: [
@@ -170,6 +178,11 @@ var MAX_PARTICIPANTS = 6;
 var DEFAULT_ITERATIONS = 3;
 var DEFAULT_ROUNDS = 2;
 var DEFAULT_WIDTH = 3;
+var MAX_SESSIONS = 10;
+var DEFAULT_SESSIONS = 3;
+var MAX_GAP_ROUNDS = 3;
+var DEFAULT_GAP_ROUNDS = 2;
+var MAX_DEBATE_ROUNDS = 4;
 function cutLines(text, maxLines) {
   const lines = String(text ?? "").split("\n");
   if (lines.length <= maxLines) return lines.join("\n");
@@ -214,21 +227,24 @@ function strArr(o, key) {
   const v = o[key];
   return Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.length > 0) : [];
 }
-function blockedQuestion(o) {
+function blockedQuestion(o, who = "worker") {
   if (o["blocked"] !== true) return null;
   const q = str(o, "question").trim();
-  return q || "(the worker reported blocked without a question)";
+  return q || `(the ${who} reported blocked without a question)`;
 }
 function readWorkOutput(out, maxLines) {
   const q = blockedQuestion(out);
   const work = { result: cutLines(str(out, "result"), maxLines), artifacts: strArr(out, "artifacts") };
   return q ? { ...work, question: q } : work;
 }
+function entryOf(raw) {
+  if (!raw || typeof raw !== "object") return void 0;
+  const e = raw;
+  return { ...e.skill ? { skill: String(e.skill) } : {}, instructions: String(e.instructions ?? "") };
+}
 function roleEntry(spec, name) {
   const roles = spec.roles && typeof spec.roles === "object" ? spec.roles : {};
-  const e = roles[name];
-  if (e && typeof e === "object") return { ...e.skill ? { skill: String(e.skill) } : {}, instructions: String(e.instructions ?? "") };
-  return void 0;
+  return entryOf(roles[name]);
 }
 function uniq(xs) {
   return Array.from(new Set(xs));
@@ -269,7 +285,7 @@ function dispatchEvent(wave, spec, r, parent) {
 }
 
 // src/types.ts
-var TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain"];
+var TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain", "relay", "best-of-n", "iterative-fan-out", "panel"];
 
 // src/topologies/single.ts
 async function runSingle(ctx, spec) {
@@ -358,6 +374,76 @@ var generatorEvaluator = {
 };
 
 // src/topologies/fan-out.ts
+async function partitionStep(ctx, spec, instruction, width, opts) {
+  const part = await callRole(
+    ctx,
+    spec,
+    "worker",
+    buildPrompt({
+      role: "worker",
+      task: `Partition this task into at most ${width} independent sub-tasks: ${spec.task}`,
+      context: spec.context,
+      entry: opts.workerEntry,
+      returns: { shape: "one imperative sentence per sub-task, each self-contained and non-overlapping", maxLines: width },
+      artifactDir: ctx.artifactDir,
+      sections: [{ title: "PARTITION INSTRUCTION", body: instruction }]
+    }),
+    opts.label,
+    {
+      type: "object",
+      properties: {
+        subtasks: { type: "array", items: { type: "string" }, description: `At most ${width} independent sub-tasks, one imperative sentence each.` },
+        blocked: { type: "boolean" },
+        question: { type: "string" }
+      },
+      required: ["subtasks", "blocked"]
+    }
+  );
+  if (!part) return { ok: false, result: fail(spec, `${opts.name}: partition agent returned nothing`, 1) };
+  const pq = blockedQuestion(part);
+  if (pq) return { ok: false, result: { id: spec.id, status: "blocked", result: "", artifacts: [], question: pq, iterations: 1 } };
+  const all = strArr(part, "subtasks");
+  if (all.length === 0) return { ok: false, result: fail(spec, `${opts.name}: partition produced no sub-tasks`, 1) };
+  if (all.length > width) ctx.rt.log(`${spec.id}: partition returned more than ${width} sub-tasks; extras dropped`);
+  return { ok: true, subtasks: all.slice(0, width) };
+}
+async function branchStep(ctx, spec, subtasks, opts) {
+  const n = subtasks.length;
+  const raw = await ctx.rt.parallel(
+    subtasks.map((task, i) => async () => {
+      const out = await callRole(
+        ctx,
+        spec,
+        "worker",
+        buildPrompt({
+          role: "worker",
+          task,
+          context: [...opts.context, `this is branch ${i + 1} of ${n} of ${opts.kind} whose parent task is: ${spec.task}`],
+          entry: opts.workerEntry,
+          returns: opts.branchReturns,
+          artifactDir: ctx.artifactDir
+        }),
+        opts.label(i + 1, n, task)
+      );
+      if (!out) return { index: i, task, status: "failed", result: "worker returned nothing", artifacts: [] };
+      const { question, ...work } = readWorkOutput(out, opts.branchReturns.maxLines);
+      const b = { index: i, task, status: question ? "blocked" : "done", ...work };
+      if (question) b.question = question;
+      return b;
+    })
+  );
+  return raw.map((b, i) => b ?? { index: i, task: subtasks[i] ?? "", status: "failed", result: "branch did not return", artifacts: [] });
+}
+function branchQuestions(branches, prefix = "") {
+  const blocked = branches.filter((b) => b.status === "blocked");
+  return blocked.length ? blocked.map((b) => `${prefix}branch ${b.index + 1} (${b.task}): ${b.question}`).join("\n") : void 0;
+}
+function noBranchFinished(spec, branches, maxLines) {
+  const status = branches.some((b) => b.status === "blocked") ? "blocked" : "failed";
+  const base = { id: spec.id, status, result: cutLines(branches.map((b) => `branch ${b.index + 1} ${b.status}: ${b.question ?? b.result}`).join("\n"), maxLines), artifacts: uniq(branches.flatMap((b) => b.artifacts)), iterations: 1 };
+  const q = branchQuestions(branches);
+  return q ? { ...base, question: q } : base;
+}
 async function runFanOut(ctx, spec) {
   const returns = contractOf(spec);
   const params = spec.params;
@@ -376,74 +462,19 @@ async function runFanOut(ctx, spec) {
   } else if (typeof split === "string" && split.trim()) {
     const width = int(params.width, DEFAULT_WIDTH);
     if (width > MAX_WIDTH) return overBudget(spec, `fan-out: width ${width} exceeds the cap of ${MAX_WIDTH}`);
-    const part = await callRole(
-      ctx,
-      spec,
-      "worker",
-      buildPrompt({
-        role: "worker",
-        task: `Partition this task into at most ${width} independent sub-tasks: ${spec.task}`,
-        context: spec.context,
-        entry: workerEntry,
-        returns: { shape: "one imperative sentence per sub-task, each self-contained and non-overlapping", maxLines: width },
-        artifactDir: ctx.artifactDir,
-        sections: [{ title: "PARTITION INSTRUCTION", body: split }]
-      }),
-      { role: "partition" },
-      {
-        type: "object",
-        properties: {
-          subtasks: { type: "array", items: { type: "string" }, description: `At most ${width} independent sub-tasks, one imperative sentence each.` },
-          blocked: { type: "boolean" },
-          question: { type: "string" }
-        },
-        required: ["subtasks", "blocked"]
-      }
-    );
-    if (!part) return fail(spec, "fan-out: partition agent returned nothing", 1);
-    const pq = blockedQuestion(part);
-    if (pq) return { id: spec.id, status: "blocked", result: "", artifacts: [], question: pq, iterations: 1 };
-    subtasks = strArr(part, "subtasks").slice(0, width);
-    if (subtasks.length === 0) return fail(spec, "fan-out: partition produced no sub-tasks", 1);
-    if (strArr(part, "subtasks").length > width) ctx.rt.log(`${spec.id}: partition returned more than ${width} sub-tasks; extras dropped`);
+    const part = await partitionStep(ctx, spec, split, width, { name: "fan-out", label: { role: "partition" }, workerEntry });
+    if (!part.ok) return part.result;
+    subtasks = part.subtasks;
   } else {
     return fail(spec, "fan-out: `params.split` must be a list of sub-tasks or a partition instruction");
   }
   const n = subtasks.length;
   const branchReturns = hasReducer ? returns : { shape: returns.shape, maxLines: Math.max(1, Math.floor(returns.maxLines / n)) };
-  const raw = await ctx.rt.parallel(
-    subtasks.map((task, i) => async () => {
-      const out = await callRole(
-        ctx,
-        spec,
-        "worker",
-        buildPrompt({
-          role: "worker",
-          task,
-          context: [...spec.context, `this is branch ${i + 1} of ${n} of a fan-out whose parent task is: ${spec.task}`],
-          entry: workerEntry,
-          returns: branchReturns,
-          artifactDir: ctx.artifactDir
-        }),
-        { role: "worker", branch: i + 1, branches: n, task }
-      );
-      if (!out) return { index: i, task, status: "failed", result: "worker returned nothing", artifacts: [] };
-      const { question, ...work } = readWorkOutput(out, branchReturns.maxLines);
-      const b = { index: i, task, status: question ? "blocked" : "done", ...work };
-      if (question) b.question = question;
-      return b;
-    })
-  );
-  const branches = raw.map((b, i) => b ?? { index: i, task: subtasks[i] ?? "", status: "failed", result: "branch did not return", artifacts: [] });
+  const branches = await branchStep(ctx, spec, subtasks, { branchReturns, workerEntry, context: spec.context, label: (i, k, task) => ({ role: "worker", branch: i, branches: k, task }), kind: "a fan-out" });
   const finished = branches.filter((b) => b.status === "done");
-  const blocked = branches.filter((b) => b.status === "blocked");
   const artifacts = uniq(branches.flatMap((b) => b.artifacts));
-  const gapQuestion = blocked.length ? blocked.map((b) => `branch ${b.index + 1} (${b.task}): ${b.question}`).join("\n") : void 0;
-  if (finished.length === 0) {
-    const status = blocked.length ? "blocked" : "failed";
-    const base = { id: spec.id, status, result: cutLines(branches.map((b) => `branch ${b.index + 1} ${b.status}: ${b.question ?? b.result}`).join("\n"), returns.maxLines), artifacts, iterations: 1 };
-    return gapQuestion ? { ...base, question: gapQuestion } : base;
-  }
+  const gapQuestion = branchQuestions(branches);
+  if (finished.length === 0) return noBranchFinished(spec, branches, returns.maxLines);
   const concatenated = () => cutLines(branches.map((b) => b.status === "done" ? `[${b.index + 1}] ${b.result}` : `[${b.index + 1}] ${b.status}: ${b.question ?? b.result}`).join("\n"), returns.maxLines);
   let result;
   let extraArtifacts = [];
@@ -488,21 +519,111 @@ var fanOut = {
 };
 
 // src/topologies/debate.ts
-async function runDebate(_ctx, spec) {
+var POSITION_LINES = 8;
+function checkDebate(spec) {
   const params = spec.params ?? {};
   const p = params["participants"];
-  if (Array.isArray(p) && p.length > MAX_PARTICIPANTS) return overBudget(spec, `debate: ${p.length} participants exceeds the cap of ${MAX_PARTICIPANTS}`);
-  return fail(spec, "debate is not built in this plugin version: it is the dogfood task (spec story 42). Use generator-evaluator or a fan-out with a reducer for now.");
+  if (Array.isArray(p) && p.length > MAX_PARTICIPANTS) return { ok: false, result: overBudget(spec, `debate: ${p.length} participants exceeds the cap of ${MAX_PARTICIPANTS}`) };
+  const rounds = int(params["rounds"], DEFAULT_ROUNDS, 0);
+  if (rounds > MAX_DEBATE_ROUNDS) return { ok: false, result: overBudget(spec, `debate: ${rounds} rounds exceeds the cap of ${MAX_DEBATE_ROUNDS}`) };
+  if (rounds < 1) return { ok: false, result: fail(spec, "debate: `rounds` must be at least 1") };
+  if (!Array.isArray(p) || p.length < 2) return { ok: false, result: fail(spec, "debate: `participants` must list 2 to 6 { name, stance } entries") };
+  const participants = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const x of p) {
+    const o = x && typeof x === "object" ? x : {};
+    const name = typeof o["name"] === "string" ? o["name"].trim() : "";
+    const stance = typeof o["stance"] === "string" ? o["stance"].trim() : "";
+    if (!name || !stance) return { ok: false, result: fail(spec, "debate: every participant needs a non-empty `name` and `stance`") };
+    if (seen.has(name)) return { ok: false, result: fail(spec, `debate: duplicate participant name "${name}"`) };
+    seen.add(name);
+    participants.push({ name, stance });
+  }
+  const pj = params["judge"];
+  const judge = roleEntry(spec, "judge") ?? entryOf(pj);
+  if (!judge) return { ok: false, result: fail(spec, "debate: a judge is required (params.judge or roles.judge)") };
+  return { ok: true, params: { participants, rounds, judge } };
 }
-var debate = {
-  demand: (_spec, params) => {
-    const p = params["participants"];
-    const n = Array.isArray(p) ? p.length : 0;
-    if (n > MAX_PARTICIPANTS) return 0;
-    return n * int(params["rounds"], DEFAULT_ROUNDS) + 1;
-  },
-  run: runDebate
-};
+function demandDebate(_spec, params) {
+  const p = params["participants"];
+  const n = Array.isArray(p) ? p.length : 0;
+  const rounds = int(params["rounds"], DEFAULT_ROUNDS);
+  if (n > MAX_PARTICIPANTS || rounds > MAX_DEBATE_ROUNDS) return 0;
+  return n * rounds + 1;
+}
+function roundLines(round) {
+  return round.map((x) => `[${x.name}] ${x.position}`).join("\n");
+}
+async function runDebate(ctx, spec) {
+  const checked = checkDebate(spec);
+  if (!checked.ok) return checked.result;
+  const { participants, rounds, judge } = checked.params;
+  const returns = contractOf(spec);
+  const debaterEntry = roleEntry(spec, "debater");
+  const transcript = [];
+  for (let r = 1; r <= rounds; r++) {
+    const prior = transcript[r - 2];
+    const outs = await ctx.rt.parallel(
+      participants.map((p) => () => {
+        const sections = [
+          { title: "STANCE", body: p.stance },
+          { title: "YOU ARE", body: p.name },
+          ...prior ? [{ title: `PRIOR ROUND (round ${r - 1})`, body: roundLines(prior) }] : []
+        ];
+        return callRole(
+          ctx,
+          spec,
+          "debater",
+          buildPrompt({ role: "debater", task: spec.task, context: spec.context, entry: debaterEntry, returns: { shape: "your position this round", maxLines: POSITION_LINES }, artifactDir: ctx.artifactDir, sections }),
+          { role: "debater", name: p.name, round: r, rounds }
+        );
+      })
+    );
+    const read = participants.map((p, i) => {
+      const out2 = outs[i];
+      return { name: p.name, question: out2 ? blockedQuestion(out2, "debater") : null, position: out2 ? cutLines(str(out2, "position").trim(), POSITION_LINES) : "" };
+    });
+    const blocked = read.filter((x) => x.question);
+    if (blocked.length) {
+      return { id: spec.id, status: "blocked", result: `debater(s) ${blocked.map((x) => x.name).join(", ")} blocked in round ${r}`, artifacts: [], question: blocked.map((x) => `debater ${x.name}: ${x.question}`).join("\n"), iterations: r };
+    }
+    const empty = read.filter((x) => !x.position);
+    if (empty.length) return fail(spec, `debate: debater ${empty.map((x) => x.name).join(", ")} returned nothing in round ${r}`, r);
+    transcript.push(read.map(({ name, position }) => ({ name, position })));
+  }
+  const out = await callRole(
+    ctx,
+    spec,
+    "judge",
+    buildPrompt({
+      role: "judge",
+      task: spec.task,
+      context: spec.context,
+      entry: judge,
+      returns,
+      artifactDir: ctx.artifactDir,
+      sections: [
+        { title: "PARTICIPANTS", body: participants.map((p) => `[${p.name}] ${p.stance}`).join("\n") },
+        { title: "TRANSCRIPT", body: transcript.map((round, i) => `ROUND ${i + 1}
+${roundLines(round)}`).join("\n") }
+      ]
+    }),
+    { role: "judge" }
+  );
+  if (!out) return fail(spec, "debate: judge returned nothing", rounds);
+  const artifacts = strArr(out, "artifacts");
+  const q = blockedQuestion(out, "judge");
+  if (q) return { id: spec.id, status: "blocked", result: "judge blocked", artifacts, question: q, iterations: rounds };
+  const verdict = str(out, "verdict").trim();
+  if (!verdict) return fail(spec, "debate: judge returned nothing", rounds);
+  const decisive = firstLine(str(out, "reasoning").trim());
+  const head = cutLines(verdict, returns.maxLines);
+  const room = returns.maxLines - head.split("\n").length;
+  const result = decisive && room >= 1 ? `${head}
+-- decisive: ${decisive}` : head;
+  return { id: spec.id, status: "done", result, artifacts, iterations: rounds };
+}
+var debate = { demand: demandDebate, run: runDebate };
 
 // src/topologies/chain.ts
 function normaliseStage(parent, stage, index, forwarded) {
@@ -548,13 +669,494 @@ var chain = {
   run: runChain
 };
 
+// src/topologies/relay.ts
+function checkRelay(spec) {
+  const params = spec.params ?? {};
+  const max_sessions = int(params["max_sessions"], DEFAULT_SESSIONS, 0);
+  if (max_sessions > MAX_SESSIONS) return { ok: false, result: overBudget(spec, `relay: ${max_sessions} sessions exceeds the cap of ${MAX_SESSIONS}`) };
+  if (max_sessions < 1) return { ok: false, result: fail(spec, "relay: `max_sessions` must be at least 1") };
+  const check_every = int(params["check_every"], 1, 0);
+  if (check_every < 1) return { ok: false, result: fail(spec, "relay: `check_every` must be at least 1") };
+  const done_criteria = str(params, "done_criteria").trim();
+  if (!done_criteria) return { ok: false, result: fail(spec, "relay: `done_criteria` is required; the done-check is the only stop") };
+  const progress = str(params, "progress").trim();
+  if (!progress) return { ok: false, result: fail(spec, "relay: `progress` (the progress-artifact path) is required") };
+  return { ok: true, params: { done_criteria, progress, max_sessions, check_every } };
+}
+function demandRelay(_spec, params) {
+  const sessions = int(params["max_sessions"], DEFAULT_SESSIONS);
+  if (sessions > MAX_SESSIONS) return 0;
+  return sessions + Math.ceil(sessions / int(params["check_every"], 1));
+}
+async function runRelay(ctx, spec) {
+  const checked = checkRelay(spec);
+  if (!checked.ok) return checked.result;
+  const { done_criteria, progress, max_sessions: n, check_every } = checked.params;
+  const returns = contractOf(spec);
+  const workerEntry = roleEntry(spec, "worker");
+  const evalEntry = roleEntry(spec, "evaluator");
+  let artifacts = [];
+  let feedback = null;
+  let last = null;
+  for (let s = 1; s <= n; s++) {
+    const sections = [
+      { title: `SESSION ${s} of ${n}`, body: "Make the next increment only; read PROGRESS first; rewrite it before you report." },
+      { title: `PROGRESS: ${progress}`, body: "The progress artifact: the only state carried between sessions besides the files below." },
+      { title: "DONE CRITERIA", body: done_criteria },
+      { title: "ARTIFACTS SO FAR", body: artifacts.length ? artifacts.join("\n") : "none" }
+    ];
+    if (feedback !== null) sections.push({ title: "LAST CHECK FEEDBACK", body: feedback || "(no feedback given)" });
+    const out = await callRole(
+      ctx,
+      spec,
+      "worker",
+      buildPrompt({ role: "worker", task: spec.task, context: spec.context, entry: workerEntry, returns, artifactDir: ctx.artifactDir, sections }),
+      { role: "worker", session: s, sessions: n }
+    );
+    if (!out) return { ...fail(spec, `relay: worker returned nothing in session ${s}`, s), artifacts };
+    const { question: wq, ...work } = readWorkOutput(out, returns.maxLines);
+    last = work;
+    artifacts = uniq([...artifacts, ...work.artifacts]);
+    if (wq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: wq, iterations: s };
+    if (s % check_every !== 0 && s !== n) continue;
+    const ev = await callRole(
+      ctx,
+      spec,
+      "evaluator",
+      buildPrompt({
+        role: "evaluator",
+        task: spec.task,
+        context: spec.context,
+        entry: evalEntry,
+        returns: { shape: "pass or fail with numbered feedback", maxLines: 10 },
+        artifactDir: ctx.artifactDir,
+        sections: [
+          { title: "DONE CRITERIA", body: done_criteria },
+          { title: `SUBMISSION (session ${s} of ${n})`, body: `${work.result}
+artifacts: ${artifacts.length ? artifacts.join(", ") : "none"}
+progress: ${progress}` }
+        ]
+      }),
+      { role: "evaluator", session: s, sessions: n }
+    );
+    if (!ev) return { ...fail(spec, `relay: evaluator returned nothing in session ${s}`, s), artifacts };
+    const eq = blockedQuestion(ev);
+    if (eq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: eq, iterations: s };
+    if (ev["pass"] === true) return { id: spec.id, status: "done", result: work.result, artifacts, iterations: s };
+    feedback = str(ev, "feedback");
+  }
+  const tail = `-- exhausted after ${n} session(s); last check: ${firstLine(feedback ?? "")}`;
+  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1) : "";
+  return { id: spec.id, status: "exhausted", result: head ? `${head}
+${tail}` : tail, artifacts, iterations: n };
+}
+var relay = { demand: demandRelay, run: runRelay };
+
+// src/topologies/best-of-n.ts
+function attempts(params) {
+  const v = params["variants"];
+  return Array.isArray(v) ? v.length : int(params["n"], DEFAULT_WIDTH, 0);
+}
+function checkBestOfN(spec) {
+  const params = spec.params ?? {};
+  const n = attempts(params);
+  if (n > MAX_WIDTH) return { ok: false, result: overBudget(spec, `best-of-n: ${n} attempts exceeds the width cap of ${MAX_WIDTH}`) };
+  if (n < 2) return { ok: false, result: fail(spec, "best-of-n: `n` must be at least 2") };
+  const v = params["variants"];
+  let variants = [];
+  if (v !== void 0) {
+    if (!Array.isArray(v) || !v.every((x) => typeof x === "string" && x.trim())) return { ok: false, result: fail(spec, "best-of-n: `variants` must be a list of non-empty strings") };
+    variants = v.map((x) => x.trim());
+    if (params["n"] !== void 0 && int(params["n"], n, 0) !== n) return { ok: false, result: fail(spec, `best-of-n: n ${String(params["n"])} disagrees with ${n} variants`) };
+  }
+  const criteria = str(params, "criteria").trim();
+  if (!criteria) return { ok: false, result: fail(spec, "best-of-n: `criteria` is required") };
+  const m = params["mode"] ?? "select";
+  if (m !== "select" && m !== "vote") return { ok: false, result: fail(spec, `best-of-n: mode "${String(m)}" is not "select" or "vote"`) };
+  return { ok: true, params: { n, variants, criteria, mode: m } };
+}
+function demandBestOfN(_spec, params) {
+  const n = attempts(params);
+  if (n > MAX_WIDTH) return 0;
+  return n + 1;
+}
+var JUDGE_SCHEMA = (() => {
+  const base = ROLE_SCHEMAS.judge;
+  return {
+    ...base,
+    properties: { ...base.properties, chosen: { type: "integer", description: "The [i] index of the chosen candidate." } },
+    required: [...base.required, "chosen"]
+  };
+})();
+function voteKey(result) {
+  return firstLine(result).trim().toLowerCase().replace(/\s+/g, " ");
+}
+function orderedArtifacts(done, winner) {
+  const w = done.find((d) => d.index === winner);
+  return uniq([...w ? w.work.artifacts : [], ...done.filter((d) => d !== w).flatMap((d) => d.work.artifacts)]);
+}
+async function runBestOfN(ctx, spec) {
+  const checked = checkBestOfN(spec);
+  if (!checked.ok) return checked.result;
+  const { n, variants, criteria, mode } = checked.params;
+  const returns = contractOf(spec);
+  const workerEntry = roleEntry(spec, "worker");
+  const raw = await ctx.rt.parallel(
+    Array.from({ length: n }, (_, k) => async () => {
+      const index = k + 1;
+      const sections2 = [
+        { title: `ATTEMPT ${index} of ${n}`, body: "one independent attempt at the task; the attempts are compared against the CRITERIA below" },
+        ...variants.length ? [{ title: "APPROACH", body: variants[k] }] : [],
+        { title: "CRITERIA", body: criteria },
+        { title: "CANDIDATE DIR", body: `write your candidate under ${ctx.artifactDir}/${spec.id}-c${index}/ ; do not modify the working tree` }
+      ];
+      const out = await callRole(
+        ctx,
+        spec,
+        "worker",
+        buildPrompt({ role: "worker", task: spec.task, context: spec.context, entry: workerEntry, returns, artifactDir: ctx.artifactDir, sections: sections2 }),
+        { role: "worker", attempt: index, attempts: n }
+      );
+      if (!out) {
+        ctx.rt.log(`${spec.id}: attempt ${index}/${n} returned nothing; dropped`);
+        return { index, kind: "empty" };
+      }
+      const { question: question2, ...work } = readWorkOutput(out, returns.maxLines);
+      return question2 ? { index, kind: "blocked", question: question2 } : { index, kind: "done", work };
+    })
+  );
+  const all = raw.map((a, k) => a ?? { index: k + 1, kind: "empty" });
+  const done = all.flatMap((a) => a.kind === "done" ? [{ index: a.index, work: a.work }] : []);
+  const blocked = all.flatMap((a) => a.kind === "blocked" ? [{ index: a.index, question: a.question }] : []);
+  const question = blocked.length ? blocked.map((b) => `attempt ${b.index}: ${b.question}`).join("\n") : void 0;
+  const withQuestion = (r) => question && !r.question ? { ...r, question } : r;
+  if (done.length === 0) {
+    const notes = all.map((a) => `attempt ${a.index} ${a.kind === "blocked" ? `blocked: ${a.question}` : "returned nothing"}`).join("\n");
+    return withQuestion({ id: spec.id, status: blocked.length ? "blocked" : "failed", result: cutLines(notes, returns.maxLines), artifacts: [], iterations: 1 });
+  }
+  if (mode === "vote") {
+    const tally = /* @__PURE__ */ new Map();
+    for (const d of done) {
+      const k = voteKey(d.work.result);
+      if (k) tally.set(k, (tally.get(k) ?? 0) + 1);
+    }
+    const top = [...tally.entries()].find(([, c]) => c > n / 2);
+    if (top) {
+      const winner2 = done.find((d) => voteKey(d.work.result) === top[0]);
+      return withQuestion({ id: spec.id, status: "done", result: winner2.work.result, artifacts: orderedArtifacts(done, winner2.index), iterations: 1 });
+    }
+    ctx.rt.log(`${spec.id}: no strict majority among ${done.length} vote(s) of ${n}; the judge decides`);
+  }
+  const candidates = done.map((d) => `[${d.index}] ${d.work.result}
+artifacts: ${d.work.artifacts.length ? d.work.artifacts.join(", ") : "none"}`).join("\n\n");
+  const dropped = all.filter((a) => a.kind !== "done");
+  const sections = [
+    { title: "CRITERIA", body: criteria },
+    { title: "CANDIDATES", body: candidates },
+    ...dropped.length ? [{ title: "BLOCKED ATTEMPTS", body: dropped.map((a) => `- attempt ${a.index} ${a.kind === "blocked" ? `blocked: ${a.question}` : "returned nothing"}`).join("\n") }] : [],
+    { title: "CHOICE", body: "the verdict must name the chosen candidate by its [i] index; also set `chosen` to that index" }
+  ];
+  const candidateArtifacts = orderedArtifacts(done, void 0);
+  const j = await callRole(
+    ctx,
+    spec,
+    "judge",
+    buildPrompt({ role: "judge", task: spec.task, context: spec.context, entry: roleEntry(spec, "judge"), returns, artifactDir: ctx.artifactDir, sections }),
+    { role: "judge" },
+    JUDGE_SCHEMA
+  );
+  if (!j) return withQuestion({ ...fail(spec, "best-of-n: judge returned nothing", 1), artifacts: candidateArtifacts });
+  const verdict = cutLines(str(j, "verdict"), returns.maxLines);
+  const jq = blockedQuestion(j, "judge");
+  if (jq) return { id: spec.id, status: "blocked", result: verdict, artifacts: candidateArtifacts, question: question ? `${jq}
+${question}` : jq, iterations: 1 };
+  if (!verdict.trim()) return withQuestion({ ...fail(spec, "best-of-n: judge returned nothing", 1), artifacts: candidateArtifacts });
+  const ids = new Set(done.map((d) => d.index));
+  const named = Number(j["chosen"]);
+  const fromVerdict = Number(/\[(\d+)\]/.exec(verdict)?.[1]);
+  const winner = ids.has(named) ? named : ids.has(fromVerdict) ? fromVerdict : void 0;
+  if (winner === void 0) ctx.rt.log(`${spec.id}: judge named no valid candidate index; artifacts kept in attempt order`);
+  return withQuestion({ id: spec.id, status: "done", result: verdict, artifacts: uniq([...orderedArtifacts(done, winner), ...strArr(j, "artifacts")]), iterations: 1 });
+}
+var bestOfN = { demand: demandBestOfN, run: runBestOfN };
+
+// src/topologies/iterative-fan-out.ts
+function widthOf(params) {
+  const split = params["split"];
+  return Array.isArray(split) ? split.filter((s) => typeof s === "string" && s.trim().length > 0).length : int(params["width"], DEFAULT_WIDTH, 0);
+}
+function checkIterativeFanOut(spec) {
+  const params = spec.params ?? {};
+  const width = widthOf(params);
+  if (width > MAX_WIDTH) return { ok: false, result: overBudget(spec, `iterative-fan-out: width ${width} exceeds the cap of ${MAX_WIDTH}`) };
+  const max_rounds = int(params["max_rounds"], DEFAULT_GAP_ROUNDS, 0);
+  if (max_rounds > MAX_GAP_ROUNDS) return { ok: false, result: overBudget(spec, `iterative-fan-out: ${max_rounds} rounds exceeds the cap of ${MAX_GAP_ROUNDS}`) };
+  if (max_rounds < 1) return { ok: false, result: fail(spec, "iterative-fan-out: `max_rounds` must be at least 1") };
+  const raw = params["split"];
+  let split;
+  if (Array.isArray(raw)) {
+    split = raw.filter((s) => typeof s === "string" && s.trim().length > 0);
+    if (split.length === 0) return { ok: false, result: fail(spec, "iterative-fan-out: `split` list is empty") };
+  } else if (typeof raw === "string" && raw.trim()) {
+    split = raw;
+    if (width < 1) return { ok: false, result: fail(spec, "iterative-fan-out: `width` must be at least 1") };
+  } else return { ok: false, result: fail(spec, "iterative-fan-out: `split` must be a list of sub-tasks or a partition instruction") };
+  const coverage_criteria = str(params, "coverage_criteria").trim();
+  if (!coverage_criteria) return { ok: false, result: fail(spec, "iterative-fan-out: `coverage_criteria` is required") };
+  return { ok: true, params: { split, width: Array.isArray(split) ? split.length : width, coverage_criteria, max_rounds } };
+}
+function demandIterativeFanOut(_spec, params) {
+  const width = widthOf(params);
+  const rounds = int(params["max_rounds"], DEFAULT_GAP_ROUNDS);
+  if (width > MAX_WIDTH || rounds > MAX_GAP_ROUNDS) return 0;
+  return rounds * width + rounds + 1 + (typeof params["split"] === "string" ? 1 : 0);
+}
+var norm = (t) => t.trim().toLowerCase().replace(/\s+/g, " ");
+function feedbackItems(feedback) {
+  const seen = /* @__PURE__ */ new Set();
+  const items = [];
+  for (const line of feedback.split("\n")) {
+    const t = line.replace(/^\s*(?:\d+[.)]|[-*\u2022])\s*/, "").trim();
+    if (t && !seen.has(norm(t))) {
+      seen.add(norm(t));
+      items.push(t);
+    }
+  }
+  return items;
+}
+async function branchRound(ctx, spec, round, rounds, split, width) {
+  const workerEntry = roleEntry(spec, "worker");
+  let tasks;
+  if (Array.isArray(split)) tasks = split;
+  else {
+    const part = await partitionStep(ctx, spec, split, width, { name: "iterative-fan-out", label: { role: "partition", round }, workerEntry });
+    if (!part.ok) return part;
+    tasks = part.subtasks;
+  }
+  const context = round === 1 ? spec.context : [...spec.context, `round ${round} of ${rounds} of an iterative fan-out: this sub-task fills a coverage gap the evaluator found`];
+  const branches = await branchStep(ctx, spec, tasks, { branchReturns: contractOf(spec), workerEntry, context, label: (i, n, task) => ({ role: "worker", round, branch: i, branches: n, task }), kind: "an iterative fan-out round" });
+  return { ok: true, tasks, branches };
+}
+function findingsText(findings, full) {
+  return findings.map((f) => `round ${f.round} branch ${f.index} (${f.status}) \u2014 ${f.task}
+${f.status === "done" ? `${full ? f.result : firstLine(f.result)}
+artifacts: ${f.artifacts.length ? f.artifacts.join(", ") : "none"}` : `GAP: ${f.question ?? f.result}`}`).join("\n\n");
+}
+async function runIterativeFanOut(ctx, spec) {
+  const checked = checkIterativeFanOut(spec);
+  if (!checked.ok) return checked.result;
+  const { width, coverage_criteria, max_rounds } = checked.params;
+  const returns = contractOf(spec);
+  const ran = /* @__PURE__ */ new Set();
+  const findings = [];
+  const artifacts = () => uniq(findings.flatMap((f) => f.artifacts));
+  const gapQuestion = () => {
+    const b = findings.filter((f) => f.status === "blocked");
+    return b.length ? b.map((f) => `round ${f.round} branch ${f.index} (${f.task}): ${f.question}`).join("\n") : void 0;
+  };
+  const withGaps = (r, q) => {
+    const gq = gapQuestion();
+    const question = [q, gq].filter(Boolean).join("\n");
+    return question ? { ...r, question } : r;
+  };
+  let split = checked.params.split;
+  let round = 0;
+  let openGaps = [];
+  let passed = false;
+  while (round < max_rounds) {
+    round++;
+    const step = await branchRound(ctx, spec, round, max_rounds, split, width);
+    if (!step.ok) return step.result;
+    if (round === 1 && !step.branches.some((b) => b.status === "done")) return noBranchFinished(spec, step.branches, returns.maxLines);
+    for (const t of step.tasks) ran.add(norm(t));
+    findings.push(...step.branches.map((b) => ({ ...b, round, index: b.index + 1 })));
+    const body = findingsText(findings, false);
+    const ev = await callRole(
+      ctx,
+      spec,
+      "evaluator",
+      buildPrompt({
+        role: "evaluator",
+        task: spec.task,
+        context: spec.context,
+        entry: roleEntry(spec, "evaluator"),
+        returns: { shape: "pass, or one follow-up sub-task per feedback line for each gap in coverage", maxLines: 10 },
+        artifactDir: ctx.artifactDir,
+        sections: [
+          { title: "COVERAGE CRITERIA", body: coverage_criteria },
+          { title: "FINDINGS SO FAR", body }
+        ]
+      }),
+      { role: "evaluator", round }
+    );
+    if (!ev) return { ...fail(spec, `iterative-fan-out: evaluator returned nothing in round ${round}`, round), artifacts: artifacts() };
+    const eq = blockedQuestion(ev, "evaluator");
+    if (eq) return withGaps({ id: spec.id, status: "blocked", result: `evaluator blocked in round ${round}`, artifacts: artifacts(), iterations: round }, eq);
+    if (ev["pass"] === true) {
+      passed = true;
+      break;
+    }
+    openGaps = feedbackItems(str(ev, "feedback"));
+    const fresh = openGaps.filter((t) => !ran.has(norm(t)));
+    if (fresh.length === 0) {
+      ctx.rt.log(`${spec.id}: stalled after round ${round}; the evaluator named no new sub-task`);
+      break;
+    }
+    if (round === max_rounds) break;
+    if (fresh.length > width) ctx.rt.log(`${spec.id}: round ${round + 1} keeps ${width} of ${fresh.length} gap sub-tasks; dropped: ${fresh.slice(width).join("; ")}`);
+    split = fresh.slice(0, width);
+  }
+  const sections = [{ title: "BRANCH RESULTS", body: findingsText(findings, true) }];
+  if (!passed) sections.push({ title: "OPEN GAPS", body: openGaps.length ? openGaps.map((g) => `- ${g}`).join("\n") : "(the evaluator named none)" });
+  const red = await callRole(
+    ctx,
+    spec,
+    "reducer",
+    buildPrompt({ role: "reducer", task: spec.task, context: spec.context, entry: roleEntry(spec, "reducer"), returns, artifactDir: ctx.artifactDir, sections }),
+    { role: "reducer" }
+  );
+  if (!red) return { ...fail(spec, "iterative-fan-out: reducer returned nothing", round), artifacts: artifacts() };
+  const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);
+  if (rq) return withGaps({ id: spec.id, status: "blocked", result: work.result, artifacts: artifacts(), iterations: round }, rq);
+  const all = uniq([...artifacts(), ...work.artifacts]);
+  if (passed) return withGaps({ id: spec.id, status: "done", result: work.result, artifacts: all, iterations: round });
+  const tail = `-- exhausted after ${round} round(s); open gaps: ${openGaps.length}; first: ${openGaps[0] ?? "none"}`;
+  const result = `${cutLines(work.result, Math.max(0, returns.maxLines - 1))}
+${tail}`.replace(/^\n/, "");
+  return withGaps({ id: spec.id, status: "exhausted", result, artifacts: all, iterations: round });
+}
+var iterativeFanOut = { demand: demandIterativeFanOut, run: runIterativeFanOut };
+
+// src/topologies/panel.ts
+function checkPanel(spec) {
+  const params = spec.params ?? {};
+  const raw = params["lenses"];
+  if (Array.isArray(raw) && raw.length > MAX_PARTICIPANTS) return { ok: false, result: overBudget(spec, `panel: ${raw.length} lenses exceeds the cap of ${MAX_PARTICIPANTS}`) };
+  if (!Array.isArray(raw) || raw.length === 0) return { ok: false, result: fail(spec, "panel: `lenses` must list 1 to 6 { name, focus } entries") };
+  const lenses = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const x of raw) {
+    const o = x && typeof x === "object" ? x : {};
+    const name = str(o, "name").trim();
+    const focus = str(o, "focus").trim();
+    if (!name || !focus) return { ok: false, result: fail(spec, "panel: every lens needs a non-empty `name` and `focus`") };
+    if (seen.has(name)) return { ok: false, result: fail(spec, `panel: duplicate lens name "${name}"`) };
+    seen.add(name);
+    const skill = str(o, "skill").trim();
+    lenses.push(skill ? { name, focus, skill } : { name, focus });
+  }
+  const pass_criteria = str(params, "pass_criteria").trim();
+  if (!pass_criteria) return { ok: false, result: fail(spec, "panel: `pass_criteria` is required") };
+  const pool = params["pool"] ?? "all";
+  if (pool !== "all" && pool !== "majority") return { ok: false, result: fail(spec, `panel: pool "${String(pool)}" is not "all" or "majority"`) };
+  const pr = params.reducer;
+  const reducer = roleEntry(spec, "reducer") ?? entryOf(pr) ?? (pr === true ? true : null);
+  return { ok: true, params: { lenses, pass_criteria, pool, reducer } };
+}
+function demandPanel(spec, params) {
+  const raw = params["lenses"];
+  const k = Array.isArray(raw) ? raw.length : 0;
+  if (k > MAX_PARTICIPANTS) return 0;
+  const roles = spec.roles && typeof spec.roles === "object" ? spec.roles : {};
+  const hasReducer = Boolean(roles["reducer"]) || Boolean(params["reducer"]);
+  return k + (hasReducer ? 1 : 0);
+}
+async function runPanel(ctx, spec) {
+  const checked = checkPanel(spec);
+  if (!checked.ok) return checked.result;
+  const { lenses, pass_criteria, pool, reducer } = checked.params;
+  const returns = contractOf(spec);
+  const evalEntry = roleEntry(spec, "evaluator");
+  const k = lenses.length;
+  const raw = await ctx.rt.parallel(
+    lenses.map((lens) => async () => {
+      const skill = lens.skill ?? evalEntry?.skill;
+      const entry = { ...skill ? { skill } : {}, instructions: evalEntry?.instructions ?? "" };
+      const out = await callRole(
+        ctx,
+        spec,
+        "evaluator",
+        buildPrompt({
+          role: "evaluator",
+          task: spec.task,
+          context: spec.context,
+          entry,
+          returns: { shape: "pass or fail with numbered feedback", maxLines: 10 },
+          artifactDir: ctx.artifactDir,
+          sections: [
+            { title: `LENS: ${lens.name} \u2014 ${lens.focus}`, body: `judge only this lens; one of ${k} independent reviewers, each with its own lens.` },
+            { title: "PASS CRITERIA (judged through this lens only)", body: pass_criteria },
+            { title: "SUBMISSION", body: `the artifact(s) named in CONTEXT, produced for: ${spec.task}` }
+          ]
+        }),
+        { role: "evaluator", name: lens.name }
+      );
+      if (!out) return { lens, missing: true };
+      const q = blockedQuestion(out, "evaluator");
+      const v = { lens, pass: out["pass"] === true, feedback: str(out, "feedback").trim() };
+      if (q) v.question = q;
+      return v;
+    })
+  );
+  const verdicts = raw.map((v, i) => v ?? { lens: lenses[i], missing: true });
+  const blocked = verdicts.filter((v) => !("missing" in v) && v.question !== void 0);
+  if (blocked.length) {
+    return { id: spec.id, status: "blocked", result: `lens(es) ${blocked.map((v) => v.lens.name).join(", ")} blocked`, artifacts: [], question: blocked.map((v) => `lens ${v.lens.name}: ${v.question}`).join("\n"), iterations: 1 };
+  }
+  const missing = verdicts.filter((v) => "missing" in v);
+  if (missing.length) return fail(spec, `panel: evaluator returned nothing for lens(es): ${missing.map((v) => v.lens.name).join(", ")}`, 1);
+  const judged = verdicts;
+  const p = judged.filter((v) => v.pass).length;
+  const passed = pool === "all" ? p === k : p > k / 2;
+  const verdict = passed ? "PASS" : `FAIL (${p}/${k})`;
+  const failing = judged.filter((v) => !v.pass);
+  if (reducer === null) {
+    const lines = [verdict, ...failing.map((v) => `[${v.lens.name}] FAIL: ${firstLine(v.feedback) || "(no feedback given)"}`)];
+    return { id: spec.id, status: "done", result: cutLines(lines.join("\n"), returns.maxLines), artifacts: [], iterations: 1 };
+  }
+  const body = judged.map((v) => `[${v.lens.name}] ${v.pass ? "PASS" : "FAIL"}${v.feedback ? `
+${v.feedback}` : ""}`).join("\n\n");
+  const redReturns = { shape: returns.shape, maxLines: Math.max(1, returns.maxLines - 1) };
+  const red = await callRole(
+    ctx,
+    spec,
+    "reducer",
+    buildPrompt({
+      role: "reducer",
+      task: spec.task,
+      context: spec.context,
+      entry: reducer === true ? void 0 : reducer,
+      returns: redReturns,
+      artifactDir: ctx.artifactDir,
+      sections: [
+        { title: "VERDICT", body: `${verdict}
+(pooled by code, rule "${pool}"; it is fixed: your result goes under it. Write the merged, deduplicated feedback to an artifact.)` },
+        { title: "PASS CRITERIA", body: pass_criteria },
+        { title: "LENS FEEDBACK", body }
+      ]
+    }),
+    { role: "reducer" }
+  );
+  if (!red) return fail(spec, `panel: reducer returned nothing; pooled verdict was ${verdict}`, 1);
+  const { question, ...work } = readWorkOutput(red, redReturns.maxLines);
+  if (question) return { id: spec.id, status: "blocked", result: verdict, artifacts: work.artifacts, question, iterations: 1 };
+  const result = cutLines(work.result ? `${verdict}
+${work.result}` : verdict, returns.maxLines);
+  return { id: spec.id, status: "done", result, artifacts: work.artifacts, iterations: 1 };
+}
+var panel = { demand: demandPanel, run: runPanel };
+
 // src/topologies/dispatch.ts
 var REGISTRY = {
   single,
   "generator-evaluator": generatorEvaluator,
   "fan-out": fanOut,
   debate,
-  chain
+  chain,
+  relay,
+  "best-of-n": bestOfN,
+  "iterative-fan-out": iterativeFanOut,
+  panel
 };
 function isTopology(t) {
   return TOPOLOGIES.includes(t);

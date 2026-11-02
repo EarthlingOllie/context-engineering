@@ -16,7 +16,7 @@ Ollie wants to delegate whole tasks to an agent and get finished work back, but 
 
 ## Solution
 
-A Claude Code plugin, `graph-orchestrator`, in which the orchestrator is a skill that plans **waves** of **dispatches**, and each dispatch is a **topology** — a reusable control-flow pattern (single, generator-evaluator, fan-out, debate, chain) run by deterministic code inside one Workflow script. The orchestrator chooses and configures topologies from a short **catalog**, hands over the task and the facts the workers cannot derive, waits for the wave, folds the short results into a one-screen **state file**, and plans the next wave. Loops and parallelism happen inside the topology; only the outcome comes back. When the **frontier** is empty, a renderer turns the **trace** into a Mermaid diagram of the session.
+A Claude Code plugin, `graph-orchestrator`, in which the orchestrator is a skill that plans **waves** of **dispatches**, and each dispatch is a **topology** — a reusable control-flow pattern (single, generator-evaluator, fan-out, debate, chain; v0.2 adds relay, best-of-n, iterative-fan-out and panel) run by deterministic code inside one Workflow script. The orchestrator chooses and configures topologies from a short **catalog**, hands over the task and the facts the workers cannot derive, waits for the wave, folds the short results into a one-screen **state file**, and plans the next wave. Loops and parallelism happen inside the topology; only the outcome comes back. When the **frontier** is empty, a renderer turns the **trace** into a Mermaid diagram of the session.
 
 ## User Stories
 
@@ -80,7 +80,8 @@ A Claude Code plugin, `graph-orchestrator`, in which the orchestrator is a skill
 ```ts
 type DispatchSpec = {
   id: string;                        // "w3-d2"
-  topology: "single" | "generator-evaluator" | "fan-out" | "debate" | "chain";
+  topology: "single" | "generator-evaluator" | "fan-out" | "debate" | "chain"
+          | "relay" | "best-of-n" | "iterative-fan-out" | "panel";   // added in v0.2
   task: string;                      // one imperative sentence
   context: string[];                 // KNOWN lines the worker cannot derive
   roles: Record<string, { skill?: string; instructions: string }>;
@@ -99,7 +100,7 @@ type DispatchResult = {
 };
 ```
 
-Chain narrows `params` to `{ stages: DispatchSpec[] }`. Fan-out: `{ width ≤ 9, reducer?: role, split: string[] | partition instruction }`. Generator-evaluator: `{ max_iterations = 3, pass_criteria }`. Debate: `{ participants ≤ 6 with stances, rounds = 2, judge: role (required) }`.
+Chain narrows `params` to `{ stages: DispatchSpec[] }`. Fan-out: `{ width ≤ 9, reducer?: role, split: string[] | partition instruction }`. Generator-evaluator: `{ max_iterations = 3, pass_criteria }`. Debate: `{ participants ≤ 6 with stances, rounds = 2, judge: role (required) }`. v0.2 caps debate rounds at 4 and adds relay `{ done_criteria, progress, max_sessions = 3 ≤ 10, check_every = 1 }`, best-of-n `{ n = 3 ≤ 9 | variants[], criteria, mode: select | vote }`, iterative-fan-out `{ split, width ≤ 9, coverage_criteria, max_rounds = 2 ≤ 3 }` and panel `{ lenses ≤ 6 of { name, focus, skill? }, pass_criteria, pool: all | majority, reducer? }`; the plugin's `catalog.md` is the source of truth for each.
 
 **The Workflow script.** One script, invoked once per wave with `{ now, traceFile, maxAgents, dispatches }` as structured args. It cannot read the clock, the filesystem or the shell; the orchestrator supplies `now`. All topologies are functions in this one file because scripts cannot import and concurrent runs are undocumented. The core is `runWave(args, runtime)` with the runtime (`agent`, `parallel`, `log`) injected, so topologies are testable without the harness. It runs dispatches in parallel, collects events in memory, and finishes by dispatching a scribe agent that appends the events to the trace file in one write. It logs total agent demand against the effective cap and does not refuse a wave; the runtime queues over-cap agents safely (spike item 3). The 1,000-agents-per-run runtime limit is the only hard check.
 

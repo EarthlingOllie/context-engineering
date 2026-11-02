@@ -4,7 +4,7 @@
  * Vocabulary: CONTEXT.md.
  */
 
-export const TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain"] as const;
+export const TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain", "relay", "best-of-n", "iterative-fan-out", "panel"] as const;
 export type Topology = (typeof TOPOLOGIES)[number];
 
 /** A role slot filled at dispatch time: the skill supplies the domain, the instructions the task. */
@@ -33,10 +33,35 @@ export type FanOutParams = {
 };
 export type DebateParams = {
   participants: { name: string; stance: string }[]; // ≤ 6
-  rounds?: number; // default 2
+  rounds?: number; // default 2, ≤ 4
   judge?: RoleEntry; // or roles.judge (required one way or the other)
 };
 export type ChainParams = { stages: DispatchSpec[] };
+export type RelayParams = {
+  done_criteria: string; // required: the evaluator done-check is the only stop
+  progress: string; // required: the progress-artifact path
+  max_sessions?: number; // default 3, ≤ 10
+  check_every?: number; // default 1; the last session is always checked
+};
+export type BestOfNParams = {
+  n?: number; // default 3, 2..9; set by variants.length when variants are given
+  variants?: string[]; // optional approach hints, one per attempt
+  criteria: string; // required
+  mode?: "select" | "vote"; // default "select"
+};
+export type IterativeFanOutParams = {
+  split: string[] | string; // explicit sub-tasks, or a partition instruction
+  width?: number; // ≤ 9 per round
+  coverage_criteria: string; // required
+  max_rounds?: number; // default 2, ≤ 3
+};
+export type PanelLens = { name: string; focus: string; skill?: string };
+export type PanelParams = {
+  lenses: PanelLens[]; // 1..6, unique names
+  pass_criteria: string; // required
+  pool?: "all" | "majority"; // default "all"
+  reducer?: boolean | RoleEntry; // or roles.reducer
+};
 
 /**
  * `failed` is not part of the orchestrator-facing signature; it is what the

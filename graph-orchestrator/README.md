@@ -1,6 +1,6 @@
 # graph-orchestrator
 
-A Claude Code plugin in which the orchestrator is a skill that plans **waves** of **dispatches**, and each dispatch is a **topology** (single, generator-evaluator, fan-out, chain; debate pending) run by deterministic code inside one Workflow script. Loops and parallelism happen inside the topology; only the outcome comes back to the orchestrator, which folds it into a one-screen state file and plans the next wave. When the frontier is empty, a renderer turns the trace into a Mermaid diagram of the session.
+A Claude Code plugin in which the orchestrator is a skill that plans **waves** of **dispatches**, and each dispatch is a **topology** (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) run by deterministic code inside one Workflow script. Loops and parallelism happen inside the topology; only the outcome comes back to the orchestrator, which folds it into a one-screen state file and plans the next wave. When the frontier is empty, a renderer turns the trace into a Mermaid diagram of the session.
 
 Spec: `docs/v1/spec.md`. Glossary: `docs/v1/graph-orchestrator/CONTEXT.md`. Decisions: ADR-0001, ADR-0002.
 
@@ -13,7 +13,7 @@ skills/graph-orchestrator/catalog.md the catalog the skill loads once per sessio
 workflows/wave.js                   the Workflow script, one wave per run (built; do not edit)
 scripts/render-trace.js             trace.jsonl → Mermaid (built; do not edit)
 src/                                TypeScript source: types, roles, topologies/ (one file each), runWave, renderer
-test/                               wave-boundary tests, renderer fixtures, bundle test
+test/                               wave-boundary tests (wave.test.ts, plus one file per topology added in v0.2), renderer fixtures, bundle test
 build.mjs                           esbuild: src → workflows/wave.js and scripts/render-trace.js
 ```
 
@@ -29,7 +29,7 @@ claude plugin install graph-orchestrator@earthlingollie
 Then, in any project:
 
 ```
-/graph-orchestrator Build the debate topology --mode attended
+/graph-orchestrator Add a retry policy to the HTTP client and its tests --mode attended
 ```
 
 Flags: `--mode attended|autonomous` (default autonomous when nobody says otherwise), `--waves N` (16), `--dispatches N` (9), `--scratch <dir>`.
@@ -58,6 +58,6 @@ npm test
 
 Tests run on Node 22 with native type stripping; no test runner beyond `node --test`. They exercise only the wave boundary (`runWave` with a fake `agent()`), the renderer with fixture traces, and the built bundle executed under a harness-shaped scope.
 
-## The dogfood task
+## Topologies
 
-Spec story 42: the first real task run through the orchestrator is building the `debate` topology itself. This version therefore ships debate's signature, caps, roles (`judge`, `debater`) and catalog entry, but `src/topologies/debate.ts` returns `failed` until that run replaces it. Expected shape of the run: a fan-out for research, a generator-evaluator for the implementation, a chain for the catalog entry, and one human intervention on the judge's verdict format.
+Nine, documented for the orchestrator in `skills/graph-orchestrator/catalog.md` (the source of truth for roles, params, demand and returns) and implemented one file each in `src/topologies/`. v0.2 added `relay`, `best-of-n`, `iterative-fan-out` and `panel`, and built `debate`, which spec story 42 had reserved as the dogfood task and v0.1 shipped as a stub returning `failed`.

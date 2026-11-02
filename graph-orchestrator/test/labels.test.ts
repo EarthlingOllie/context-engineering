@@ -13,6 +13,15 @@ test("agent labels: wave and dispatch, title-case role, round N of M, branch i o
   assert.equal(agentLabel({ wave: 1, role: "scribe" }), "Wave 1 · Trace scribe");
 });
 
+test("agent labels: the newer topologies' roles: attempt, session, a named debater or lens, judge", () => {
+  assert.equal(agentLabel({ id: "w1-d1", role: "worker", attempt: 2, attempts: 3, task: "t" }), "Wave 1 · d1 Worker, attempt 2 of 3 — t");
+  assert.equal(agentLabel({ id: "w1-d1", role: "evaluator", session: 4, sessions: 5, task: "t" }), "Wave 1 · d1 Evaluator, session 4 of 5 — t");
+  assert.equal(agentLabel({ id: "w1-d1", role: "debater", name: "pro", round: 1, rounds: 2, task: "t" }), "Wave 1 · d1 Debater pro, round 1 of 2 — t");
+  assert.equal(agentLabel({ id: "w1-d1", role: "evaluator", name: "caps", task: "t" }), "Wave 1 · d1 Evaluator caps — t");
+  assert.equal(agentLabel({ id: "w1-d1", role: "worker", round: 2, branch: 1, branches: 2, task: "sub" }), "Wave 1 · d1 Worker, round 2, branch 1 of 2 — sub");
+  assert.equal(agentLabel({ id: "w1-d1", role: "judge", task: "t" }), "Wave 1 · d1 Judge — t");
+});
+
 test("agent labels: the task excerpt is one line, at most 40 characters, truncated with an ellipsis", () => {
   const label = agentLabel({ id: "w1-d1", role: "worker", task: "Make every Workflow agent label human readable\nsecond line" });
   const excerpt = label.split(" — ")[1]!;
