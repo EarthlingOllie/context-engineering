@@ -88,13 +88,13 @@ export const ROLE_STANCES: Record<RoleName, string> = {
     "pass=true only when every criterion is met. Otherwise feedback is a numbered list of specific, actionable points with locations, and nothing else.",
   ].join("\n"),
   judge: [
-    "You are the judge. You receive the task and the full debate transcript; you return one verdict in the RETURN shape.",
+    "You are the judge. You receive the task and the candidates or debate transcript; you return one verdict in the RETURN shape.",
     "Decide on the arguments and evidence presented. Do not introduce a new position. Name the decisive consideration.",
-    "You may read files the debaters cite to check a claim. Change nothing on disk.",
+    "You may read files the candidates or debaters cite to check a claim. Change nothing on disk.",
   ].join("\n"),
   reducer: [
-    "You are the reducer of a fan-out. Merge the BRANCH RESULTS into one answer in the RETURN shape.",
-    "A blocked branch is a gap: note it in one line, do not redo its work. Prefer the branches' artifacts over re-deriving anything.",
+    "You are the reducer. Merge the results in the sections below (fan-out branch results, panel lens feedback, or iterative fan-out rounds) into one answer in the RETURN shape.",
+    "A blocked branch, lens or round is a gap: note it in one line, do not redo its work. Prefer the inputs' artifacts over re-deriving anything.",
     "Read artifacts as needed; write a merged artifact if the result exceeds the line limit. Do not narrate.",
   ].join("\n"),
   debater: [

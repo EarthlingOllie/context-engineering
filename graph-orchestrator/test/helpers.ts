@@ -1,4 +1,5 @@
 import type { AgentOptions, DispatchSpec, Runtime } from "../src/types.ts";
+import { runWave } from "../src/wave.ts";
 
 export type Call = { prompt: string; opts: AgentOptions; n: number };
 
@@ -46,3 +47,9 @@ export function spec(over: Partial<DispatchSpec> & { id: string; topology: Dispa
 }
 
 export const baseArgs = { now: "2026-10-30T10:00:00Z", traceFile: "/scratch/t/trace.jsonl", maxAgents: 16 };
+
+/** Run one wave of `dispatches` against a fake runtime scripted by `script`; returns the wave and the fake's calls, logs and labels. */
+export function wave(dispatches: DispatchSpec[], script: Script = {}, extra: Record<string, unknown> = {}) {
+  const f = fakeRuntime(script);
+  return runWave({ ...baseArgs, dispatches, ...extra }, f.rt).then((out) => ({ out, ...f }));
+}

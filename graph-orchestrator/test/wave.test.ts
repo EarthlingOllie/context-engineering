@@ -201,20 +201,6 @@ test("fan-out: a partition instruction runs a partition agent first, then at mos
   assert.equal(agentDemand(spec({ id: "x", topology: "fan-out", params: { width: 2, split: "s", reducer: true } })), 4);
 });
 
-// ---------- debate ----------
-
-test("debate: not built in this version; returns failed without spending agents, over_budget above 6 participants", async () => {
-  const { out, labels } = await wave([
-    spec({ id: "w1-d1", topology: "debate", params: { participants: [{ name: "a", stance: "for" }, { name: "b", stance: "against" }], judge: { instructions: "decide" } } }),
-    spec({ id: "w1-d2", topology: "debate", params: { participants: Array.from({ length: 7 }, (_, i) => ({ name: `p${i}`, stance: "s" })) } }),
-  ]);
-  assert.deepEqual(labels(), ["wave 1 scribe"]);
-  assert.equal(out.results[0]!.status, "failed");
-  assert.match(out.results[0]!.result, /dogfood task/);
-  assert.equal(out.results[1]!.status, "over_budget");
-  assert.equal(agentDemand(spec({ id: "x", topology: "debate", params: { participants: [{}, {}, {}], rounds: 2 } })), 7);
-});
-
 // ---------- chain ----------
 
 test("chain: runs stages in order, forwards artifacts, records stage statuses and stage trace lines", async () => {
