@@ -7,7 +7,13 @@
   "license": "MIT",
   "scripts": {
     "test": "node --test \"test/**/*.test.ts\"",
-    "typecheck": "tsc -p tsconfig.json",
-    "vendor": "node scripts/vendor-three.mjs"
+    "test:mod": "node scripts/test-mod.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.mod.json",
+    "types": "node scripts/types.mjs",
+    "validate": "claude plugin validate .",
+    "smoke": "node scripts/export-smoke.ts",
+    "check": "npm run typecheck && npm test && npm run test:mod && npm run validate",
+    "vendor": "node scripts/vendor-three.mjs",
+    "install-dev": "node scripts/install-dev.mjs"
   }
 }
