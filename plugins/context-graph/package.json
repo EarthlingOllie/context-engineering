@@ -1,0 +1,12 @@
+{
+  "name": "context-graph",
+  "version": "0.1.0",
+  "description": "Claude Code mod: the live context window as a 3D graph (three.js math), with the latest question's blast radius highlighted.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}
