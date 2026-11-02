@@ -2,6 +2,8 @@
 // 23 (bootstrap on start) and 24 (fail-safe hooks).
 import { expect, mock, test } from 'claude-code/testing'
 import { buildGraph } from '../src/core/ingest.ts'
+import { TOOL_SCHEMA as CORE_SCHEMA } from '../src/core/toolInput.ts'
+import { TOOL_SCHEMA } from './register.tsx'
 
 const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
 
@@ -176,7 +178,9 @@ test('feature 21: session.start registers context_graph; inspect, focus and clea
   expect(specs.length).toBe(1)
   expect(specs[0]!.name).toBe('context_graph')
   expect(specs[0]!.isDeferred).toBe(false)
-  expect(specs[0]!.inputSchema?.properties?.action?.enum).toEqual(['inspect', 'focus', 'clear'])
+  expect(specs[0]!.inputSchema?.properties?.action?.enum).toEqual(['inspect', 'focus', 'clear', 'add', 'link', 'resolve', 'abandon', 'import'])
+  expect(TOOL_SCHEMA).toBe(CORE_SCHEMA)
+  expect(specs[0]!.inputSchema).toEqual(JSON.parse(JSON.stringify(CORE_SCHEMA)))
 
   for (let i = 1; i <= 8; i++) await feedTurn($ as never, i, `/repo/f${i}.ts`)
   const inspected = await callTool($ as never, { action: 'inspect' })

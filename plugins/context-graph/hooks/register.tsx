@@ -12,6 +12,7 @@ import { buildScene } from '../src/core/scene.ts'
 import { renderSvg } from '../src/core/svg.ts'
 import { rasterize, toBase64 } from '../src/core/raster.ts'
 import { exportHtml } from '../src/core/exportHtml.ts'
+import { TOOL_SCHEMA } from '../src/core/toolInput.ts'
 import type { BlastRadius, Focus, Graph, GraphEvent, Seed, Vec3 } from '../src/core/types.ts'
 import type { ContextGraphView as ViewState } from '../types/index.d.ts'
 
@@ -28,17 +29,7 @@ export const ORBIT_MS = 100
 export const ORBIT_STEP = 3
 const INSPECT_LIMIT = 25
 
-export const TOOL_SCHEMA = {
-  type: 'object',
-  properties: {
-    action: { type: 'string', enum: ['inspect', 'focus', 'clear'], description: 'inspect: list the nodes the current question reaches; focus: set the blast-radius seeds; clear: back to the latest prompt.' },
-    match: { type: 'string', description: 'focus: free text matched against node labels and file paths (a file basename such as "a.ts" picks that file).' },
-    nodeIds: { type: 'array', items: { type: 'string' }, description: 'focus: node ids as inspect lists them.' },
-    note: { type: 'string', description: 'focus: a short note shown in the pane status line.' },
-  },
-  required: ['action'],
-  additionalProperties: false,
-} as const
+export { TOOL_SCHEMA }
 const TOOL_DESCRIPTION =
   'The context graph: the conversation as nodes (system, prompts, turns, tool calls, files, compactions) sized by tokens, with the blast radius of the current question highlighted in the context-graph pane. inspect lists the reached nodes (id, kind, tokens, hop, weight); focus points the blast radius at the nodes that matter for the question; clear returns it to the latest prompt.'
 
