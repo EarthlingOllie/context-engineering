@@ -41,6 +41,8 @@ const R_K = 0.3 // world units per sqrt(token)
 export const R_MIN = 2
 export const R_MAX = 40
 const FIT = 0.6
+/** bottom strip reserved for the legend line */
+export const LEGEND_PX = 16
 
 export function nodeRadius(tokens: number, scale: number): number {
   return Math.max(R_MIN, Math.min(R_MAX, R_K * Math.sqrt(Math.max(1, tokens)) * scale))
@@ -74,13 +76,20 @@ export function buildScene(input: SceneInput, size: { w: number; h: number }): S
   const tanV = Math.tan((view.fov * Math.PI) / 360)
   const tanMin = Math.min(tanV, tanV * (size.w / Math.max(1, size.h)))
   const fitDistance = Math.max(radius, 8) / (FIT * tanMin) + Math.max(radius, 8)
-  // Back off (up to 2.5x) so in-window nodes outside the blast radius stay in front of the camera.
-  let reach = 0
-  for (const n of Object.values(g.nodes)) {
-    const p = positions[n.id]
-    if (n.inWindow && p) reach = Math.max(reach, Math.hypot(p.x - target.x, p.y - target.y, p.z - target.z))
+  // Back off until every in-window and blast node (with its radius) sits inside the frame, above the legend strip.
+  const must = Object.values(g.nodes).filter((n) => positions[n.id] && (n.inWindow || (blast.weights[n.id] ?? 0) > 0))
+  const fits = (d: number) => {
+    const pr = makeProjector({ ...view, distance: d }, target, size)
+    for (const n of must) {
+      const q = pr(positions[n.id]!)
+      if (!q.visible) return false
+      const r = nodeRadius(n.tokens, q.scale) + 2
+      if (q.x - r < 0 || q.x + r > size.w || q.y - r < 0 || q.y + r > size.h - LEGEND_PX) return false
+    }
+    return true
   }
-  const autoDistance = Math.min(fitDistance * 2.5, Math.max(fitDistance, reach * 1.1))
+  let autoDistance = fitDistance
+  for (let k = 0; k < 40 && !fits(autoDistance); k++) autoDistance *= 1.12
   const distance = autoDistance / Math.max(0.25, Math.min(4, view.zoom ?? 1))
   const project = makeProjector({ ...view, distance }, target, size)
 

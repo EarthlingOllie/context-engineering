@@ -79,3 +79,17 @@ test('items are ordered far to near, edges carry the weaker endpoint weight, leg
   assert.equal(prompt.weight, 1)
   assert.equal(prompt.seed, 'prompt')
 })
+
+test('the auto-fit keeps every in-window node (with its radius) inside the frame', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { buildGraph } = await import('../src/core/ingest.ts')
+  const g = buildGraph(readFileSync(new URL('./fixtures/session-small.jsonl', import.meta.url), 'utf8'))
+  const positions = layout(g, {}, { seed: 1 })
+  const blast = blastRadius(g, [])
+  const s = buildScene({ graph: g, positions, blast, view: { yaw: 30, pitch: 20, distance: 0, fov: 50 } }, { w: 640, h: 480 })
+  for (const n of Object.values(g.nodes).filter((n) => n.inWindow)) {
+    const i = s.items.find((i) => i.id === n.id)
+    assert.ok(i, `${n.id} drawn`)
+    assert.ok(i.x - i.r >= 0 && i.x + i.r <= 640 && i.y - i.r >= 0 && i.y + i.r <= 480 - 16, `${n.id} off frame: ${i.x},${i.y} r${i.r}`)
+  }
+})

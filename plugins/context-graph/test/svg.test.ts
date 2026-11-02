@@ -81,3 +81,26 @@ test('maxChars below the fixed overhead still returns a closed svg', () => {
   const svg = renderSvg(scene([item('a', { seed: 'prompt', weight: 1 })]), { width: 400, height: 300, theme: 'dark', maxChars: 2000 })
   assert.ok(svg.length <= 2000 && svg.startsWith('<svg') && svg.endsWith('</svg>'))
 })
+
+test('every non-seed blast-radius node gets a visible halo; nodes outside the radius do not', () => {
+  const svg = renderSvg(scene([
+    item('seed', { weight: 1, seed: 'prompt' }), item('hop1', { x: 200, weight: 0.5, hop: 1 }), item('hop2', { x: 300, weight: 0.25, hop: 2 }), item('cold', { x: 50, y: 250, weight: 0 }),
+  ]), { width: 400, height: 300, theme: 'dark' })
+  const group = (id: string) => svg.match(new RegExp(`<g class="n[^"]*"[^>]*><title>tool · ${id} [^]*?</g>`))![0]
+  assert.match(group('hop1'), /class="halo"/)
+  assert.match(group('hop2'), /class="halo"/)
+  assert.doesNotMatch(group('cold'), /class="halo"/)
+})
+
+test('labels never overlap one another', () => {
+  const items = Array.from({ length: 8 }, (_, k) => item(`node-with-a-long-label-${k}`, { x: 100 + k * 3, y: 100 + k * 2, weight: 1 - k / 10 }))
+  const svg = renderSvg(scene(items), { width: 400, height: 300, theme: 'dark' })
+  const boxes = [...svg.matchAll(/<text class="label" x="([\d.-]+)" y="([\d.-]+)"[^>]*>([^<]*)<\/text>/g)]
+    .map((m) => ({ x: +m[1]!, y: +m[2]! - 10, w: m[3]!.length * 6.6, h: 13 }))
+  assert.ok(boxes.length >= 2)
+  for (let a = 0; a < boxes.length; a++) for (let b = a + 1; b < boxes.length; b++) {
+    const A = boxes[a]!, B = boxes[b]!
+    const overlap = A.x < B.x + B.w && B.x < A.x + A.w && A.y < B.y + B.h && B.y < A.y + A.h
+    assert.ok(!overlap, `labels ${a} and ${b} overlap`)
+  }
+})
