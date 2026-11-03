@@ -1,17 +1,17 @@
-# Catalog — graph-orchestrator v0.2
+# Catalog — graph-orchestrator v0.3
 
 The topologies this plugin version runs. Fixed per version: a topology that is not here is not available mid-session; it becomes a proper addition. Load once at kickoff; choose from this page, never from the implementation.
 
 Every dispatch, whatever its topology, has the same signature:
 
 ```
-in:  { id, topology, task, context[], roles{}, params{}, returns{shape,maxLines≤20}, dependsOn[] }
+in:  { id, title, topology, task, context[], roles{}, params{}, returns{shape,maxLines≤20}, dependsOn[] }
 out: { id, status: done|blocked|exhausted|over_budget|failed, result (inline, ≤ maxLines), artifacts[], question?, iterations }
 ```
 
 `failed` means the spec could not run at all (unknown topology, bad params, an agent that returned nothing or threw — the thrown error goes to the log); the `result` says why. `over_budget` means a cap was exceeded and no agent was spent. Roles take `{ skill?, instructions }`: the skill supplies the domain, the instructions the task-specific detail. Every role is told to return `blocked=true` with one `question` when only a human can answer; a blocked role stops its topology, except where an entry says a blocked branch or attempt only drops out.
 
-Agent demand is logged against the concurrency cap and never refused; the runtime queues. The 1,000-agents-per-run limit is the only hard check: a dispatch that would cross it returns `over_budget` unrun and counts nothing, as does a spec a cap refuses, so the dispatches after it still run if they fit.
+Each dispatch runs as its own workflow, named by its `title` (a few plain words saying what it is for), in parallel with the rest of its wave. Agent demand is logged and never refused; the runtime queues. The 1,000-agents-per-run limit applies per dispatch and is the only hard check: a dispatch whose demand plus its scribe would cross it returns `over_budget` unrun. `dependsOn` may name only earlier waves: dispatches in one wave cannot wait on each other, and one that names a same-wave id returns `failed` unrun. Ordered steps inside a wave are a `chain`.
 
 ---
 
@@ -28,7 +28,7 @@ Agent demand is logged against the concurrency cap and never refused; the runtim
 **Returns** `done` with the worker's result, or `blocked` with its question.
 
 ```json
-{ "id": "w1-d1", "topology": "single",
+{ "id": "w1-d1", "title": "Write the leap-year helper", "topology": "single",
   "task": "Write the leap-year helper with tests in test/leap.test.ts",
   "context": ["project uses node:test, not vitest"],
   "roles": { "worker": { "skill": "tdd", "instructions": "red before green; keep the API to one exported function" } },
@@ -54,7 +54,7 @@ Agent demand is logged against the concurrency cap and never refused; the runtim
 **Returns** `done` on the first pass (`iterations` = rounds used); `exhausted` at the cap with the last result and the last feedback line; `blocked` if either role blocks.
 
 ```json
-{ "id": "w2-d1", "topology": "generator-evaluator",
+{ "id": "w2-d1", "title": "Build the trace renderer", "topology": "generator-evaluator",
   "task": "Implement the trace renderer in src/trace/render.ts so all fixtures in test/fixtures render",
   "context": ["fixture files were written by w1-d2 at /scratch/fixtures/"],
   "roles": { "generator": { "instructions": "pure function, no I/O" },
@@ -79,7 +79,7 @@ Agent demand is logged against the concurrency cap and never refused; the runtim
 **Returns** `done` when at least one branch finished. Without a reducer the result is `[i] <branch result>` per branch, each branch given an equal share of `maxLines`. With a reducer the result is the reducer's, in the full contract; a reducer that returns nothing is logged and the result falls back to the concatenated form. A blocked branch blocks only itself: the dispatch is still `done`, the reducer is told the gap, and `question` lists the blocked branches' questions so you can ask. A blocked reducer → `blocked`, with its question first and the blocked branches' questions after it. All branches blocked → `blocked`. A `split` list longer than 9 → `over_budget`, nothing run.
 
 ```json
-{ "id": "w1-d2", "topology": "fan-out",
+{ "id": "w1-d2", "title": "Research store write concurrency", "topology": "fan-out",
   "task": "Research how each store module handles concurrent writes",
   "context": [],
   "roles": { "worker": { "instructions": "cite file:line" },
@@ -108,7 +108,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 **Returns** the last stage's result, all stages' artifacts, `iterations` = stages run, plus `stages` statuses.
 
 ```json
-{ "id": "w3-d1", "topology": "chain",
+{ "id": "w3-d1", "title": "Write the store architecture note", "topology": "chain",
   "task": "Produce the architecture note for the store layer",
   "context": ["decision: keep sqlite for tests (w2-d1)"],
   "roles": {}, "params": { "stages": [
@@ -136,7 +136,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 **Returns** `done` on the first passing check, with that session's result and every session's artifacts (`iterations` = sessions used). `exhausted` after the last session: its result (giving up its last line if needed) plus `-- exhausted after N session(s); last check: <first feedback line>`. `blocked` if the worker or the evaluator blocks. `failed` if `done_criteria` or `progress` is missing, `max_sessions` or `check_every` is below 1, or a role returns nothing (artifacts so far kept). `max_sessions` above 10 → `over_budget`.
 
 ```json
-{ "id": "w2-d1", "topology": "relay",
+{ "id": "w2-d1", "title": "Implement the feature list", "topology": "relay",
   "task": "Implement every feature in /scratch/features.json until all pass",
   "context": ["feature list written by w1-d1"],
   "roles": { "worker": { "skill": "tdd", "instructions": "one failing feature per session; update the progress file" },
@@ -163,7 +163,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 **Returns** `done` with the judge's verdict (or, in vote mode, the winning result); `artifacts` are the winner's first, then every other candidate's, then the judge's; `iterations` = 1. `question` lists the blocked attempts as `attempt i: <question>`. Every attempt dropped → `blocked` if any blocked, else `failed`. A blocked judge → `blocked`, its question first. A judge that returns nothing or an empty verdict → `failed`, candidates' artifacts kept. Missing `criteria`, n below 2 or a bad `mode` → `failed`. n above 9 → `over_budget`.
 
 ```json
-{ "id": "w3-d2", "topology": "best-of-n",
+{ "id": "w3-d2", "title": "Fix the flaky renderer test", "topology": "best-of-n",
   "task": "Propose a fix for the flaky trace-renderer test",
   "context": ["failing test and log at /scratch/flake.md"],
   "roles": { "worker": { "skill": "diagnosing-bugs", "instructions": "write the patch to a new file; do not apply it" },
@@ -190,7 +190,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 **Returns** `done` on an evaluator pass, with the reducer's result; `iterations` = rounds. `exhausted` on a stall or at the cap: the reducer's result plus `-- exhausted after R round(s); open gaps: <count>; first: <gap>`. A blocked branch blocks only itself; `question` lists them as `round r branch i (<sub-task>): <question>`. No branch finished in round 1 → `blocked` if any blocked, else `failed`, as fan-out. A blocked evaluator or reducer → `blocked`, its question first. An evaluator or reducer that returns nothing → `failed`, artifacts kept. `width` or a `split` list above 9, or `max_rounds` above 3 → `over_budget`.
 
 ```json
-{ "id": "w1-d3", "topology": "iterative-fan-out",
+{ "id": "w1-d3", "title": "Map trace file access", "topology": "iterative-fan-out",
   "task": "Map every place the codebase reads or writes the trace file",
   "context": [],
   "roles": { "worker": { "instructions": "cite file:line" },
@@ -216,8 +216,8 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 **Returns** `done` with the pooled verdict on line 1, `PASS` or `FAIL (p/k)`, even on FAIL; `iterations` = 1. Without a reducer, `[name] FAIL: <first feedback line>` follows for each failing lens, cut to `maxLines`. With a reducer, its result follows the verdict line and its artifacts carry the merged feedback. A chain does not stop on a FAIL verdict, so make a gating panel the chain's last stage. Any blocked lens → `blocked`, no reducer run, `question` lists them as `lens <name>: <question>`. A lens that returns nothing, or a reducer that returns nothing → `failed`. A blocked reducer → `blocked` with the verdict as result. Malformed lenses, duplicate names, missing `pass_criteria` or a bad `pool` → `failed`. More than 6 lenses → `over_budget`.
 
 ```json
-{ "id": "w4-d1", "topology": "panel",
-  "task": "Review the wave.js bundle change before release",
+{ "id": "w4-d1", "title": "Review the dispatch bundle", "topology": "panel",
+  "task": "Review the dispatch.js bundle change before release",
   "context": ["diff at /scratch/release.diff"],
   "roles": { "evaluator": { "instructions": "judge only your lens; cite file:line" } },
   "params": { "lenses": [ { "name": "correctness", "focus": "behaviour vs spec" },
@@ -245,7 +245,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 **Returns** `done` with the judge's verdict, plus `-- decisive: <first line of its reasoning>` when `maxLines` leaves room; the judge's artifacts; `iterations` = rounds. Any blocked debater → `blocked` in that round, `question` lists them as `debater <name>: <question>`. A blocked judge → `blocked`. A debater that returns nothing, or a judge that returns nothing or an empty verdict → `failed`. Fewer than 2 participants, a missing name or stance, or a duplicate name → `failed`. More than 6 participants or more than 4 rounds → `over_budget`.
 
 ```json
-{ "id": "w5-d1", "topology": "debate",
+{ "id": "w5-d1", "title": "Decide the relay done signal", "topology": "debate",
   "task": "Decide whether relay's done signal should be an evaluator check or a worker completion flag",
   "context": ["roles are six fixed stances (K3)", "relay spec at /scratch/design-specs.md"],
   "roles": { "debater": { "instructions": "cite file:line for any claim about the code" },

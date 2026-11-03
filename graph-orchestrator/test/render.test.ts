@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -22,11 +22,11 @@ test("single wave: one subgraph, a node per dispatch labelled with topology and 
   assert.ok(!out.includes("-->"), "no edges without dependencies");
 });
 
-test("wave_end: the subgraph title carries the wave's non-zero status counts; a wave without wave_end keeps the bare title", () => {
+test("status counts: the subgraph title carries the wave's non-zero status counts, from wave_end in a v0.2 trace, else counted from its dispatches", () => {
   const L = lines(renderTrace(fixture("single-wave.jsonl")));
   assert.ok(L.includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z · 1 done · 1 exhausted"]'));
   const open = fixture("single-wave.jsonl").split("\n").filter((l) => !l.includes('"wave_end"')).join("\n");
-  assert.ok(lines(renderTrace(open)).includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z"]'), "no counts without a wave_end line");
+  assert.ok(lines(renderTrace(open)).includes('subgraph wave1["Wave 1 · 2026-10-30T10:00:00Z · 1 done · 1 exhausted"]'), "counted from the dispatches without a wave_end line");
   assert.equal(parseTrace(open).skipped, 0);
 });
 
@@ -146,4 +146,43 @@ test("malformed dispatch and human lines: without id and status, or trigger and 
   assert.ok(!out.includes("undefined"));
   assert.ok(L.includes("%% 5 unreadable line(s) skipped"));
   assert.equal(parseTrace(fixture("malformed-lines.jsonl")).skipped, 5);
+});
+
+// ---------- per-dispatch traces: one file per dispatch workflow ----------
+
+const perDispatch: Record<string, string> = {
+  "w1-d1.jsonl": JSON.stringify({ type: "dispatch", wave: 1, id: "w1-d1", title: "Map the HTTP client", at: "2026-11-03T09:00:00Z", topology: "single", iterations: 1, status: "done", dependsOn: [] }),
+  "w1-d2.jsonl": JSON.stringify({ type: "dispatch", wave: 1, id: "w1-d2", title: "Survey retry libraries", at: "2026-11-03T09:00:00Z", topology: "fan-out", iterations: 1, status: "blocked", dependsOn: [], question: "Which licence?" }),
+  "w2-d1.jsonl": [
+    JSON.stringify({ type: "human", at: "2026-11-03T09:30:00Z", trigger: "blocked", dispatch: "w1-d2", question: "Which licence?", answer: "MIT only" }),
+    JSON.stringify({ type: "dispatch", wave: 2, id: "w2-d1", title: "Add the retry policy", at: "2026-11-03T09:30:00Z", topology: "generator-evaluator", iterations: 2, status: "done", dependsOn: ["w1-d1", "w1-d2"] }),
+  ].join("\n"),
+  "w10-d1.jsonl": JSON.stringify({ type: "dispatch", wave: 10, id: "w10-d1", topology: "single", iterations: 1, status: "done", dependsOn: ["w2-d1"] }),
+};
+
+test("titles: a dispatch with a title shows it first, then its id, topology and iterations", () => {
+  const L = lines(renderTrace(Object.values(perDispatch).join("\n")));
+  assert.ok(L.includes('w1_d1["Map the HTTP client<br/>w1-d1 · single ×1"]:::done'));
+  assert.ok(L.includes('w2_d1["Add the retry policy<br/>w2-d1 · generator-evaluator ×2"]:::done'));
+  assert.ok(L.includes('w10_d1["w10-d1<br/>single ×1"]:::done'), "no title, the v0.2 label");
+  assert.ok(L.includes('subgraph wave1["Wave 1 · 2026-11-03T09:00:00Z · 1 done · 1 blocked"]'), "time from the dispatch lines, counts from their statuses");
+});
+
+test("the CLI renders a trace directory in dispatch order (wave, then dispatch number) and writes --human to end.jsonl", () => {
+  const dir = mkdtempSync(join(tmpdir(), "go-render-"));
+  const trace = join(dir, "trace");
+  mkdirSync(trace);
+  for (const [name, text] of Object.entries(perDispatch)) writeFileSync(join(trace, name), text + "\n");
+  const cli = new URL("../scripts/render-trace.js", import.meta.url).pathname;
+  const human = JSON.stringify({ trigger: "budget", question: "Stop at wave 10?", answer: "yes" });
+  const stdout = execFileSync("node", [cli, trace, "--out", join(dir, "session.mmd"), "--human", human], { encoding: "utf8" });
+  assert.equal(readFileSync(join(dir, "session.mmd"), "utf8"), stdout);
+  const order = ["subgraph wave1", "subgraph wave2", "subgraph wave10", "human_2"].map((k) => stdout.indexOf(k));
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1]!)), `waves in numeric order, the final intervention last: ${order}`);
+  assert.match(stdout, /w1_d2 --> human_1/);
+  assert.match(stdout, /human_1 -.-> w2_d1/, "the intervention links to the dispatch that resumed after it");
+  assert.match(stdout, /w2_d1 --> w10_d1/);
+  assert.deepEqual(JSON.parse(readFileSync(join(trace, "end.jsonl"), "utf8").trim()), { ...JSON.parse(human), type: "human" });
+  execFileSync("node", [cli, trace], { encoding: "utf8" });
+  assert.ok(existsSync(join(dir, "trace.mmd")), "a directory's default output sits beside it");
 });

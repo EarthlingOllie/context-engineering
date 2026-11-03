@@ -22,7 +22,7 @@ test("panel: all lenses pass -> done, PASS, one evaluator per lens with its own 
   assert.equal(r.iterations, 1);
   const evals = calls.filter((c) => /Evaluator/.test(c.opts.label ?? ""));
   assert.equal(evals.length, 3);
-  assert.deepEqual(labels().filter((l) => !l.includes("scribe")), ["Wave 1 · d1 Evaluator correctness — do w1-d1", "Wave 1 · d1 Evaluator caps — do w1-d1", "Wave 1 · d1 Evaluator docs — do w1-d1"]);
+  assert.deepEqual(labels().filter((l) => !l.includes("scribe")), ["Evaluator correctness", "Evaluator caps", "Evaluator docs"]);
   const p = evals[0]!.prompt;
   assert.match(p, /LENS: correctness — behaviour vs spec/);
   assert.match(p, /judge only this lens/);
@@ -139,7 +139,7 @@ test("panel: param check before any agent; caps -> over_budget; malformed -> fai
     spec({ id: "w1-d6", topology: "panel", params: { lenses: [], pass_criteria: "p" } }),
     spec({ id: "w1-d7", topology: "panel", params: { lenses: [{ name: "x" }], pass_criteria: "p" } }),
   ]);
-  assert.deepEqual(labels(), ["Wave 1 · Trace scribe"]);
+  assert.deepEqual(labels().filter((l) => l !== "Trace scribe"), [], "no role agent runs");
   assert.deepEqual(out.results.map((r) => r.status), ["over_budget", "failed", "failed", "failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /cap of 6/);
   assert.match(out.results[1]!.result, /duplicate/);

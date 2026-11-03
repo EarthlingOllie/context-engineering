@@ -1,33 +1,32 @@
 /**
- * The one place a Workflow agent label is formatted. A label reads as
- * "Wave 1 · d1 Generator, round 1 of 3 — <task excerpt>": the dispatch id
- * `w1-d1` is shown as "Wave 1 · d1" and stays recoverable with
- * `dispatchIdOfLabel`. An id outside the `w<N>-` scheme is shown verbatim.
- * The scribe belongs to the wave, not a dispatch: "Wave 1 · Trace scribe".
+ * The one place a Workflow agent label is formatted. Each dispatch runs as its
+ * own workflow, named for its purpose, so a label only says which agent this
+ * is inside it: "Generator · round 1 of 3", "Branch 2 of 4 — parse headers",
+ * "Attempt 2 of 3", "Judge". A chain stage is prefixed with its stage:
+ * "Stage 2 · Worker". The scribe is "Trace scribe".
  */
 
-export type LabelRole = "worker" | "generator" | "evaluator" | "partition" | "reducer" | "judge" | "debater";
+export type LabelRole = "worker" | "generator" | "evaluator" | "partition" | "reducer" | "judge" | "debater" | "scribe";
 
-export type AgentLabelParts =
-  | {
-      id: string;
-      role: LabelRole;
-      /** Who the agent is within its role: a debater's name, a panel lens. */
-      name?: string;
-      task?: string;
-      round?: number;
-      rounds?: number;
-      session?: number;
-      sessions?: number;
-      attempt?: number;
-      attempts?: number;
-      branch?: number;
-      branches?: number;
-    }
-  | { wave: number; role: "scribe" };
+export type AgentLabelParts = {
+  role: LabelRole;
+  /** The dispatch or chain-stage id; only a chain stage suffix (`-s2`) shows. */
+  id?: string;
+  /** Who the agent is within its role: a debater's name, a panel lens. */
+  name?: string;
+  /** A branch's own sub-task; the dispatch task is the workflow's name, so it is never repeated here. */
+  task?: string;
+  round?: number;
+  rounds?: number;
+  session?: number;
+  sessions?: number;
+  attempt?: number;
+  attempts?: number;
+  branch?: number;
+  branches?: number;
+};
 
 export const EXCERPT_MAX = 40;
-const SCRIBE = "Trace scribe";
 
 const TITLES: Record<LabelRole, string> = {
   worker: "Worker",
@@ -37,37 +36,40 @@ const TITLES: Record<LabelRole, string> = {
   reducer: "Reducer",
   judge: "Judge",
   debater: "Debater",
+  scribe: "Trace scribe",
 };
 
-/** One line of the task, whitespace collapsed, at most EXCERPT_MAX characters including the ellipsis. */
-export function taskExcerpt(task: string | undefined): string {
+/** One line of the text, whitespace collapsed, at most EXCERPT_MAX characters including the ellipsis. */
+export function taskExcerpt(task: string | undefined, max = EXCERPT_MAX): string {
   const line = String(task ?? "").replace(/\s+/g, " ").trim();
-  return line.length <= EXCERPT_MAX ? line : `${line.slice(0, EXCERPT_MAX - 1).trimEnd()}…`;
+  return line.length <= max ? line : `${line.slice(0, max - 1).trimEnd()}…`;
 }
 
-function displayId(id: string): string {
-  const m = /^w(\d+)-(\S+)$/.exec(id);
-  return m ? `Wave ${m[1]} · ${m[2]}` : id;
+/** "2" for `w1-d3-s2`, "2.1" for `w1-d3-s2-s1`; "" for an id that is not a chain stage. */
+export function stageOf(id: string | undefined): string {
+  const m = /((?:-s\d+)+)$/.exec(String(id ?? ""));
+  return m ? m[1]!.split("-s").filter(Boolean).join(".") : "";
 }
+
+const ofN = (i: number, n: number | undefined) => `${i}${n !== undefined ? ` of ${n}` : ""}`;
 
 export function agentLabel(parts: AgentLabelParts): string {
-  if (parts.role === "scribe") return `Wave ${parts.wave} · ${SCRIBE}`;
-  let role = TITLES[parts.role];
-  if (parts.name) role += ` ${parts.name}`;
-  const ofN = (word: string, i: number | undefined, n: number | undefined) => {
-    if (i !== undefined) role += `, ${word} ${i}${n !== undefined ? ` of ${n}` : ""}`;
-  };
-  ofN("round", parts.round, parts.rounds);
-  ofN("session", parts.session, parts.sessions);
-  ofN("attempt", parts.attempt, parts.attempts);
-  ofN("branch", parts.branch, parts.branches);
+  // A worker that is one of several is named by what it is one of.
+  const counters: Array<[string, number | undefined, number | undefined]> = [
+    ["Branch", parts.branch, parts.branches],
+    ["Attempt", parts.attempt, parts.attempts],
+    ["Session", parts.session, parts.sessions],
+  ];
+  let head = TITLES[parts.role];
+  const rest: string[] = [];
+  for (const [word, i, n] of counters) {
+    if (i === undefined) continue;
+    if (parts.role === "worker" && head === TITLES.worker) head = `${word} ${ofN(i, n)}`;
+    else rest.push(`${word.toLowerCase()} ${ofN(i, n)}`);
+  }
+  if (parts.name) head += ` ${parts.name}`;
+  if (parts.round !== undefined) rest.push(`round ${ofN(parts.round, parts.rounds)}`);
+  const stage = stageOf(parts.id);
   const excerpt = taskExcerpt(parts.task);
-  return `${displayId(parts.id)} ${role}${excerpt ? ` — ${excerpt}` : ""}`;
-}
-
-/** The dispatch id a label was built from, or null for the scribe. */
-export function dispatchIdOfLabel(label: string): string | null {
-  const m = /^Wave (\d+) · (\S+)/.exec(label);
-  if (m) return label.startsWith(`Wave ${m[1]} · ${SCRIBE}`) ? null : `w${m[1]}-${m[2]}`;
-  return label.split(" ")[0] || null;
+  return [stage ? `Stage ${stage}` : "", head, ...rest].filter(Boolean).join(" · ") + (excerpt ? ` — ${excerpt}` : "");
 }

@@ -1,9 +1,13 @@
-import type { AgentOptions, DispatchSpec, Runtime } from "../src/types.ts";
-import { runWave } from "../src/wave.ts";
+import type { AgentOptions, DispatchReturn, DispatchSpec, Runtime, TraceEvent } from "../src/types.ts";
+import { runWorkflow } from "../src/run.ts";
 
-export type Call = { prompt: string; opts: AgentOptions; n: number };
+/** One agent call; `dispatch` is the id of the dispatch workflow that made it. */
+export type Call = { prompt: string; opts: AgentOptions; n: number; dispatch: string };
 
-/** Script agent outputs by a substring of the call's label ("Worker", "Generator, round 2", "branch 1 of 3", "scribe"...). */
+/**
+ * Script agent outputs by a substring of "<dispatch id> <label>" ("Worker",
+ * "Generator · round 2", "Branch 1 of 3", "w1-d2 Judge", "scribe"...).
+ */
 export type Script = Record<string, unknown | ((call: Call) => unknown)>;
 
 export function fakeRuntime(script: Script = {}) {
@@ -14,15 +18,17 @@ export function fakeRuntime(script: Script = {}) {
     Evaluator: { pass: true, feedback: "", blocked: false },
     Partition: { subtasks: ["part a", "part b"], blocked: false },
   };
-  const rt: Runtime = {
+  /** The runtime one dispatch workflow sees; its calls are recorded with the dispatch id. */
+  const runtimeFor = (dispatch: string): Runtime => ({
     agent: async (prompt, opts = {}) => {
-      const call: Call = { prompt, opts, n: calls.length + 1 };
+      const call: Call = { prompt, opts, n: calls.length + 1, dispatch };
       calls.push(call);
       const label = opts.label ?? "";
+      const text = `${dispatch} ${label}`;
       const merged = { ...defaults, ...script };
-      // Longest matching key wins, so "Generator, round 2" beats "Generator".
+      // Longest matching key wins, so "Generator · round 2" beats "Generator".
       const key = Object.keys(merged)
-        .filter((k) => label.includes(k))
+        .filter((k) => text.includes(k))
         .sort((a, b) => b.length - a.length)[0];
       if (key === undefined) return { result: `ok: ${label}`, artifacts: [], blocked: false };
       const v = merged[key];
@@ -30,8 +36,8 @@ export function fakeRuntime(script: Script = {}) {
     },
     parallel: async (thunks) => Promise.all(thunks.map((t) => t().catch(() => null))),
     log: (m) => logs.push(m),
-  };
-  return { rt, calls, logs, labels: () => calls.map((c) => c.opts.label ?? "") };
+  });
+  return { rt: runtimeFor(""), runtimeFor, calls, logs, labels: () => calls.map((c) => c.opts.label ?? "") };
 }
 
 export function spec(over: Partial<DispatchSpec> & { id: string; topology: DispatchSpec["topology"] }): DispatchSpec {
@@ -46,10 +52,27 @@ export function spec(over: Partial<DispatchSpec> & { id: string; topology: Dispa
   };
 }
 
-export const baseArgs = { now: "2026-10-30T10:00:00Z", traceFile: "/scratch/t/trace.jsonl", maxAgents: 16 };
+export const baseArgs = { now: "2026-10-30T10:00:00Z", scratch: "/scratch/t" };
 
-/** Run one wave of `dispatches` against a fake runtime scripted by `script`; returns the wave and the fake's calls, logs and labels. */
-export function wave(dispatches: DispatchSpec[], script: Script = {}, extra: Record<string, unknown> = {}) {
+/** The trace events a scribe prompt asks to be written. */
+export function eventsOf(scribePrompt: string): TraceEvent[] {
+  const m = /<<<TRACE\n([\s\S]*?)\nTRACE>>>/.exec(scribePrompt);
+  return m ? m[1]!.split("\n").map((l) => JSON.parse(l) as TraceEvent) : [];
+}
+
+/**
+ * Run one wave the way the orchestrator does: each dispatch as its own
+ * workflow, all at once, against one fake runtime scripted by `script`.
+ * `out.results` are the workflows' returns in dispatch order; `out.events`
+ * every trace line their scribes were asked to write, in the same order.
+ */
+export async function wave(dispatches: DispatchSpec[], script: Script = {}, extra: Record<string, unknown> = {}) {
   const f = fakeRuntime(script);
-  return runWave({ ...baseArgs, dispatches, ...extra }, f.rt).then((out) => ({ out, ...f }));
+  const results: DispatchReturn[] = await Promise.all(
+    dispatches.map((d) => runWorkflow({ ...baseArgs, dispatch: d, ...extra } as never, f.runtimeFor(d && typeof d === "object" ? String(d.id ?? "") : ""))),
+  );
+  const order = dispatches.map((d) => (d && typeof d === "object" ? String(d.id ?? "") : ""));
+  const scribes = f.calls.filter((c) => c.opts.label === "Trace scribe").sort((a, b) => order.indexOf(a.dispatch) - order.indexOf(b.dispatch));
+  const events = scribes.flatMap((c) => eventsOf(c.prompt));
+  return { out: { results, events }, ...f };
 }

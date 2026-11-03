@@ -1,8 +1,8 @@
 # graph-orchestrator
 
-A Claude Code plugin in which the orchestrator is a skill that plans **waves** of **dispatches**, and each dispatch is a **topology** (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) run by deterministic code inside one Workflow script. Loops and parallelism happen inside the topology; only the outcome comes back to the orchestrator, which folds it into a one-screen state file and plans the next wave. When the frontier is empty, a renderer turns the trace into a Mermaid diagram of the session.
+A Claude Code plugin in which the orchestrator is a skill that plans **waves** of **dispatches**, and each dispatch is a **topology** (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) run by deterministic code as its own named Workflow; a wave is the set of those workflows, launched together and run in parallel. Loops and parallelism happen inside the topology; only the outcome comes back to the orchestrator, which folds it into a one-screen state file and plans the next wave. When the frontier is empty, a renderer turns the trace into a Mermaid diagram of the session.
 
-Spec: `docs/v1/spec.md`. Glossary: `docs/v1/graph-orchestrator/CONTEXT.md`. Decisions: ADR-0001, ADR-0002.
+Spec: `docs/v1/spec.md`. Glossary: `docs/v1/graph-orchestrator/CONTEXT.md`. Decisions: ADR-0001, ADR-0002, ADR-0003.
 
 ## Layout
 
@@ -10,11 +10,11 @@ Spec: `docs/v1/spec.md`. Glossary: `docs/v1/graph-orchestrator/CONTEXT.md`. Deci
 .claude-plugin/plugin.json          the manifest
 skills/graph-orchestrator/SKILL.md  the orchestrator skill, invoked as /graph-orchestrator <task> [flags]
 skills/graph-orchestrator/catalog.md the catalog the skill loads once per session
-workflows/wave.js                   the Workflow script, one wave per run (built; do not edit)
+workflows/dispatch.js               the Workflow script, one dispatch per run (built; do not edit)
 scripts/render-trace.js             trace.jsonl → Mermaid (built; do not edit)
-src/                                TypeScript source: types, roles, topologies/ (one file each), runWave, renderer
-test/                               wave-boundary tests (wave.test.ts, plus one file per topology added in v0.2), renderer fixtures, bundle test
-build.mjs                           esbuild: src → workflows/wave.js and scripts/render-trace.js
+src/                                TypeScript source: types, roles, labels, topologies/ (one file each), runWorkflow, renderer
+test/                               dispatch-boundary tests (run.test.ts, plus one file per topology added in v0.2), labels, renderer fixtures, bundle test
+build.mjs                           esbuild: src → workflows/dispatch.js and scripts/render-trace.js
 ```
 
 The built files are committed, so the plugin installs with no build step.
@@ -36,27 +36,36 @@ Flags: `--mode attended|autonomous` (default autonomous when nobody says otherwi
 
 ## How a wave runs
 
-The skill writes up to nine dispatch specs and calls the `Workflow` tool once with `{ now, traceFile, artifactDir, maxAgents, humans, dispatches }` as `args`. `wave.js` runs the dispatches in parallel, each through its topology, collects the trace events in memory, and finishes by dispatching a scribe agent that appends them to `trace.jsonl` in one write. The script cannot read the clock, the filesystem or the shell, so the orchestrator supplies `now` and the scribe does the writing. Agent demand is logged against the effective concurrency cap (`min(16, CPUs − 2)`, so 2 in a 4-CPU cloud session) and never refused: over-cap agents queue.
+The skill writes up to nine dispatch specs and launches each as its own `Workflow` call, all in one message, so the wave's dispatches run in parallel and show up as separate workflows. Each call is a two-line inline wrapper:
+
+```
+export const meta = { name: 'Add the HTTP retry policy', description: 'w1-d1 · generator-evaluator' }
+return await workflow({ scriptPath: '<plugin root>/workflows/dispatch.js' }, args)
+```
+
+with `{ now, scratch, dispatch, humans }` as `args`. A workflow's displayed name is its `meta.name`, which must be a literal, so the wrapper is what lets every workflow be named for its purpose (the spec's `title`); the topology code stays in one built file. `dispatch.js` runs the dispatch through its topology, then dispatches a scribe agent that appends the dispatch's trace lines to `<scratch>/trace/<id>.jsonl`, a file of its own, so parallel workflows never write the same file. The script cannot read the clock, the filesystem or the shell, so the orchestrator supplies `now` and the scribe does the writing. Agent demand is logged and never refused: over-cap agents queue. Because the dispatches of a wave are separate runs, `dependsOn` names earlier waves only; ordered steps within a wave are a `chain`.
+
+Inside a workflow, agent labels say only which agent it is (the workflow's name already says what for): `Worker`, `Generator · round 1 of 3`, `Branch 2 of 4 — parse headers`, `Attempt 2 of 3`, `Debater pro · round 1 of 2`, `Stage 2 · Evaluator · round 1 of 2`, `Trace scribe`.
 
 Signature (see `src/types.ts`):
 
 ```ts
-DispatchSpec   = { id, topology, task, context[], roles{ name: { skill?, instructions } }, params{}, returns{ shape, maxLines ≤ 20 }, dependsOn[] }
+DispatchSpec   = { id, title?, topology, task, context[], roles{ name: { skill?, instructions } }, params{}, returns{ shape, maxLines ≤ 20 }, dependsOn[] }
 DispatchResult = { id, status: done | blocked | exhausted | over_budget | failed, result, artifacts[], question?, iterations, stages? }
 ```
 
-`failed` is the one status beyond the spec's four: it is what the wave returns instead of throwing when a spec cannot run (unknown topology, bad params, an agent that returned nothing).
+`failed` is the one status beyond the spec's four: it is what a dispatch returns instead of throwing when a spec cannot run (unknown topology, bad params, an agent that returned nothing).
 
 ## Develop
 
 ```
 npm install
 npm run check     # tsc --noEmit, then build and test
-npm run build     # regenerates workflows/wave.js and scripts/render-trace.js
+npm run build     # regenerates workflows/dispatch.js and scripts/render-trace.js
 npm test
 ```
 
-Tests run on Node 22 with native type stripping; no test runner beyond `node --test`. They exercise only the wave boundary (`runWave` with a fake `agent()`), the renderer with fixture traces, and the built bundle executed under a harness-shaped scope.
+Tests run on Node 22 with native type stripping; no test runner beyond `node --test`. They exercise only the dispatch boundary (`runWorkflow` with a fake `agent()`, one run per dispatch as a wave launches them), the renderer with fixture traces, and the built bundle executed under a harness-shaped scope.
 
 ## Topologies
 

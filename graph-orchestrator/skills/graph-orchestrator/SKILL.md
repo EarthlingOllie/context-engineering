@@ -1,6 +1,6 @@
 ---
 name: graph-orchestrator
-description: Use when a whole task should be delegated and finished work returned — multi-file builds, research across many files, review loops — and one context window would run out before it is done. Plans waves of dispatches, each a topology (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) run by one Workflow script; integrates only results; leaves a Mermaid trace.
+description: Use when a whole task should be delegated and finished work returned — multi-file builds, research across many files, review loops — and one context window would run out before it is done. Plans waves of dispatches, each a topology (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) run as its own named Workflow, in parallel with the rest of its wave; integrates only results; leaves a Mermaid trace.
 argument-hint: <task> [--mode attended|autonomous] [--waves 16] [--dispatches 9] [--scratch <dir>]
 ---
 
@@ -18,7 +18,7 @@ Three exceptions, and only these:
 2. You write the state file (and nothing else) with the Write tool, rewriting it in place.
 3. You run one shell command, once, at session end: the trace renderer.
 
-Everything else is a dispatch. "Get oriented first" is the failure; orientation is a `single` or a `fan-out` in wave 1. You never call `Agent` directly: the wave runs the agents.
+Everything else is a dispatch. "Get oriented first" is the failure; orientation is a `single` or a `fan-out` in wave 1. You never call `Agent` directly: the workflows run the agents.
 
 ## Kickoff
 
@@ -33,9 +33,9 @@ The task is `$ARGUMENTS`. Parse the trailing flags; everything before them is th
 
 **Mode.** From the flag; else ask once ("attended or autonomous?") when someone is there to answer; else autonomous. A scheduled or unattended run must never stall on this question, so when nobody can answer, it is autonomous. Record the mode in the state file; it must survive compaction.
 
-**Scratch directory.** The scratchpad directory your environment names, if any; else `/workspace/tmp/<task-slug>/`. Call it `SCRATCH`. It holds `state.md`, `trace.jsonl`, `session.mmd` and every artifact the workers write. Pass it to the wave as `artifactDir`; the workers create it.
+**Scratch directory.** The scratchpad directory your environment names, if any; else `/workspace/tmp/<task-slug>/`. Call it `SCRATCH`. It holds `state.md`, `trace/` (one `<id>.jsonl` per dispatch), `session.mmd` and every artifact the workers write. Pass it to every dispatch as `scratch`; the workers create it.
 
-**Catalog.** Read `${CLAUDE_PLUGIN_ROOT}/skills/graph-orchestrator/catalog.md` once. Choose from it for the rest of the session; never open `wave.js`.
+**Catalog.** Read `${CLAUDE_PLUGIN_ROOT}/skills/graph-orchestrator/catalog.md` once. Choose from it for the rest of the session; never open `dispatch.js`.
 
 **Ambiguity (trigger 1).** If the task can be read two ways and the readings would give wave 1 a different shape, ask in attended mode; in autonomous mode pick the reading most consistent with the repository, record it under DECISIONS, and continue.
 
@@ -69,35 +69,37 @@ assess → plan wave → run wave → integrate → (frontier empty? render : re
 From the state file alone. Up to `--dispatches` dispatch specs, ids `w<wave>-d<n>`. For each, decide:
 
 - **topology** — from the catalog. One pass: `single`. Review until it passes: `generator-evaluator`. Independent parts at once: `fan-out`. Ordered stages: `chain`. One deliverable too big for one context, built session by session: `relay`. Several viable approaches, pick one: `best-of-n`. Research whose gaps show only after a pass: `iterative-fan-out`. Several independent reviews, one pass/fail: `panel`. A contested decision, as a verdict: `debate`. Prefer one dispatch whose topology holds the loop over several dispatches you would loop yourself.
+- **title** — what the dispatch is for, in two to six plain words ("Add the HTTP retry policy", "Map trace file access"). It names the dispatch's workflow, so whoever watches sees the wave as its goals; it heads the dispatch's node in the diagram. No quotes, backslashes or newlines.
 - **task** — one imperative sentence stating what done looks like.
 - **context** — only KNOWN lines the worker cannot derive from disk: a decision you made, a hypothesis a worker ruled out, a path an earlier dispatch returned. Cut anything findable by grep: conventions, ports, versions, file listings. If `context` is longer than `task`, you are pasting your window into the prompt.
 - **roles** — per role, the skill that supplies the domain (`tdd`, `code-review`, …) and the task-specific instructions. Name skills; never paste their text.
 - **params** — as the catalog narrows them.
 - **returns** — the contract: `shape` (what the lines are) and `maxLines` (≤ 20, usually 1–6). Results come back inline and cut to this; size it so you can decide without opening anything. Anything longer is an artifact path.
-- **dependsOn** — ids of earlier dispatches whose results this one builds on. Forward their artifact paths in `context`, not their prose. A dispatch that names a same-wave id waits for it, and is `failed` unrun (result `dependency <id> was <status>: …`, no agent spent) if that dependency does not finish `done`: handle the dependency's status, then re-dispatch the dependant next wave. Prefer a `chain` when stages are a unit.
+- **dependsOn** — ids of dispatches from earlier waves whose results this one builds on. Forward their artifact paths in `context`, not their prose. The dispatches of one wave run as separate workflows and cannot wait on each other: a dispatch that names a same-wave id is `failed` unrun. Steps that must happen in order within a wave are one `chain`.
 
 Hard to reverse (deleting, pushing, anything with an external side effect)? **Trigger 4: ask first, in both modes.** Tell the roles in `instructions` what they are not authorised to do.
 
 ### Run the wave
 
-One `Workflow` call per wave, waited on in full:
+Each dispatch is its own `Workflow` run. Launch every dispatch of the wave in one message, one `Workflow` call each, so they run in parallel:
 
 ```
 Workflow({
-  scriptPath: "${CLAUDE_PLUGIN_ROOT}/workflows/wave.js",
+  script: "export const meta = { name: '<title>', description: '<id> · <topology>' }\nreturn await workflow({ scriptPath: '${CLAUDE_PLUGIN_ROOT}/workflows/dispatch.js' }, args)",
   args: {
-    now: "<ISO timestamp>",            // you have no clock: today's date, with the time if your context has one
-    wave: <n>,
-    traceFile: "SCRATCH/trace.jsonl",
-    artifactDir: "SCRATCH",
-    maxAgents: <cap>,                  // min(16, CPUs − 2); in a cloud session assume 2. It only sizes the demand log.
-    humans: [ ...interventions since the last wave, see below ],
-    dispatches: [ ...the specs ]
+    now: "<ISO timestamp>",       // you have no clock: today's date, with the time if your context has one
+    scratch: "SCRATCH",
+    dispatch: { ...the spec },
+    humans: [ ...interventions since the last wave, see below ]   // the wave's first dispatch only
   }
 })
 ```
 
-If the plugin's workflows are registered by name in this session, `/graph-orchestrator:wave` with the same `args` is equivalent. The call returns `{ status, wave, results[], demand, cap, events[], scribe }` as data. The wave logs its agent demand against the cap; over cap means slow, not broken. A `scribe` of `null` means the scribe failed and this wave's trace lines were not written; the `results` are still complete, so carry on. Never ask a running wave how it is going.
+The script is a two-line wrapper: its `meta` names the workflow after the dispatch, and it hands `args` to the plugin's dispatch script. Write it exactly as above with the title, id, topology and plugin root substituted; `meta` must stay a plain literal. Never paste `dispatch.js` itself.
+
+Then say one line, `Wave <n> dispatched: <title>; <title>.`, and wait. Each workflow notifies you when it finishes; integrate once every workflow of the wave has reported. Never poll a running workflow or ask how it is going.
+
+Each returns `{ id, title, status, result, artifacts[], question?, iterations, stages?, scribe }` as data. A workflow logs its agent demand; over the concurrency cap means slow, not broken. A `scribe` of `null` means that dispatch's trace line was not written; the result is still complete, so carry on.
 
 ### Integrate
 
@@ -109,7 +111,7 @@ For each result, by status:
 | `blocked` | **Trigger 2: ask, in both modes.** The `question` is the worker's. Record the intervention. Re-dispatch next wave with the answer as a `context` line and the blocked id in `dependsOn`, so the worker resumes rather than restarts. A fan-out that is `done` with a `question` had a blocked branch: ask the same way; re-dispatch only that branch. |
 | `exhausted` | **Trigger 3.** Attended: ask whether to change the criteria, the approach or stop. Autonomous: if you see another route, take it and record the choice; if not, record a best guess and move on. Never re-run the same spec unchanged. |
 | `over_budget` | the spec exceeded a cap; the `result` says which. Split or narrow it and re-dispatch. |
-| `failed` | the spec could not run; the `result` says why. Fix the spec once. A second failure is treated as `exhausted`. A result starting `dependency <id> was …` is not a spec fault: integrate the dependency's status, then re-dispatch. |
+| `failed` | the spec could not run; the `result` says why. Fix the spec once. A second failure is treated as `exhausted`. A result saying `dependsOn names <id> from the same wave` is a planning fault: dispatch it next wave, or make the two one `chain`. |
 
 Then: update FRONTIER (remove what finished, add what the results opened), rewrite the state file, and plan the next wave from the state file alone.
 
@@ -123,17 +125,17 @@ Every time you ask (or, in autonomous mode, record a best guess for triggers 1, 
 { "type": "human", "trigger": "blocked", "dispatch": "w1-d2", "question": "<what was asked>", "answer": "<the answer or your recorded guess>", "mode": "attended" }
 ```
 
-`trigger` is one of `ambiguity`, `blocked`, `exhausted`, `irreversible`, `budget`. Pass the interventions since the last wave as `humans` in the next wave's args; the scribe writes them before that wave's lines. Interventions after the final wave go to the renderer as `--human '<json>'`. You never write the trace yourself.
+`trigger` is one of `ambiguity`, `blocked`, `exhausted`, `irreversible`, `budget`. Pass the interventions since the last wave as `humans` in the args of the next wave's first dispatch; its scribe writes them before that dispatch's line. Interventions after the final wave go to the renderer as `--human '<json>'`. You never write the trace yourself.
 
 ### Finish
 
 When FRONTIER is empty (or a budget stop), render the session, in both modes:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/render-trace.js SCRATCH/trace.jsonl --out SCRATCH/session.mmd [--human '<json>' ...]
+node ${CLAUDE_PLUGIN_ROOT}/scripts/render-trace.js SCRATCH/trace --out SCRATCH/session.mmd [--human '<json>' ...]
 ```
 
-It prints the Mermaid diagram and saves it beside the trace. Your final reply is: STATUS in one line; the artifacts, by path; the DECISIONS that need the human's eyes; the diagram, verbatim, in a ```mermaid block. Nothing else.
+It reads every dispatch's trace file in order, prints the Mermaid diagram and saves it. Your final reply is: STATUS in one line; the artifacts, by path; the DECISIONS that need the human's eyes; the diagram, verbatim, in a ```mermaid block. Nothing else.
 
 ## Rationalizations
 

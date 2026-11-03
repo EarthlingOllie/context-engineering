@@ -14,6 +14,7 @@ export type ReturnContract = { shape: string; maxLines: number }; // maxLines â‰
 
 export type DispatchSpec = {
   id: string; // "w3-d2"
+  title?: string; // what the dispatch is for, in a few words; the workflow's name and the diagram node's first line
   topology: Topology;
   task: string; // one imperative sentence
   context: string[]; // KNOWN lines the worker cannot derive
@@ -91,22 +92,22 @@ export type HumanEvent = {
   mode?: "attended" | "autonomous";
 };
 
-export type WaveArgs = {
+/** The args of one dispatch workflow run. */
+export type DispatchArgs = {
   now: string; // ISO timestamp supplied by the orchestrator; scripts cannot read the clock
-  traceFile: string;
-  maxAgents: number; // the effective concurrency cap, for the demand log only
-  dispatches: DispatchSpec[];
-  wave?: number; // derived from the ids ("w3-â€¦") when absent
-  artifactDir?: string; // where roles write overflow; defaults to the trace file's directory
-  humans?: HumanEvent[]; // interventions since the last wave, written by the scribe first
+  scratch: string; // the session scratch directory: artifacts go here, the trace line to <scratch>/trace/<id>.jsonl
+  dispatch: DispatchSpec;
+  humans?: HumanEvent[]; // interventions since the last wave, written by the scribe before the dispatch line
 };
 
 export type TraceEvent =
-  | { type: "wave_start"; wave: number; at: string; dispatches: number; demand: number; cap: number }
+  | { type: "wave_start"; wave: number; at: string; dispatches: number; demand: number; cap: number } // v0.2 traces only
   | {
       type: "dispatch";
       wave: number;
       id: string;
+      title?: string;
+      at?: string;
       topology: string;
       iterations: number;
       status: DispatchStatus;
@@ -115,16 +116,12 @@ export type TraceEvent =
       parent?: string; // for chain stages
       question?: string;
     }
-  | { type: "wave_end"; wave: number; at: string; done: number; blocked: number; exhausted: number; over_budget: number; failed: number }
+  | { type: "wave_end"; wave: number; at: string; done: number; blocked: number; exhausted: number; over_budget: number; failed: number } // v0.2 traces only
   | HumanEvent;
 
-export type WaveReturn = {
-  status: "done";
-  wave: number;
-  results: DispatchResult[];
-  demand: number;
-  cap: number;
-  events: TraceEvent[];
+/** What a dispatch workflow returns: the result, and whether its trace lines were written. */
+export type DispatchReturn = DispatchResult & {
+  title?: string;
   scribe: { appended: number; totalLines: number } | null;
 };
 

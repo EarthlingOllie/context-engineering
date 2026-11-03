@@ -6,9 +6,9 @@ import { type Call, spec, wave } from "./helpers.ts";
 
 const two = [{ name: "check", stance: "an evaluator done-check is better" }, { name: "flag", stance: "a worker completion flag is better" }];
 
-/** Each debater says who it is and which round, read back from its label ("Wave 1 · d1 Debater check, round 2 of 2 — do w1-d1"). */
+/** Each debater says who it is and which round, read back from its label ("Debater check · round 2 of 2"). */
 const echo = (c: Call) => {
-  const m = /Debater (\S+), round (\d+)/.exec(c.opts.label ?? "")!;
+  const m = /Debater (\S+) · round (\d+)/.exec(c.opts.label ?? "")!;
   return { position: `${m[1]} argues in round ${m[2]}`, blocked: false };
 };
 const verdict = { verdict: "check wins", reasoning: "contract stability\nsecond line", artifacts: ["/a/verdict.md"], blocked: false };
@@ -18,7 +18,7 @@ test("debate: runs every round with all debaters in parallel, then the judge; th
     [spec({ id: "w1-d1", topology: "debate", roles: { judge: { instructions: "weigh stability" } }, params: { participants: two, rounds: 2 } })],
     { Debater: echo, Judge: verdict },
   );
-  assert.deepEqual(labels(), ["Wave 1 · d1 Debater check, round 1 of 2 — do w1-d1", "Wave 1 · d1 Debater flag, round 1 of 2 — do w1-d1", "Wave 1 · d1 Debater check, round 2 of 2 — do w1-d1", "Wave 1 · d1 Debater flag, round 2 of 2 — do w1-d1", "Wave 1 · d1 Judge — do w1-d1", "Wave 1 · Trace scribe"]);
+  assert.deepEqual(labels(), ["Debater check · round 1 of 2", "Debater flag · round 1 of 2", "Debater check · round 2 of 2", "Debater flag · round 2 of 2", "Judge", "Trace scribe"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
@@ -31,13 +31,13 @@ test("debate: each debater sees its own stance and name; from round 2 every part
     [spec({ id: "w1-d1", topology: "debate", roles: { judge: { instructions: "j" } }, params: { participants: two, rounds: 2 } })],
     { Debater: echo, Judge: verdict },
   );
-  const byLabel = (l: string) => calls.find((c) => c.opts.label?.startsWith(`Wave 1 · d1 ${l}`))!.prompt;
-  const r1 = byLabel("Debater flag, round 1");
+  const byLabel = (l: string) => calls.find((c) => c.opts.label?.startsWith(l))!.prompt;
+  const r1 = byLabel("Debater flag · round 1");
   assert.match(r1, /ROLE: debater/);
   assert.match(r1, /STANCE:\na worker completion flag is better/);
   assert.match(r1, /YOU ARE:\nflag/);
   assert.doesNotMatch(r1, /PRIOR ROUND \(round/);
-  const r2 = byLabel("Debater flag, round 2");
+  const r2 = byLabel("Debater flag · round 2");
   assert.match(r2, /PRIOR ROUND \(round 1\):\n\[check\] check argues in round 1\n\[flag\] flag argues in round 1/);
   assert.doesNotMatch(r2, /argues in round 2/);
   const judge = byLabel("Judge");
@@ -61,9 +61,9 @@ test("debate: rounds default to 2; the judge may come from params.judge; no deci
 test("debate: a debater that blocks stops the debate with its question; no later round, no judge", async () => {
   const { out, labels } = await wave(
     [spec({ id: "w1-d1", topology: "debate", roles: { judge: { instructions: "j" } }, params: { participants: two, rounds: 3 } })],
-    { Debater: echo, "Debater flag, round 1": { position: "", blocked: true, question: "which repo?" }, Judge: verdict },
+    { Debater: echo, "Debater flag · round 1": { position: "", blocked: true, question: "which repo?" }, Judge: verdict },
   );
-  assert.deepEqual(labels(), ["Wave 1 · d1 Debater check, round 1 of 3 — do w1-d1", "Wave 1 · d1 Debater flag, round 1 of 3 — do w1-d1", "Wave 1 · Trace scribe"]);
+  assert.deepEqual(labels(), ["Debater check · round 1 of 3", "Debater flag · round 1 of 3", "Trace scribe"]);
   assert.equal(out.results[0]!.status, "blocked");
   assert.equal(out.results[0]!.question, "debater flag: which repo?");
   assert.equal(out.results[0]!.iterations, 1);
@@ -80,19 +80,20 @@ test("debate: a judge that blocks returns blocked with its question", async () =
 
 test("debate: a debater that returns nothing (or an empty position) fails the dispatch; so does a judge that returns nothing", async () => {
   const d = (id: string) => spec({ id, topology: "debate", roles: { judge: { instructions: "j" } }, params: { participants: two, rounds: 2 } });
-  const { out, labels } = await wave([d("w1-d1"), d("w1-d2"), d("w1-d3")], {
+  const { out, calls } = await wave([d("w1-d1"), d("w1-d2"), d("w1-d3")], {
     Debater: echo,
-    "Wave 1 · d1 Debater check, round 2": null,
-    "Wave 1 · d2 Debater flag, round 1": { position: "   ", blocked: false },
+    "w1-d1 Debater check · round 2": null,
+    "w1-d2 Debater flag · round 1": { position: "   ", blocked: false },
     Judge: verdict,
-    "Wave 1 · d3 Judge": null,
+    "w1-d3 Judge": null,
   });
   assert.deepEqual(out.results.map((r) => r.status), ["failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /check returned nothing in round 2/);
   assert.match(out.results[1]!.result, /flag returned nothing in round 1/);
   assert.match(out.results[2]!.result, /judge returned nothing/);
-  assert.ok(!labels().some((l) => l.startsWith("Wave 1 · d1 Judge") || l.startsWith("Wave 1 · d2 Judge")));
-  assert.ok(!labels().includes("Wave 1 · d2 Debater check, round 2"));
+  const ran = (dispatch: string, label: string) => calls.some((c) => c.dispatch === dispatch && c.opts.label === label);
+  assert.ok(!ran("w1-d1", "Judge") && !ran("w1-d2", "Judge"));
+  assert.ok(!ran("w1-d2", "Debater check · round 2 of 2"));
 });
 
 test("debate: over_budget above 6 participants or 4 rounds; malformed params fail; neither spends an agent", async () => {
@@ -105,7 +106,7 @@ test("debate: over_budget above 6 participants or 4 rounds; malformed params fai
     spec({ id: "w1-d6", topology: "debate", params: { participants: [two[0], { name: "x", stance: " " }], judge: { instructions: "j" } } }),
     spec({ id: "w1-d7", topology: "debate", params: { participants: two, rounds: 0, judge: { instructions: "j" } } }),
   ]);
-  assert.deepEqual(labels(), ["Wave 1 · Trace scribe"]);
+  assert.deepEqual(labels().filter((l) => l !== "Trace scribe"), [], "no role agent runs");
   assert.deepEqual(out.results.map((r) => r.status), ["over_budget", "over_budget", "failed", "failed", "failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /cap of 4/);
   assert.match(out.results[1]!.result, /cap of 6/);
@@ -126,9 +127,9 @@ test("debate: blocked beats empty in the same round, and every blocked debater's
   const { out } = await wave(
     [spec({ id: "w1-d1", topology: "debate", roles: { judge: { instructions: "j" } }, params: { participants: three, rounds: 1 } })],
     {
-      "Debater check, round 1": { position: "", blocked: false },
-      "Debater flag, round 1": { position: "", blocked: true, question: "which repo?" },
-      "Debater third, round 1": { position: "", blocked: true, question: "which branch?" },
+      "Debater check · round 1": { position: "", blocked: false },
+      "Debater flag · round 1": { position: "", blocked: true, question: "which repo?" },
+      "Debater third · round 1": { position: "", blocked: true, question: "which branch?" },
       Judge: verdict,
     },
   );

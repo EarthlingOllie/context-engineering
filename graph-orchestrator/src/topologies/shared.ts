@@ -7,8 +7,8 @@ import type { DispatchResult, DispatchSpec, ReturnContract, RoleEntry, Runtime, 
 import { ROLE_SCHEMAS, type RoleName } from "../roles.ts";
 import { type AgentLabelParts, agentLabel } from "../labels.ts";
 
-/** What a role call says about itself for its agent label; the dispatch id and (by default) the task come from the spec. */
-export type RoleLabel = Omit<Extract<AgentLabelParts, { id: string }>, "id">;
+/** What a role call says about itself for its agent label; the stage prefix comes from the spec id. */
+export type RoleLabel = Omit<AgentLabelParts, "id">;
 
 export const MAX_LINES = 20;
 export const MAX_WIDTH = 9;
@@ -85,9 +85,11 @@ export type SpecDefaults = { id?: string; context?: string[]; returns?: ReturnCo
  * before the spec's own lines.
  */
 export function normaliseSpec(raw: unknown, defaults: SpecDefaults = {}): DispatchSpec {
-  const s = (raw && typeof raw === "object" ? raw : {}) as Partial<DispatchSpec>;
+  const { title: rawTitle, ...s } = (raw && typeof raw === "object" ? raw : {}) as Partial<DispatchSpec>;
+  const title = typeof rawTitle === "string" ? rawTitle.replace(/\s+/g, " ").trim() : "";
   return {
     ...s,
+    ...(title ? { title } : {}),
     id: typeof s.id === "string" && s.id ? s.id : (defaults.id ?? "?"),
     topology: s.topology as Topology,
     task: typeof s.task === "string" ? s.task : "",
@@ -174,10 +176,10 @@ export async function callRole(
   roleLabel: RoleLabel,
   schema: Record<string, unknown> = ROLE_SCHEMAS[role],
 ): Promise<Record<string, unknown> | null> {
-  const label = agentLabel({ task: spec.task, ...roleLabel, id: spec.id });
+  const label = agentLabel({ ...roleLabel, id: spec.id });
   let out: unknown;
   try {
-    out = await ctx.rt.agent(prompt, { label, phase: spec.id, schema });
+    out = await ctx.rt.agent(prompt, { label, schema });
   } catch (err) {
     ctx.rt.log(`${spec.id}: ${label} threw: ${err instanceof Error ? err.message : String(err)}`);
     return null;
@@ -191,6 +193,7 @@ export function dispatchEvent(wave: number, spec: DispatchSpec, r: DispatchResul
     type: "dispatch",
     wave,
     id: spec.id,
+    ...(spec.title ? { title: spec.title } : {}),
     topology: String(spec.topology),
     iterations: r.iterations,
     status: r.status,

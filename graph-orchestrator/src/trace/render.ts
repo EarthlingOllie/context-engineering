@@ -1,7 +1,7 @@
 /**
- * The trace renderer: trace.jsonl text in, Mermaid flowchart out.
- * Waves become subgraphs, dispatches nodes labelled with topology and
- * iteration count, `dependsOn` edges, status as node class, chain stages as a
+ * The trace renderer: trace JSONL text in, Mermaid flowchart out.
+ * Waves become subgraphs (grouped by each dispatch line's `wave`), dispatches
+ * nodes labelled with their title, id, topology and iteration count, `dependsOn` edges, status as node class, chain stages as a
  * nested subgraph, human interventions as nodes.
  */
 import type { TraceEvent } from "../types.ts";
@@ -38,6 +38,10 @@ function normalise(raw: unknown): TraceEvent | null {
       status: status as Dispatch["status"],
       dependsOn: strs(e.dependsOn),
     };
+    const title = str(e.title);
+    if (title) d.title = title;
+    const at = str(e.at);
+    if (at) d.at = at;
     if (Array.isArray(e.stages)) d.stages = strs(e.stages);
     const parent = str(e.parent);
     if (parent) d.parent = parent;
@@ -99,7 +103,7 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
         current = openWave(e.wave, e.at);
         break;
       case "dispatch": {
-        const w = Number.isFinite(e.wave) ? openWave(e.wave) : current ?? openWave(0);
+        const w = Number.isFinite(e.wave) ? openWave(e.wave, e.at) : current ?? openWave(0, e.at);
         if (e.parent) {
           const list = w.stages.get(e.parent) ?? [];
           list.push(e);
@@ -144,7 +148,7 @@ function short(text: string, max = 48): string {
 }
 
 function label(d: Dispatch): string {
-  const parts = [`${d.id}`, `${d.topology} ×${d.iterations}`];
+  const parts = d.title ? [short(d.title), `${d.id} · ${d.topology} ×${d.iterations}`] : [`${d.id}`, `${d.topology} ×${d.iterations}`];
   if (d.status !== "done") parts.push(d.status.replace("_", " "));
   if (d.question) parts.push(`? ${short(d.question, 40)}`);
   return parts.map(esc).join("<br/>");
@@ -152,10 +156,11 @@ function label(d: Dispatch): string {
 
 const WAVE_STATUSES = ["done", "blocked", "exhausted", "over_budget", "failed"] as const;
 
-/** The wave_end counts for the subgraph title: non-zero statuses only, in catalog order. */
-function waveCounts(end: Wave["end"]): string[] {
-  if (!end) return [];
-  return WAVE_STATUSES.filter((s) => typeof end[s] === "number" && end[s] > 0).map((s) => `${end[s]} ${s.replace("_", " ")}`);
+/** The status counts for the subgraph title: from wave_end in a v0.2 trace, else from the wave's dispatches; non-zero statuses only, in catalog order. */
+function waveCounts(w: Wave): string[] {
+  const counts: Record<string, number> = {};
+  for (const s of WAVE_STATUSES) counts[s] = w.end ? (typeof w.end[s] === "number" ? w.end[s] : 0) : w.dispatches.filter((d) => d.status === s).length;
+  return WAVE_STATUSES.filter((s) => counts[s]! > 0).map((s) => `${counts[s]} ${s.replace("_", " ")}`);
 }
 
 function statusClass(status: string): string {
@@ -188,7 +193,7 @@ export function renderTrace(text: string, extra: TraceEvent[] = []): string {
       continue;
     }
     const w = item.wave;
-    const title = [`Wave ${w.number}`, w.at ? esc(w.at) : "", ...waveCounts(w.end)].filter(Boolean).join(" · ");
+    const title = [`Wave ${w.number}`, w.at ? esc(w.at) : "", ...waveCounts(w)].filter(Boolean).join(" · ");
     out.push(`  subgraph wave${w.number}[${JSON.stringify(title)}]`);
     out.push("    direction TB");
     if (w.dispatches.length === 0) out.push(`    wave${w.number}_empty([no dispatches])`);
@@ -196,7 +201,7 @@ export function renderTrace(text: string, extra: TraceEvent[] = []): string {
     const draw = (d: Dispatch, indent: string): void => {
       const stages = w.stages.get(d.id);
       if (d.topology === "chain" && stages && stages.length) {
-        const chainTitle = [`${d.id}`, `chain ×${d.iterations}`, d.status !== "done" ? d.status.replace("_", " ") : ""].filter(Boolean).map(esc).join(" · ");
+        const chainTitle = [...(d.title ? [short(d.title)] : []), `${d.id}`, `chain ×${d.iterations}`, d.status !== "done" ? d.status.replace("_", " ") : ""].filter(Boolean).map(esc).join(" · ");
         out.push(`${indent}subgraph ${nodeId(d.id)}[${JSON.stringify(chainTitle)}]`);
         out.push(`${indent}  direction LR`);
         let prev: string | null = null;

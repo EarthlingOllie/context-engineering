@@ -29,7 +29,7 @@ One step of a chain. A stage is a dispatch, so it may be any topology.
 _Avoid_: Step, link
 
 **Wave**:
-The set of dispatches the orchestrator issues at once; one wave is one workflow run, waited on in full before planning again.
+The set of dispatches the orchestrator issues at once; each dispatch is its own workflow run, named for its purpose, and the wave is waited on in full before planning again (ADR-0003).
 _Avoid_: Batch, round
 
 **Frontier**:
@@ -57,7 +57,7 @@ The append-only record of waves, dispatches and human interventions from which t
 _Avoid_: Log, history
 
 **Scribe**:
-The one agent a wave runs last, whose only job is to write the wave's trace events.
+The one agent a dispatch's workflow runs last, whose only job is to write that dispatch's trace events to its own trace file.
 _Avoid_: Logger, recorder
 
 **State File**:

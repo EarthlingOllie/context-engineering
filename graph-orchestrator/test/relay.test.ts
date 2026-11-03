@@ -10,17 +10,17 @@ const pass = { pass: true, feedback: "", blocked: false };
 
 test("relay done: sessions run until the done-check passes; result is the last session's, artifacts are the union", async () => {
   const { out, labels, calls } = await wave([spec({ id: "w1-d1", topology: "relay", params: { ...ok, max_sessions: 5 } })], {
-    "Worker, session 1": { result: "feature 1 done", artifacts: ["/a.ts", "/progress.md"], blocked: false },
-    "Worker, session 2": { result: "feature 2 done\nall green", artifacts: ["/b.ts", "/progress.md"], blocked: false },
-    "Evaluator, session 1": fail("1. feature 2 still failing\n2. progress not updated"),
-    "Evaluator, session 2": pass,
+    "Session 1": { result: "feature 1 done", artifacts: ["/a.ts", "/progress.md"], blocked: false },
+    "Session 2": { result: "feature 2 done\nall green", artifacts: ["/b.ts", "/progress.md"], blocked: false },
+    "Evaluator · session 1": fail("1. feature 2 still failing\n2. progress not updated"),
+    "Evaluator · session 2": pass,
   });
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
   assert.equal(r.result, "feature 2 done\nall green");
   assert.deepEqual(r.artifacts, ["/a.ts", "/progress.md", "/b.ts"]);
-  assert.deepEqual(labels(), ["Wave 1 · d1 Worker, session 1 of 5 — do w1-d1", "Wave 1 · d1 Evaluator, session 1 of 5 — do w1-d1", "Wave 1 · d1 Worker, session 2 of 5 — do w1-d1", "Wave 1 · d1 Evaluator, session 2 of 5 — do w1-d1", "Wave 1 · Trace scribe"]);
+  assert.deepEqual(labels(), ["Session 1 of 5", "Evaluator · session 1 of 5", "Session 2 of 5", "Evaluator · session 2 of 5", "Trace scribe"]);
 
   const w1 = calls[0]!.prompt;
   assert.match(w1, /SESSION 1 of 5/);
@@ -44,10 +44,10 @@ test("relay exhausted: every check fails; result keeps the last session's lines 
   const { out, labels } = await wave(
     [spec({ id: "w1-d1", topology: "relay", params: { ...ok, max_sessions: 2 }, returns: { shape: "s", maxLines: 2 } })],
     {
-      "Worker, session 1": { result: "one", artifacts: ["/a"], blocked: false },
-      "Worker, session 2": { result: "two\nthree", artifacts: ["/b"], blocked: false },
-      "Evaluator, session 1": fail("first gap"),
-      "Evaluator, session 2": fail("1. last gap\n2. another"),
+      "Session 1": { result: "one", artifacts: ["/a"], blocked: false },
+      "Session 2": { result: "two\nthree", artifacts: ["/b"], blocked: false },
+      "Evaluator · session 1": fail("first gap"),
+      "Evaluator · session 2": fail("1. last gap\n2. another"),
     },
   );
   const r = out.results[0]!;
@@ -55,7 +55,7 @@ test("relay exhausted: every check fails; result keeps the last session's lines 
   assert.equal(r.iterations, 2);
   assert.equal(r.result, "two\n-- exhausted after 2 session(s); last check: 1. last gap");
   assert.deepEqual(r.artifacts, ["/a", "/b"]);
-  assert.equal(labels().filter((l) => l.includes("Worker")).length, 2);
+  assert.equal(labels().filter((l) => /^Session \d/.test(l)).length, 2);
 });
 
 test("relay check_every: the evaluator runs every k sessions and always after the last", async () => {
@@ -64,21 +64,21 @@ test("relay check_every: the evaluator runs every k sessions and always after th
   });
   assert.equal(out.results[0]!.status, "exhausted");
   assert.deepEqual(labels(), [
-    "Wave 1 · d1 Worker, session 1 of 5 — do w1-d1",
-    "Wave 1 · d1 Worker, session 2 of 5 — do w1-d1",
-    "Wave 1 · d1 Evaluator, session 2 of 5 — do w1-d1",
-    "Wave 1 · d1 Worker, session 3 of 5 — do w1-d1",
-    "Wave 1 · d1 Worker, session 4 of 5 — do w1-d1",
-    "Wave 1 · d1 Evaluator, session 4 of 5 — do w1-d1",
-    "Wave 1 · d1 Worker, session 5 of 5 — do w1-d1",
-    "Wave 1 · d1 Evaluator, session 5 of 5 — do w1-d1",
-    "Wave 1 · Trace scribe",
+    "Session 1 of 5",
+    "Session 2 of 5",
+    "Evaluator · session 2 of 5",
+    "Session 3 of 5",
+    "Session 4 of 5",
+    "Evaluator · session 4 of 5",
+    "Session 5 of 5",
+    "Evaluator · session 5 of 5",
+    "Trace scribe",
   ]);
 });
 
 test("relay blocked: a blocked worker or a blocked evaluator returns blocked with its question", async () => {
   const worker = await wave([spec({ id: "w1-d1", topology: "relay", params: ok })], {
-    "Worker, session 2": { result: "half", artifacts: ["/x"], blocked: true, question: "which database?" },
+    "Session 2": { result: "half", artifacts: ["/x"], blocked: true, question: "which database?" },
     Evaluator: fail("keep going"),
   });
   const rw = worker.out.results[0]!;
@@ -88,18 +88,18 @@ test("relay blocked: a blocked worker or a blocked evaluator returns blocked wit
   assert.equal(worker.labels().filter((l) => l.includes("Evaluator")).length, 1, "no check after a blocked session");
 
   const ev = await wave([spec({ id: "w1-d1", topology: "relay", params: ok })], {
-    "Evaluator, session 1": { pass: false, feedback: "", blocked: true, question: "is the spec final?" },
+    "Evaluator · session 1": { pass: false, feedback: "", blocked: true, question: "is the spec final?" },
   });
   const re = ev.out.results[0]!;
   assert.equal(re.status, "blocked");
   assert.equal(re.question, "is the spec final?");
-  assert.equal(ev.labels().filter((l) => l.includes("Worker")).length, 1);
+  assert.equal(ev.labels().filter((l) => /^Session \d/.test(l)).length, 1);
 });
 
 test("relay failed: a worker or evaluator returning nothing fails, keeping the artifacts so far", async () => {
   const w = await wave([spec({ id: "w1-d1", topology: "relay", params: ok })], {
-    "Worker, session 1": { result: "one", artifacts: ["/a"], blocked: false },
-    "Worker, session 2": null,
+    "Session 1": { result: "one", artifacts: ["/a"], blocked: false },
+    "Session 2": null,
     Evaluator: fail("more"),
   });
   const rw = w.out.results[0]!;
@@ -108,8 +108,8 @@ test("relay failed: a worker or evaluator returning nothing fails, keeping the a
   assert.deepEqual(rw.artifacts, ["/a"]);
 
   const e = await wave([spec({ id: "w1-d1", topology: "relay", params: ok })], {
-    "Worker, session 1": { result: "one", artifacts: ["/a"], blocked: false },
-    "Evaluator, session 1": null,
+    "Session 1": { result: "one", artifacts: ["/a"], blocked: false },
+    "Evaluator · session 1": null,
   });
   const re = e.out.results[0]!;
   assert.equal(re.status, "failed");
@@ -124,7 +124,7 @@ test("relay params: cap breach is over_budget, missing done_criteria or progress
     spec({ id: "w1-d3", topology: "relay", params: { done_criteria: "x" } }),
     spec({ id: "w1-d4", topology: "relay", params: { ...ok, check_every: 0 } }),
   ]);
-  assert.deepEqual(labels(), ["Wave 1 · Trace scribe"]);
+  assert.deepEqual(labels().filter((l) => l !== "Trace scribe"), [], "no role agent runs");
   assert.deepEqual(out.results.map((r) => r.status), ["over_budget", "failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /cap of 10/);
   assert.match(out.results[1]!.result, /done_criteria/);
@@ -132,10 +132,10 @@ test("relay params: cap breach is over_budget, missing done_criteria or progress
 });
 
 test("relay cap: max_sessions 10, the cap itself, runs all 10 sessions and 10 checks (worst case 20 agents)", async () => {
-  const { out, labels } = await wave([spec({ id: "w1-d1", topology: "relay", params: { ...ok, max_sessions: 10 } })], { Evaluator: (c: Call) => fail(`no ${c.n}`) }, { maxAgents: 20 });
+  const { out, labels } = await wave([spec({ id: "w1-d1", topology: "relay", params: { ...ok, max_sessions: 10 } })], { Evaluator: (c: Call) => fail(`no ${c.n}`) });
   assert.equal(out.results[0]!.status, "exhausted");
   assert.equal(out.results[0]!.iterations, 10);
-  assert.equal(labels().filter((l) => l.includes("Worker")).length, 10);
+  assert.equal(labels().filter((l) => /^Session \d/.test(l)).length, 10);
   assert.equal(labels().filter((l) => l.includes("Evaluator")).length, 10);
 });
 
