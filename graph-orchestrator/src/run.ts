@@ -79,7 +79,7 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   // The scribe: one agent, one write. A throw here must not lose the result.
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
   const lines = events.map((e) => JSON.stringify(e));
-  const scribeLabel = agentLabel({ role: "scribe", task: "tracing current dispatch" });
+  const scribeLabel = agentLabel({ role: "scribe", task: "logging current dispatch" });
   let scribe: DispatchReturn["scribe"] = null;
   try {
     const out = await rt.agent(scribePrompt(traceFile, lines), { label: scribeLabel, schema: SCRIBE_SCHEMA });

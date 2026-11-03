@@ -11,7 +11,7 @@ test("single: one worker call, one done result, prompt carries stance, context, 
     [spec({ id: "w1-d1", topology: "single", task: "Write the leap-year helper", context: ["tests live in test/", "use node:test"], roles: { worker: { skill: "tdd", instructions: "red first" } } })],
     { Worker: { result: "/scratch/t/leap.js\nexports isLeap", artifacts: ["/scratch/t/leap.js"], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Worker: Write the leap-year helper", "Grapher: tracing current dispatch"]);
+  assert.deepEqual(labels(), ["Worker: Write the leap-year helper", "Grapher: logging current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 1);
@@ -106,7 +106,7 @@ test("fan-out: explicit split runs one branch per sub-task in parallel and conca
     [spec({ id: "w1-d1", topology: "fan-out", task: "Survey the three modules", params: { split: ["module a", "module b", "module c"] }, returns: { shape: "a line per module", maxLines: 6 } })],
     { "Worker (1 of 3)": { result: "a: fine", artifacts: ["/scratch/t/a.md"], blocked: false }, "Worker (2 of 3)": { result: "b: fine", artifacts: [], blocked: false }, "Worker (3 of 3)": { result: "c: fine", artifacts: [], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Worker (1 of 3): module a", "Worker (2 of 3): module b", "Worker (3 of 3): module c", "Grapher: tracing current dispatch"]);
+  assert.deepEqual(labels(), ["Worker (1 of 3): module a", "Worker (2 of 3): module b", "Worker (3 of 3): module c", "Grapher: logging current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.result, "[1] a: fine\n[2] b: fine\n[3] c: fine");
@@ -193,7 +193,7 @@ test("fan-out: a partition instruction runs a partition agent first, then at mos
     [spec({ id: "w1-d1", topology: "fan-out", params: { width: 2, split: "split by package" } })],
     { Partition: { subtasks: ["pkg a", "pkg b", "pkg c"], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Partition: do w1-d1", "Worker (1 of 2): pkg a", "Worker (2 of 2): pkg b", "Grapher: tracing current dispatch"]);
+  assert.deepEqual(labels(), ["Partition: do w1-d1", "Worker (1 of 2): pkg a", "Worker (2 of 2): pkg b", "Grapher: logging current dispatch"]);
   assert.match(calls[0]!.prompt, /PARTITION INSTRUCTION:\nsplit by package/);
   assert.match(calls[0]!.prompt, /at most 2 independent sub-tasks/);
   assert.match(calls[1]!.prompt, /TASK: pkg a/);
@@ -223,7 +223,7 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
       Generator: { result: "/scratch/t/writeup.md", artifacts: ["/scratch/t/writeup.md"], blocked: false },
     },
   );
-  assert.deepEqual(labels(), ["Link 1 · Single, Worker: research", "Link 2 · Generator-evaluator, Generator (1 of 2): write it up", "Link 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Grapher: tracing current dispatch"]);
+  assert.deepEqual(labels(), ["Link 1 · Single, Worker: research", "Link 2 · Generator-evaluator, Generator (1 of 2): write it up", "Link 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Grapher: logging current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
@@ -244,7 +244,7 @@ test("chain: stops at the first stage that is not done and carries its status an
     [spec({ id: "w1-d1", topology: "chain", params: { stages: [{ topology: "single", task: "a" }, { topology: "single", task: "b" }] } })],
     { "Link 1 · Single, Worker": { result: "", artifacts: [], blocked: true, question: "Which region?" } },
   );
-  assert.deepEqual(labels(), ["Link 1 · Single, Worker: a", "Grapher: tracing current dispatch"]);
+  assert.deepEqual(labels(), ["Link 1 · Single, Worker: a", "Grapher: logging current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "blocked");
   assert.equal(r.question, "Which region?");
@@ -390,7 +390,7 @@ test("the scribe writes the dispatch's own trace file: humans first, stamped wit
   assert.equal(second!.wave, 2);
   assert.equal(out.results[0]!.title, "Add the retry policy");
   const scribe = calls.at(-1)!;
-  assert.equal(scribe.opts.label, "Grapher: tracing current dispatch");
+  assert.equal(scribe.opts.label, "Grapher: logging current dispatch");
   assert.match(scribe.prompt, /Append the 2 line\(s\)/);
   assert.match(scribe.prompt, /to the file \/scratch\/t\/trace\/w2-d1\.jsonl/);
   assert.match(scribe.prompt, /<<<TRACE\n\{.*\nTRACE>>>/s);

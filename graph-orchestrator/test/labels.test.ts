@@ -44,7 +44,7 @@ test("agent labels: topology titles; the scribe is the Grapher; no task, no colo
   assert.equal(topologyTitle("iterative-fan-out"), "Iterative fan-out");
   assert.equal(topologyTitle("best-of-n"), "Best-of-n");
   assert.equal(topologyTitle("mystery"), "Mystery");
-  assert.equal(agentLabel({ topology: "fan-out", role: "scribe", task: "tracing current dispatch" }), "Grapher: tracing current dispatch");
+  assert.equal(agentLabel({ topology: "fan-out", role: "scribe", task: "logging current dispatch" }), "Grapher: logging current dispatch");
   assert.equal(agentLabel({ role: "scribe" }), "Grapher");
   assert.equal(agentLabel({ topology: "single", role: "worker", task: "  " }), "Worker");
 });
