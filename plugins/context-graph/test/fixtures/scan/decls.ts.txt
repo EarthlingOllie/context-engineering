@@ -1,0 +1,34 @@
+import { Base } from './base.ts'
+const ratio = width / height / 2; const q = "'{"
+export class Shape extends Base implements Drawable, Sized {
+  private secret: string
+  #hidden = 1
+  protected guard(x: number): boolean { return x > 0 }
+  public name: string = 'shape'
+  static create(a: number, b: { c: string }): Shape { return new Shape() }
+  area = (scale: number): number => { return scale }
+  constructor(n: number) { super(n) }
+}
+export abstract class Animal {
+  abstract speak(): void
+  readonly legs?: number
+}
+class Hidden { x: number }
+export interface Drawable extends Base, Other<string> {
+  draw(ctx: Ctx): void
+  label?: string
+  onClick: (e: Event) => void
+  [key: string]: unknown
+}
+export type Options = {
+  width: number
+  cb(x: number): string
+}
+export type Kind = 'a' | 'b'
+export enum Color { Red = 'red', Green = 2, Blue }
+export function plain(a: string): number { return 1 }
+export async function later(): Promise<void> {}
+export const arrow = (x: number, y: number) => x / y
+export const N = 3
+export const veryLongName = (alpha: string, beta: number, gamma: Record<string, Array<number>>, delta: boolean) => alpha
+let notExported = 1

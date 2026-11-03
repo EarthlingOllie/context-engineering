@@ -1,0 +1,127 @@
+// import { a } from './comment-line.ts'
+/* import { b } from './comment-block.ts'
+   import './comment-block-2.ts' */
+import { real1 } from './real1.ts'
+const s1 = 'import x from "./in-single.ts"'
+const s2 = "import y from './in-double.ts' \" still"
+const re1 = (/['"{]/g)
+const re2 = /['"{]/g
+function f(x: string) { return /['"{]/g.test(x) }
+const div = a / b / c
+const tpl = `
+import z from './in-template.ts'
+${ { a: 1, b: `nested ${ { c: '}' }.c } import w from './nested-template.ts'` }.b }
+`
+const raw = String.raw`import q from './in-raw.ts' ${'}'} \``
+import type { T1 } from './type-only.ts'
+import def, * as ns from "./default-ns.ts"
+import './side-effect.ts'
+export * from './star.ts'
+export { a as b, c } from './named.ts'
+export type { T2 } from './type-reexport.ts'
+const lazy = import('./dynamic.ts')
+const meta = import.meta.url
+const obj = { import: 1 }
+const big = `
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope1 from './nope1.ts' { } '
+import nope2 from './nope2.ts' { } '
+import nope3 from './nope3.ts' { } '
+import nope4 from './nope4.ts' { } '
+import nope5 from './nope5.ts' { } '
+import nope6 from './nope6.ts' { } '
+import nope7 from './nope7.ts' { } '
+import nope8 from './nope8.ts' { } '
+import nope9 from './nope9.ts' { } '
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope11 from './nope11.ts' { } '
+import nope12 from './nope12.ts' { } '
+import nope13 from './nope13.ts' { } '
+import nope14 from './nope14.ts' { } '
+import nope15 from './nope15.ts' { } '
+import nope16 from './nope16.ts' { } '
+import nope17 from './nope17.ts' { } '
+import nope18 from './nope18.ts' { } '
+import nope19 from './nope19.ts' { } '
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope21 from './nope21.ts' { } '
+import nope22 from './nope22.ts' { } '
+import nope23 from './nope23.ts' { } '
+import nope24 from './nope24.ts' { } '
+import nope25 from './nope25.ts' { } '
+import nope26 from './nope26.ts' { } '
+import nope27 from './nope27.ts' { } '
+import nope28 from './nope28.ts' { } '
+import nope29 from './nope29.ts' { } '
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope31 from './nope31.ts' { } '
+import nope32 from './nope32.ts' { } '
+import nope33 from './nope33.ts' { } '
+import nope34 from './nope34.ts' { } '
+import nope35 from './nope35.ts' { } '
+import nope36 from './nope36.ts' { } '
+import nope37 from './nope37.ts' { } '
+import nope38 from './nope38.ts' { } '
+import nope39 from './nope39.ts' { } '
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope41 from './nope41.ts' { } '
+import nope42 from './nope42.ts' { } '
+import nope43 from './nope43.ts' { } '
+import nope44 from './nope44.ts' { } '
+import nope45 from './nope45.ts' { } '
+import nope46 from './nope46.ts' { } '
+import nope47 from './nope47.ts' { } '
+import nope48 from './nope48.ts' { } '
+import nope49 from './nope49.ts' { } '
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope51 from './nope51.ts' { } '
+import nope52 from './nope52.ts' { } '
+import nope53 from './nope53.ts' { } '
+import nope54 from './nope54.ts' { } '
+import nope55 from './nope55.ts' { } '
+import nope56 from './nope56.ts' { } '
+import nope57 from './nope57.ts' { } '
+import nope58 from './nope58.ts' { } '
+import nope59 from './nope59.ts' { } '
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope61 from './nope61.ts' { } '
+import nope62 from './nope62.ts' { } '
+import nope63 from './nope63.ts' { } '
+import nope64 from './nope64.ts' { } '
+import nope65 from './nope65.ts' { } '
+import nope66 from './nope66.ts' { } '
+import nope67 from './nope67.ts' { } '
+import nope68 from './nope68.ts' { } '
+import nope69 from './nope69.ts' { } '
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope71 from './nope71.ts' { } '
+import nope72 from './nope72.ts' { } '
+import nope73 from './nope73.ts' { } '
+import nope74 from './nope74.ts' { } '
+import nope75 from './nope75.ts' { } '
+import nope76 from './nope76.ts' { } '
+import nope77 from './nope77.ts' { } '
+import nope78 from './nope78.ts' { } '
+import nope79 from './nope79.ts' { } '
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope81 from './nope81.ts' { } '
+import nope82 from './nope82.ts' { } '
+import nope83 from './nope83.ts' { } '
+import nope84 from './nope84.ts' { } '
+import nope85 from './nope85.ts' { } '
+import nope86 from './nope86.ts' { } '
+import nope87 from './nope87.ts' { } '
+import nope88 from './nope88.ts' { } '
+import nope89 from './nope89.ts' { } '
+${ { k: `inner ${ [1,2].map((n) => { return `${n}}` }) }` }.k }
+import nope91 from './nope91.ts' { } '
+import nope92 from './nope92.ts' { } '
+import nope93 from './nope93.ts' { } '
+import nope94 from './nope94.ts' { } '
+import nope95 from './nope95.ts' { } '
+import nope96 from './nope96.ts' { } '
+import nope97 from './nope97.ts' { } '
+import nope98 from './nope98.ts' { } '
+import nope99 from './nope99.ts' { } '
+`
+import { after } from './after-big.ts'
