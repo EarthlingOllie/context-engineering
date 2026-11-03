@@ -11,7 +11,7 @@ test("single: one worker call, one done result, prompt carries stance, context, 
     [spec({ id: "w1-d1", topology: "single", task: "Write the leap-year helper", context: ["tests live in test/", "use node:test"], roles: { worker: { skill: "tdd", instructions: "red first" } } })],
     { Worker: { result: "/scratch/t/leap.js\nexports isLeap", artifacts: ["/scratch/t/leap.js"], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Worker: Write the leap-year helper", "Recorder: save the trace"]);
+  assert.deepEqual(labels(), ["Worker: Write the leap-year helper", "Grapher: tracing current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 1);
@@ -56,7 +56,7 @@ test("generator-evaluator: stops on first pass; round 2 generator sees feedback 
     "Evaluator (1 of 3)",
     "Generator (2 of 3)",
     "Evaluator (2 of 3)",
-    "Recorder",
+    "Grapher",
   ]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
@@ -92,7 +92,7 @@ test("generator-evaluator: defaults to 3 iterations and short-circuits when the 
     [spec({ id: "w1-d1", topology: "generator-evaluator", params: { pass_criteria: "x" } })],
     { Generator: { result: "attempt", artifacts: [], blocked: false }, "Evaluator (1": { pass: false, feedback: "", blocked: true, question: "Is the legacy API in scope?" } },
   );
-  assert.deepEqual(roles(), ["Generator (1 of 3)", "Evaluator (1 of 3)", "Recorder"]);
+  assert.deepEqual(roles(), ["Generator (1 of 3)", "Evaluator (1 of 3)", "Grapher"]);
   assert.equal(out.results[0]!.status, "blocked");
   assert.equal(out.results[0]!.question, "Is the legacy API in scope?");
   assert.equal(out.results[0]!.iterations, 1);
@@ -106,7 +106,7 @@ test("fan-out: explicit split runs one branch per sub-task in parallel and conca
     [spec({ id: "w1-d1", topology: "fan-out", task: "Survey the three modules", params: { split: ["module a", "module b", "module c"] }, returns: { shape: "a line per module", maxLines: 6 } })],
     { "Worker (1 of 3)": { result: "a: fine", artifacts: ["/scratch/t/a.md"], blocked: false }, "Worker (2 of 3)": { result: "b: fine", artifacts: [], blocked: false }, "Worker (3 of 3)": { result: "c: fine", artifacts: [], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Worker (1 of 3): module a", "Worker (2 of 3): module b", "Worker (3 of 3): module c", "Recorder: save the trace"]);
+  assert.deepEqual(labels(), ["Worker (1 of 3): module a", "Worker (2 of 3): module b", "Worker (3 of 3): module c", "Grapher: tracing current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.result, "[1] a: fine\n[2] b: fine\n[3] c: fine");
@@ -118,7 +118,7 @@ test("fan-out: explicit split runs one branch per sub-task in parallel and conca
 
 test("fan-out: a split wider than 9 returns over_budget without spending agents", async () => {
   const { out, labels, roles } = await wave([spec({ id: "w1-d1", topology: "fan-out", params: { split: Array.from({ length: 10 }, (_, i) => `part ${i}`) } })]);
-  assert.deepEqual(roles().filter((l) => l !== "Recorder"), [], "no role agent runs");
+  assert.deepEqual(roles().filter((l) => l !== "Grapher"), [], "no role agent runs");
   assert.equal(out.results[0]!.status, "over_budget");
   assert.match(out.results[0]!.result, /width cap of 9/);
 });
@@ -193,7 +193,7 @@ test("fan-out: a partition instruction runs a partition agent first, then at mos
     [spec({ id: "w1-d1", topology: "fan-out", params: { width: 2, split: "split by package" } })],
     { Partition: { subtasks: ["pkg a", "pkg b", "pkg c"], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Partition: do w1-d1", "Worker (1 of 2): pkg a", "Worker (2 of 2): pkg b", "Recorder: save the trace"]);
+  assert.deepEqual(labels(), ["Partition: do w1-d1", "Worker (1 of 2): pkg a", "Worker (2 of 2): pkg b", "Grapher: tracing current dispatch"]);
   assert.match(calls[0]!.prompt, /PARTITION INSTRUCTION:\nsplit by package/);
   assert.match(calls[0]!.prompt, /at most 2 independent sub-tasks/);
   assert.match(calls[1]!.prompt, /TASK: pkg a/);
@@ -223,7 +223,7 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
       Generator: { result: "/scratch/t/writeup.md", artifacts: ["/scratch/t/writeup.md"], blocked: false },
     },
   );
-  assert.deepEqual(labels(), ["Link 1 · Single, Worker: research", "Link 2 · Generator-evaluator, Generator (1 of 2): write it up", "Link 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Recorder: save the trace"]);
+  assert.deepEqual(labels(), ["Link 1 · Single, Worker: research", "Link 2 · Generator-evaluator, Generator (1 of 2): write it up", "Link 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Grapher: tracing current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
@@ -244,7 +244,7 @@ test("chain: stops at the first stage that is not done and carries its status an
     [spec({ id: "w1-d1", topology: "chain", params: { stages: [{ topology: "single", task: "a" }, { topology: "single", task: "b" }] } })],
     { "Link 1 · Single, Worker": { result: "", artifacts: [], blocked: true, question: "Which region?" } },
   );
-  assert.deepEqual(labels(), ["Link 1 · Single, Worker: a", "Recorder: save the trace"]);
+  assert.deepEqual(labels(), ["Link 1 · Single, Worker: a", "Grapher: tracing current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "blocked");
   assert.equal(r.question, "Which region?");
@@ -273,7 +273,7 @@ test("malformed specs: unknown topology, missing id, missing task and non-object
     spec({ id: "w1-d3", topology: "single", task: "" }),
     null as never,
   ]);
-  assert.deepEqual(roles(), ["Recorder", "Recorder", "Recorder", "Recorder"], "no role agent runs; each workflow still writes its line");
+  assert.deepEqual(roles(), ["Grapher", "Grapher", "Grapher", "Grapher"], "no role agent runs; each workflow still writes its line");
   assert.deepEqual(
     out.results.map((r) => r.status),
     ["failed", "failed", "failed", "failed"],
@@ -354,7 +354,7 @@ test("hard limit: a dispatch whose demand and scribe exceed the 1000-agent run l
   assert.equal(out.results[0]!.status, "over_budget");
   assert.match(out.results[0]!.result, /1000-agent run limit/);
   assert.equal(out.results[1]!.status, "done");
-  assert.ok(!calls.some((c) => c.dispatch === "w1-d1" && roleOf(c.opts.label) !== "Recorder"), "the refused dispatch spends only its scribe");
+  assert.ok(!calls.some((c) => c.dispatch === "w1-d1" && roleOf(c.opts.label) !== "Grapher"), "the refused dispatch spends only its scribe");
 });
 
 test("dependsOn: an earlier wave is recorded in the trace; a same-wave id fails unrun, since parallel workflows cannot wait on each other", async () => {
@@ -390,7 +390,7 @@ test("the scribe writes the dispatch's own trace file: humans first, stamped wit
   assert.equal(second!.wave, 2);
   assert.equal(out.results[0]!.title, "Add the retry policy");
   const scribe = calls.at(-1)!;
-  assert.equal(scribe.opts.label, "Recorder: save the trace");
+  assert.equal(scribe.opts.label, "Grapher: tracing current dispatch");
   assert.match(scribe.prompt, /Append the 2 line\(s\)/);
   assert.match(scribe.prompt, /to the file \/scratch\/t\/trace\/w2-d1\.jsonl/);
   assert.match(scribe.prompt, /<<<TRACE\n\{.*\nTRACE>>>/s);
@@ -407,12 +407,12 @@ test("args without a dispatch spec return failed, and the scribe still records i
   const out = await runWorkflow({ ...baseArgs } as never, f.rt);
   assert.equal(out.status, "failed");
   assert.match(out.result, /not a dispatch spec/);
-  assert.deepEqual(f.roles(), ["Recorder"]);
+  assert.deepEqual(f.roles(), ["Grapher"]);
   assert.equal(eventsOf(f.calls[0]!.prompt).length, 1);
 });
 
 test("a scribe that returns nothing is logged and the workflow still returns its result", async () => {
-  const { out, logs } = await wave([spec({ id: "w1-d1", topology: "single" })], { Recorder: null });
+  const { out, logs } = await wave([spec({ id: "w1-d1", topology: "single" })], { Grapher: null });
   assert.equal(out.results[0]!.status, "done");
   assert.equal(out.results[0]!.scribe, null);
   assert.ok(logs.some((l) => /w1-d1: scribe returned nothing/.test(l)));
@@ -434,7 +434,7 @@ test("malformed humans entries are dropped and logged up front; the result and t
 
 test("a scribe that throws is logged and the workflow still returns its result", async () => {
   const { out, logs } = await wave([spec({ id: "w1-d1", topology: "single" })], {
-    Recorder: () => {
+    Grapher: () => {
       throw new Error("disk full");
     },
   });

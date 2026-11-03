@@ -20,7 +20,7 @@ test("relay done: sessions run until the done-check passes; result is the last s
   assert.equal(r.iterations, 2);
   assert.equal(r.result, "feature 2 done\nall green");
   assert.deepEqual(r.artifacts, ["/a.ts", "/progress.md", "/b.ts"]);
-  assert.deepEqual(roles(), ["Worker (1 of 5)", "Evaluator (1 of 5)", "Worker (2 of 5)", "Evaluator (2 of 5)", "Recorder"]);
+  assert.deepEqual(roles(), ["Worker (1 of 5)", "Evaluator (1 of 5)", "Worker (2 of 5)", "Evaluator (2 of 5)", "Grapher"]);
 
   const w1 = calls[0]!.prompt;
   assert.match(w1, /SESSION 1 of 5/);
@@ -72,7 +72,7 @@ test("relay check_every: the evaluator runs every k sessions and always after th
     "Evaluator (2 of 3)",
     "Worker (5 of 5)",
     "Evaluator (3 of 3)",
-    "Recorder",
+    "Grapher",
   ]);
 });
 
@@ -124,7 +124,7 @@ test("relay params: cap breach is over_budget, missing done_criteria or progress
     spec({ id: "w1-d3", topology: "relay", params: { done_criteria: "x" } }),
     spec({ id: "w1-d4", topology: "relay", params: { ...ok, check_every: 0 } }),
   ]);
-  assert.deepEqual(roles().filter((l) => l !== "Recorder"), [], "no role agent runs");
+  assert.deepEqual(roles().filter((l) => l !== "Grapher"), [], "no role agent runs");
   assert.deepEqual(out.results.map((r) => r.status), ["over_budget", "failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /cap of 10/);
   assert.match(out.results[1]!.result, /done_criteria/);

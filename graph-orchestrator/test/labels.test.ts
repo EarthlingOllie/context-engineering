@@ -40,12 +40,12 @@ test("agent labels: a chain stage agent names its link and that stage's topology
   assert.equal(agentLabel({ topology: "generator-evaluator", id: "w1-d2-s2", role: "generator", round: 1, rounds: 2, task: "t" }), "Link 2 · Generator-evaluator, Generator (1 of 2): t");
 });
 
-test("agent labels: topology titles; the scribe is the Recorder; no task, no colon", () => {
+test("agent labels: topology titles; the scribe is the Grapher; no task, no colon", () => {
   assert.equal(topologyTitle("iterative-fan-out"), "Iterative fan-out");
   assert.equal(topologyTitle("best-of-n"), "Best-of-n");
   assert.equal(topologyTitle("mystery"), "Mystery");
-  assert.equal(agentLabel({ topology: "fan-out", role: "scribe", task: "save the trace" }), "Recorder: save the trace");
-  assert.equal(agentLabel({ role: "scribe" }), "Recorder");
+  assert.equal(agentLabel({ topology: "fan-out", role: "scribe", task: "tracing current dispatch" }), "Grapher: tracing current dispatch");
+  assert.equal(agentLabel({ role: "scribe" }), "Grapher");
   assert.equal(agentLabel({ topology: "single", role: "worker", task: "  " }), "Worker");
 });
 

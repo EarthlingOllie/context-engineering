@@ -15,7 +15,7 @@ var ROLE_TITLES = {
   reducer: "Reducer",
   judge: "Judge",
   debater: "Debater",
-  scribe: "Recorder"
+  scribe: "Grapher"
 };
 var TOPOLOGY_TITLES = {
   single: "Single",
@@ -1253,7 +1253,7 @@ async function runWorkflow(args, rt) {
   const events = [...humans, ...ctx.stageEvents, { ...dispatchEvent(wave, spec, result), at: now }];
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
   const lines = events.map((e) => JSON.stringify(e));
-  const scribeLabel = agentLabel({ role: "scribe", task: "save the trace" });
+  const scribeLabel = agentLabel({ role: "scribe", task: "tracing current dispatch" });
   let scribe = null;
   try {
     const out = await rt.agent(scribePrompt(traceFile, lines), { label: scribeLabel, schema: SCRIBE_SCHEMA });

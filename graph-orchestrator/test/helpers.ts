@@ -6,7 +6,7 @@ export type Call = { prompt: string; opts: AgentOptions; n: number; dispatch: st
 
 /**
  * Script agent outputs by a substring of "<dispatch id> <label>" ("Worker",
- * "Generator (2", "Worker (1 of 3)", "w1-d2 Judge", "Recorder"...).
+ * "Generator (2", "Worker (1 of 3)", "w1-d2 Judge", "Grapher"...).
  */
 export type Script = Record<string, unknown | ((call: Call) => unknown)>;
 
@@ -26,7 +26,7 @@ export function fakeRuntime(script: Script = {}) {
   const calls: Call[] = [];
   const logs: string[] = [];
   const defaults: Script = {
-    Recorder: (c: Call) => ({ appended: c.prompt.split("\n").filter((l) => l.startsWith("{")).length, totalLines: 99 }),
+    Grapher: (c: Call) => ({ appended: c.prompt.split("\n").filter((l) => l.startsWith("{")).length, totalLines: 99 }),
     Evaluator: { pass: true, feedback: "", blocked: false },
     Partition: { subtasks: ["part a", "part b"], blocked: false },
   };
@@ -84,7 +84,7 @@ export async function wave(dispatches: DispatchSpec[], script: Script = {}, extr
     dispatches.map((d) => runWorkflow({ ...baseArgs, dispatch: d, ...extra } as never, f.runtimeFor(d && typeof d === "object" ? String(d.id ?? "") : ""))),
   );
   const order = dispatches.map((d) => (d && typeof d === "object" ? String(d.id ?? "") : ""));
-  const scribes = f.calls.filter((c) => roleOf(c.opts.label) === "Recorder").sort((a, b) => order.indexOf(a.dispatch) - order.indexOf(b.dispatch));
+  const scribes = f.calls.filter((c) => roleOf(c.opts.label) === "Grapher").sort((a, b) => order.indexOf(a.dispatch) - order.indexOf(b.dispatch));
   const events = scribes.flatMap((c) => eventsOf(c.prompt));
   return { out: { results, events }, ...f };
 }
