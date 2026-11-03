@@ -100,7 +100,7 @@ test('the auto-fit keeps every in-window node (with its radius) inside the frame
 
 // ---- v2-10: layered scene ----
 import { buildLayeredScene, KIND_COLORS } from '../src/core/scene.ts'
-import { layeredFixture } from './helpers.ts'
+import { layeredFixture, layeredInputs } from './helpers.ts'
 
 test('v2-10: items carry layer, shape by kind, status, health and isNew', () => {
   const { scene } = layeredFixture()
@@ -185,4 +185,23 @@ test('v2-10: every solution node fits inside the frame', () => {
   const { scene } = layeredFixture()
   for (const i of scene.items.filter((x) => x.layer === 'solution'))
     assert.ok(i.x - i.r >= 0 && i.x + i.r <= scene.width && i.y - i.r >= 0 && i.y + i.r <= scene.height, i.id)
+})
+
+test('v2-10: the layered scene fills the frame (both layers span >= 90% of the free height or width, all inside)', () => {
+  for (const view of [{ yaw: 30, pitch: 20, distance: 0, fov: 50 }, { yaw: 20, pitch: 35, distance: 0, fov: 50 }]) {
+    const { model, graph, positions, relevance: rel, health: hl } = layeredInputs()
+    const s = buildLayeredScene({ model, graph, positions, relevance: rel, health: hl, view, layers: 'both' }, size)
+    const xs = s.items.flatMap((i) => [i.x - i.r, i.x + i.r]), ys = s.items.flatMap((i) => [i.y - i.r, i.y + i.r])
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+    assert.ok(x0 >= 0 && x1 <= size.w && y0 >= 18 && y1 <= size.h - 16, `inside: ${[x0, x1, y0, y1].map(Math.round)}`)
+    const fill = Math.max((x1 - x0) / size.w, (y1 - y0) / (size.h - 34))
+    assert.ok(fill >= 0.9, `fill ${fill.toFixed(2)} at pitch ${view.pitch}`)
+  }
+})
+
+test('v2-10: constraints and risks are labelled too, after goal, questions, components and decisions', () => {
+  const { scene } = layeredFixture()
+  const lab = scene.items.filter((i) => i.labelled && i.layer === 'solution')
+  assert.ok(lab.some((i) => i.kind === 'constraint'), 'a constraint label')
+  assert.ok(lab.some((i) => i.kind === 'risk'), 'a risk label')
 })

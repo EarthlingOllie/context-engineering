@@ -204,7 +204,7 @@ const SOL_LABELS = 24
 const EVIDENCE_LABELS = 6
 /** top strip reserved for the header line */
 export const HEADER_PX = 18
-const LABEL_RANK: Partial<Record<SolKind, number>> = { goal: 0, question: 1, component: 2, decision: 3 }
+const LABEL_RANK: Partial<Record<SolKind, number>> = { goal: 0, question: 1, component: 2, decision: 3, constraint: 4, risk: 4, requirement: 5, assumption: 5, dependency: 5 }
 
 export function buildLayeredScene(input: LayeredSceneInput, size: { w: number; h: number }): Scene {
   const { model: m, graph: g, positions, relevance: rel, health: hl, view, layers } = input
@@ -239,7 +239,30 @@ export function buildLayeredScene(input: LayeredSceneInput, size: { w: number; h
   let autoDistance = radius * 1.05 + 1
   for (let k = 0; k < 120 && !fits(autoDistance); k++) autoDistance *= 1.04
   const distance = autoDistance / Math.max(0.25, Math.min(4, view.zoom ?? 1))
-  const project = makeProjector({ ...view, distance }, target, size)
+  const base = makeProjector({ ...view, distance }, target, size)
+  // Screen-space fill (zoom 1 only): the target centroid rarely sits mid-frame once both layers are drawn, so pan
+  // and enlarge the projection uniformly until the drawn extent fills the free area (a lens shift, not a new camera).
+  let k = 1, ox = 0, oy = 0
+  if ((view.zoom ?? 1) === 1 && pos.size > 1) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+    for (const [id, p] of pos) {
+      const q = base(p)
+      if (!q.visible) continue
+      const r = worldR(id) * q.scale + 2
+      x0 = Math.min(x0, q.x - r); x1 = Math.max(x1, q.x + r); y0 = Math.min(y0, q.y - r); y1 = Math.max(y1, q.y + r)
+    }
+    const fw = size.w, fh = size.h - HEADER_PX - LEGEND_PX
+    if (x1 > x0 && y1 > y0) {
+      // radii grow with k too, so stay a little inside the free area
+      k = Math.max(1, Math.min(3, (0.97 * fw) / (x1 - x0), (0.97 * fh) / (y1 - y0)))
+      ox = fw / 2 - k * (x0 + x1) / 2
+      oy = HEADER_PX + fh / 2 - k * (y0 + y1) / 2
+    }
+  }
+  const project = (p: Vec3) => {
+    const q = base(p)
+    return k === 1 ? q : { ...q, x: ox + k * q.x, y: oy + k * q.y, scale: q.scale * k }
+  }
 
   const cited = new Set<string>()
   for (const e of m.edges) if (e.kind === 'supported-by') cited.add(e.to)
@@ -281,10 +304,11 @@ export function buildLayeredScene(input: LayeredSceneInput, size: { w: number; h
     items.push(item)
   }
 
-  // Labels: goal, open questions, components, decisions (cap 24); the 6 strongest evidence nodes.
+  // Labels: goal, open questions, components, decisions, then constraints/risks and other factors, abandoned last
+  // (cap 24); the 6 strongest evidence nodes.
   const solLab = items
     .filter((i) => i.layer === 'solution' && LABEL_RANK[i.kind as SolKind] !== undefined && (i.kind !== 'question' || i.status === 'open'))
-    .sort((a, b) => LABEL_RANK[a.kind as SolKind]! - LABEL_RANK[b.kind as SolKind]! || b.weight - a.weight || (a.id < b.id ? -1 : 1))
+    .sort((a, b) => Number(a.status === 'abandoned') - Number(b.status === 'abandoned') || LABEL_RANK[a.kind as SolKind]! - LABEL_RANK[b.kind as SolKind]! || b.weight - a.weight || (a.id < b.id ? -1 : 1))
     .slice(0, SOL_LABELS)
   for (const i of solLab) i.labelled = true
   const evLab = items.filter((i) => i.layer === 'evidence' && i.weight > 0)

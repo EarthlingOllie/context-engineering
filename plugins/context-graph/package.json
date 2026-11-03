@@ -1,7 +1,7 @@
 {
   "name": "context-graph",
-  "version": "0.1.0",
-  "description": "Claude Code mod: the live context window as a 3D graph (three.js math), with the latest question's blast radius highlighted.",
+  "version": "0.2.0",
+  "description": "Claude Code mod: the shape of the solution (goal, components, factors, decisions, open questions) over the live context window as evidence, in 3D (three.js maths), with focus and context health.",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -14,6 +14,7 @@
     "smoke": "node scripts/export-smoke.ts",
     "check": "npm run typecheck && npm test && npm run test:mod && npm run validate",
     "vendor": "node scripts/vendor-three.mjs",
-    "install-dev": "node scripts/install-dev.mjs"
+    "install-dev": "node scripts/install-dev.mjs",
+    "acceptance": "node scripts/acceptance-session.ts"
   }
 }

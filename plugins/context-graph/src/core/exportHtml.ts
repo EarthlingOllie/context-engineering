@@ -163,7 +163,7 @@ function placeTags() {
     const w = Math.min(40, t.el.textContent.length) * 7.3, h = 15
     const on = t.v.z < 1 && Math.abs(t.v.x) < 1.05 && Math.abs(t.v.y) < 1.05 &&
       !boxes.some((b) => x < b.x + b.w && b.x < x + w && y < b.y + h && b.y < y + h)
-    if (on) boxes.push({ x, y, w })
+    if (on) boxes.push({ x, y, w, h })
     t.el.style.display = on ? 'block' : 'none'
     t.el.style.transform = 'translate(' + x + 'px,' + y + 'px)'
   }
@@ -290,8 +290,8 @@ body{margin:0;background:var(--bg);color:var(--fg);overflow:hidden}
 #cg-buttons{position:absolute;right:16px;bottom:16px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 32px)}
 #cg-buttons button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px 10px;cursor:pointer}
 #cg-tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--border);padding:4px 6px;border-radius:4px;display:none;max-width:min(50ch,calc(100% - 32px))}
-.cg-tag{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;max-width:36ch;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 3px var(--bg),0 0 3px var(--bg)}
-.cg-tag.sol{font-weight:600}.cg-tag.goal{font-size:14px}.cg-tag.ev{color:var(--muted);font-size:11px}
+.cg-tag{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;max-width:30ch;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 3px var(--bg),0 0 3px var(--bg)}
+.cg-tag.sol{font-weight:600}.cg-tag.goal{font-size:14px;max-width:48ch}.cg-tag.ev{color:var(--muted);font-size:11px}
 .cg-tag.abandoned{text-decoration:line-through;opacity:.45}
 @media (max-width:600px){#cg-legend{display:none}.cg-tag{max-width:22ch}}
 `
@@ -445,10 +445,11 @@ for (const [n, i] of openQs) {
   oq.appendChild(b)
 }
 
-// Labels: goal, open questions, components, decisions (cap 24) + 6 strongest evidence nodes.
-const RANK = { goal: 0, question: 1, component: 2, decision: 3 }
+// Labels: goal, open questions, components, decisions, constraints/risks, other factors; abandoned last (cap 24)
+// + 6 strongest evidence nodes.
+const RANK = { goal: 0, question: 1, component: 2, decision: 3, constraint: 4, risk: 4, requirement: 5, assumption: 5, dependency: 5 }
 const labelSol = D.solution.filter((n) => RANK[n.k] !== undefined && (n.k !== 'question' || n.s === 'open'))
-  .sort((a, b) => RANK[a.k] - RANK[b.k] || b.w - a.w).slice(0, 24)
+  .sort((a, b) => (a.s === 'abandoned') - (b.s === 'abandoned') || RANK[a.k] - RANK[b.k] || b.w - a.w).slice(0, 24)
 const labelEv = D.evidence.filter((n) => n.w > 0).sort((a, b) => b.w - a.w || b.t - a.t).slice(0, 6)
 const tags = [...labelSol.map((n) => ({ n, sol: true })), ...labelEv.map((n) => ({ n, sol: false }))].map(({ n, sol }) => {
   const i = sol ? D.solution.indexOf(n) : -1
@@ -460,16 +461,29 @@ const tags = [...labelSol.map((n) => ({ n, sol: true })), ...labelEv.map((n) => 
   return { n, sol, i, el, v: new THREE.Vector3() }
 })
 function placeTags() {
-  const boxes = [], w0 = W(), h0 = H()
+  const w0 = W(), h0 = H(), rr = root.getBoundingClientRect()
+  // the HUD and the buttons are occupied space too
+  const boxes = [...root.querySelectorAll('#cg-header, #cg-legend, #cg-oq button, #cg-buttons')].map((el) => {
+    const b = el.getBoundingClientRect()
+    return { x: b.left - rr.left, y: b.top - rr.top, w: b.width, h: b.height }
+  })
   for (const t of tags) {
     const layerOn = t.sol ? groups.solution.visible : groups.evidence.visible
     const i = t.i
     t.v.set(...t.n.p).project(camera)
-    const x = (t.v.x + 1) / 2 * w0 + (t.sol ? 10 : 6), y = (1 - t.v.y) / 2 * h0 - 8
-    const w = Math.min(t.el.offsetWidth || 120, w0 - x), h = 16
-    const on = layerOn && (i < 0 || grow[i] > 0.5) && t.v.z < 1 && Math.abs(t.v.x) < 1 && Math.abs(t.v.y) < 1 && x < w0 - 24 &&
-      !boxes.some((b) => x < b.x + b.w && b.x < x + w && y < b.y + h && b.y < y + h)
-    if (on) boxes.push({ x, y, w })
+    const px = (t.v.x + 1) / 2 * w0, py = (1 - t.v.y) / 2 * h0, gap = t.sol ? 10 : 6, h = 16
+    const ew = t.el.offsetWidth || 120
+    // right, left, above, below, then the four diagonals: the first spot that is on screen and free
+    const spots = [[px + gap, py - 8], [px - gap - ew, py - 8], [px - ew / 2, py - gap - h], [px - ew / 2, py + gap - 4], [px + gap, py - 8 - h], [px + gap, py + 6], [px - gap - ew, py - 8 - h], [px - gap - ew, py + 6]]
+    const live = layerOn && (i < 0 || grow[i] > 0.5) && t.v.z < 1 && Math.abs(t.v.x) < 1 && Math.abs(t.v.y) < 1
+    let x = px + gap, y = py - 8, w = Math.min(ew, w0 - x), on = false
+    if (live) for (const [sx, sy] of spots) {
+      const sw = Math.min(ew, w0 - sx)
+      if (sx < 0 || sx > w0 - 24 || sy < 0 || sy > h0 - h) continue
+      if (boxes.some((b) => sx < b.x + b.w && b.x < sx + sw && sy < b.y + (b.h ?? h) && b.y < sy + h)) continue
+      x = sx; y = sy; w = sw; on = true; break
+    }
+    if (on) boxes.push({ x, y, w, h })
     t.el.style.display = on ? 'block' : 'none'
     t.el.style.maxWidth = Math.max(40, w0 - x - 8) + 'px'
     t.el.style.transform = 'translate(' + x + 'px,' + y + 'px)'
@@ -499,7 +513,24 @@ function flyTo(f, instant) {
   if (instant) { camera.position.copy(f.eye); controls.target.copy(f.target); controls.update(); return }
   tween = { t0: performance.now(), fromE: camera.position.clone(), fromT: controls.target.clone(), ...f }
 }
-function overview() { const f = frameOf(visiblePoints()); f.eye.addScaledVector(DIR, -0.08 * f.eye.distanceTo(f.target)); return f }
+// Overview: start from the bounding sphere, then pan and dolly a few times so the projected extent fills the
+// view (x in [-0.94, 0.94], y in [-0.9, 0.7]: the top strip is left to the HUD).
+const _v = new THREE.Vector3(), _probe = new THREE.PerspectiveCamera()
+function overview() {
+  const pts = visiblePoints(), f = frameOf(pts)
+  for (let it = 0; it < 6; it++) {
+    _probe.copy(camera); _probe.position.copy(f.eye); _probe.lookAt(f.target); _probe.updateMatrixWorld()
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+    for (const p of pts) { _v.set(...p).project(_probe); x0 = Math.min(x0, _v.x); x1 = Math.max(x1, _v.x); y0 = Math.min(y0, _v.y); y1 = Math.max(y1, _v.y) }
+    const d = f.eye.distanceTo(f.target), hy = Math.tan((camera.fov * Math.PI) / 360) * d, hx = hy * camera.aspect
+    const right = new THREE.Vector3().setFromMatrixColumn(_probe.matrixWorld, 0), up = new THREE.Vector3().setFromMatrixColumn(_probe.matrixWorld, 1)
+    const shift = right.multiplyScalar(((x0 + x1) / 2) * hx).add(up.multiplyScalar(((y0 + y1) / 2 + 0.1) * hy))
+    f.target.add(shift); f.eye.add(shift)
+    const k = Math.max((x1 - x0) / 1.88, (y1 - y0) / 1.6, 0.3)
+    f.eye.copy(f.target).addScaledVector(DIR, d * (0.5 + 0.5 * k))
+  }
+  return f
+}
 flyTo(overview(), true)
 document.getElementById('cg-focus').addEventListener('click', () => {
   const ids = new Set(D.focus)

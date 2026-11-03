@@ -1,8 +1,10 @@
 {
   "name": "context-graph",
-  "version": "0.1.0",
-  "description": "Draws the live context window as a 3D graph (three.js math, SVG on desktop, Raster in the terminal) and highlights the blast radius of the latest question.",
-  "author": { "name": "earthlingollie" },
+  "version": "0.2.0",
+  "description": "Draws the solution Claude is building (goal, components, factors, decisions, open questions) over the live context window as evidence, in 3D (three.js maths; SVG on desktop, Raster in the terminal), with focus on the current question and context health; exports an Artifact-ready WebGL page.",
+  "author": {
+    "name": "earthlingollie"
+  },
   "license": "MIT",
   "types": "./types/index.d.ts"
 }
