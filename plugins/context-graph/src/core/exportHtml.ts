@@ -194,6 +194,8 @@ import { summaryLine } from './svg.ts'
 import type { HealthReport } from './health.ts'
 import type { Relevance } from './relevance.ts'
 import type { SolutionModel } from './types.ts'
+import type { UmlPageData } from './diagram.ts'
+import { layoutUml, renderUmlSvg, UML_COLORS } from './umlPane.ts'
 
 export const EXPORT_TITLE = 'Context Window Graph'
 
@@ -204,6 +206,8 @@ export interface SolutionExportInput {
   relevance: Relevance
   health: HealthReport
   blast: BlastRadius
+  /** v3: the UML tab's data (optional: v2 callers get an empty-state UML tab) */
+  uml?: UmlPageData
 }
 export interface SolutionExportOptions {
   /** default 'Context Window Graph' */
@@ -214,6 +218,10 @@ export interface SolutionExportOptions {
   note?: string
   /** nodes with createdSeq > since grow in on load (default model.promptSeq) */
   since?: number
+  /** v3: overrides MERMAID_URL (tests serve a local copy) */
+  mermaidUrl?: string
+  /** v3: the tab shown first (default 'uml') */
+  tab?: 'uml' | '3d'
 }
 
 /** world radius per solution kind (matches scene.ts SOL_R) */
@@ -262,13 +270,24 @@ export function exportSolutionHtml(input: SolutionExportInput, opts: SolutionExp
   }
   const json = JSON.stringify(data).replace(/</g, '\\u003c')
   const importmap = JSON.stringify({ imports: { three: base + 'build/three.module.js', 'three/addons/': base + 'examples/jsm/' } })
-  const head = `<title>${title}</title>\n<style>${CSS}</style>\n<script type="importmap">${importmap}</script>\n`
-  const body = `<div id="cg-root">
+  const tab = opts.tab ?? 'uml'
+  const uml = umlSection(input.uml, tab)
+  const umlJson = JSON.stringify(uml.data).replace(/</g, '\\u003c')
+  const mermaidUrl = input.uml && input.uml.steps.length ? (opts.mermaidUrl ?? MERMAID_URL) : ''
+  const head = `<title>${title}</title>\n<style>${CSS}${UML_CSS}</style>\n<script type="importmap">${importmap}</script>\n`
+  const sel = (t: 'uml' | '3d') => `aria-selected="${tab === t}"`
+  const body = `<nav id="cg-tabs" role="tablist"><button type="button" role="tab" data-tab="uml" ${sel('uml')}>UML design</button><button type="button" role="tab" data-tab="3d" ${sel('3d')}>3D solution map</button></nav>
+<section id="cg-panel-uml" role="tabpanel"${tab === 'uml' ? '' : ' hidden'}>
+${uml.html}
+</section>
+<div id="cg-root" role="tabpanel"${tab === '3d' ? '' : ' hidden'}>
 <div id="cg-hud"><div id="cg-header"></div><div id="cg-legend"></div><div id="cg-oq"></div></div>
 <div id="cg-buttons"><button type="button" id="cg-focus">focus</button><button type="button" id="cg-layers">layers: both</button><button type="button" id="cg-replay">replay</button></div>
 <div id="cg-tip"></div>
 </div>
 <script type="application/json" id="cg-data">${json}</script>
+<script type="application/json" id="cg-uml">${umlJson}</script>
+<script type="module">const MERMAID_URL = ${JSON.stringify(mermaidUrl).replace(/</g, '\\u003c')}${UML_CLIENT}</script>
 <script type="module">${SOLUTION_CLIENT}</script>
 `
   if (!opts.document) return head + body
@@ -280,7 +299,7 @@ const CSS = `
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--panel:rgba(22,27,34,.9);--border:#30363d;--grid:#3d444d;--edge:#6e7681;--ev:0.45;color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--panel:rgba(22,27,34,.9);--border:#30363d;--grid:#3d444d;--edge:#6e7681;--ev:0.45;color-scheme:dark}
 body{margin:0;background:var(--bg);color:var(--fg);overflow:hidden}
-#cg-root{position:fixed;inset:0;overflow:hidden;background:var(--bg);color:var(--fg);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+#cg-root{position:fixed;top:var(--tabs-h);left:0;right:0;bottom:0;overflow:hidden;background:var(--bg);color:var(--fg);font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
 #cg-root canvas{display:block;position:absolute;inset:0}
 #cg-hud{position:absolute;left:16px;top:12px;right:16px;max-width:min(64ch,calc(100% - 32px));box-sizing:border-box;pointer-events:none;overflow-wrap:anywhere}
 #cg-header{font-weight:600;font-size:13px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px 8px}
@@ -303,6 +322,12 @@ body{margin:0;background:var(--bg);color:var(--fg);overflow:hidden}
 const SOLUTION_CLIENT = String.raw`
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+// v3: the 3D tab initialises the first time it is shown, so it sizes from a visible container.
+let started = false
+function maybeStart() { if (!started && !document.getElementById('cg-root').hidden) { started = true; init3d() } }
+addEventListener('cg-tab', maybeStart)
+maybeStart()
+function init3d() {
 const D = JSON.parse(document.getElementById('cg-data').textContent)
 const root = document.getElementById('cg-root')
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim()
@@ -641,7 +666,8 @@ addEventListener('resize', resize)
 
 // Read-only probe for tests.
 const visibleInstances = () => (groups.solution.visible ? D.solution.length : 0) + (groups.evidence.visible ? D.evidence.length : 0)
-window.__cg = Object.freeze(Object.defineProperties({}, {
+window.__cg = window.__cg || {}
+Object.defineProperties(window.__cg, {
   solutionNodes: { get: () => D.solution.length, enumerable: true },
   evidenceNodes: { get: () => D.evidence.length, enumerable: true },
   openQuestions: { get: () => openQs.length, enumerable: true },
@@ -651,7 +677,7 @@ window.__cg = Object.freeze(Object.defineProperties({}, {
   frames: { get: () => frames, enumerable: true },
   solLabels: { get: () => tags.filter((t) => t.sol && t.el.style.display === 'block').length, enumerable: true },
   labelHits: { get: () => labelHits, enumerable: true },
-}))
+})
 
 let frames = 0
 renderer.setAnimationLoop((now) => {
@@ -667,4 +693,271 @@ renderer.setAnimationLoop((now) => {
   placeTags()
   frames++
 })
+}
+`
+
+// ---------------------------------------------------------------------------------------------
+// v3 (design.md 4.8): the UML tab. Mermaid classDiagram per timeline step, re-rendered on every
+// step or theme change; a static renderUmlSvg fallback (both themes) when Mermaid cannot load.
+
+const esc = escapeXml
+const STATIC_SIZE = { w: 1200, h: 800 }
+
+interface UmlSectionData {
+  steps: UmlPageData['steps']
+  latest: UmlPageData['latest'] | null
+  counts: UmlPageData['counts'] | null
+  scan: UmlPageData['scan']
+  /** element id -> display name (intended + unplanned at the latest step) */
+  info: Record<string, string>
+  static: { dark: string; light: string } | null
+}
+
+function umlSection(page: UmlPageData | undefined, tab: 'uml' | '3d'): { html: string; data: UmlSectionData } {
+  void tab
+  if (!page || !page.steps.length) {
+    return {
+      html: '<div class="cg-empty">No UML yet: Claude records it with context_graph uml.add, each change citing a decision.</div>',
+      data: { steps: [], latest: null, counts: null, scan: null, info: {}, static: null },
+    }
+  }
+  const d = page.latestDiagram
+  const lay = layoutUml(d, STATIC_SIZE)
+  // inline SVG in HTML needs no xmlns; dropping it keeps the page's only remote URLs the CDN ones
+  const svg = (theme: 'dark' | 'light') => renderUmlSvg(lay, d, { width: STATIC_SIZE.w, height: STATIC_SIZE.h, theme }).replace(' xmlns="http://www.w3.org/2000/svg"', '')
+  const info: Record<string, string> = {}
+  for (const e of d.elements) info[e.id] = e.name
+  const n = page.steps.length
+  const html = `<div id="cg-counts"></div>
+<div id="cg-controls"><button type="button" id="cg-prev" aria-label="previous decision">◀</button><input type="range" id="cg-step" min="1" max="${n}" value="${n}" step="1" aria-label="decision step"><button type="button" id="cg-next" aria-label="next decision">▶</button><button type="button" id="cg-play" aria-label="play">⏵</button><span id="cg-caption"></span></div>
+<div id="cg-chips"></div>
+<div id="cg-main"><div id="cg-diagram"><div id="uml"></div><div id="cg-note"></div></div>
+<aside id="cg-side"><div id="cg-decision"></div><label class="cg-unplanned">built, not planned: <select id="cg-unplanned"><option value="components">components</option><option value="all">all</option><option value="none">none</option></select></label><div id="cg-check"></div></aside></div>`
+  return {
+    html,
+    data: { steps: page.steps, latest: page.latest, counts: page.counts, scan: page.scan, info, static: { dark: svg('dark'), light: svg('light') } },
+  }
+}
+
+const UL = UML_COLORS.light, UD = UML_COLORS.dark
+const umlTokens = (c: typeof UL | typeof UD, node: string, line: string) =>
+  `--tabs-h:40px;--node:${node};--line:${line};--accent:${c.accent};--f-match:${c.flag.matching};--f-planned:${c.flag['planned-not-built']};--f-built:${c.flag['built-not-planned']};--f-stale:${c.flag['removed-but-built']};--k-component:${c.kind.component};--k-class:${c.kind.class};--k-interface:${c.kind.interface}`
+const UML_CSS = `
+:root{${umlTokens(UL, '#f6f8fa', '#57606a')}}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${umlTokens(UD, '#161b22', '#8b949e')}}}
+:root[data-theme="dark"]{${umlTokens(UD, '#161b22', '#8b949e')}}
+[hidden]{display:none !important}
+#cg-tabs{position:fixed;top:0;left:0;right:0;height:var(--tabs-h);box-sizing:border-box;display:flex;gap:6px;align-items:center;padding:0 16px;background:var(--bg);border-bottom:1px solid var(--border);z-index:3;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+#cg-tabs button{font:inherit;color:var(--muted);background:none;border:1px solid transparent;border-radius:6px;padding:5px 10px;cursor:pointer}
+#cg-tabs button[aria-selected="true"]{color:var(--fg);border-color:var(--border);background:var(--panel);font-weight:600}
+#cg-panel-uml{position:fixed;top:var(--tabs-h);left:0;right:0;bottom:0;overflow:auto;box-sizing:border-box;padding:10px 16px 16px;background:var(--bg);color:var(--fg);font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}
+.cg-empty{margin:48px auto;max-width:52ch;text-align:center;color:var(--muted)}
+#cg-counts{font-weight:600;font-size:13px;overflow-wrap:anywhere}
+#cg-counts .f{margin-right:10px;white-space:nowrap}#cg-counts .scan{font-weight:normal;color:var(--muted)}
+#cg-controls{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+#cg-controls button,#cg-side select{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer}
+#cg-step{flex:1 1 160px;min-width:0;accent-color:var(--accent)}
+#cg-caption{flex:1 1 100%;color:var(--muted);overflow-wrap:anywhere}
+#cg-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.cg-chip{border:1px solid var(--border);border-radius:10px;padding:1px 8px;max-width:100%;overflow-wrap:anywhere}
+.cg-chip.added{border-color:var(--accent)}.cg-chip.changed{border-color:var(--accent);border-style:dashed}.cg-chip.removed{border-color:var(--f-stale);text-decoration:line-through}
+#cg-main{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+#cg-diagram{flex:3 1 480px;min-width:0;max-width:100%;max-height:max(320px,calc(100vh - 190px));overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+#uml{min-height:200px;padding:8px}#uml svg{display:block;height:auto}#uml svg.cg-static,#uml > svg[viewBox]:not([id]){max-width:100%}
+#cg-note{color:var(--muted);padding:0 8px 6px}#cg-note:empty{display:none}
+#cg-side{flex:1 1 240px;min-width:0;max-width:100%;overflow-wrap:anywhere}
+#cg-side h3{font-size:12px;margin:10px 0 4px}#cg-side ul{margin:0;padding-left:16px}
+#cg-side li button{font:inherit;color:var(--fg);background:none;border:0;padding:0;cursor:pointer;text-align:left;text-decoration:underline dotted}
+#cg-decision .label{font-weight:600}#cg-decision .detail{color:var(--muted)}
+.cg-unplanned{display:block;margin-top:8px;color:var(--muted)}
+#uml g[data-cg-id] .label-container path,#uml g[data-cg-id] .label-container rect{stroke:var(--line) !important;stroke-width:1.2px !important}
+#uml g[data-cg-flag="matching"] .label-container path,#uml g[data-cg-flag="matching"] .label-container rect{stroke:var(--f-match) !important;stroke-dasharray:none !important}
+#uml g[data-cg-flag="planned-not-built"] .label-container path,#uml g[data-cg-flag="planned-not-built"] .label-container rect{stroke:var(--f-planned) !important;stroke-dasharray:5 3 !important}
+#uml g[data-cg-flag="built-not-planned"] .label-container path,#uml g[data-cg-flag="built-not-planned"] .label-container rect{stroke:var(--f-built) !important;stroke-dasharray:1 3 !important}
+#uml g[data-cg-flag="removed-but-built"] .label-container path,#uml g[data-cg-flag="removed-but-built"] .label-container rect{stroke:var(--f-stale) !important}
+#uml g[data-cg-status="removed"],#uml g[data-cg-status="abandoned"]{opacity:.5}
+#uml g[data-cg-status="removed"] .label-container path,#uml g[data-cg-status="abandoned"] .label-container path{stroke-dasharray:4 3 !important}
+#uml g[data-cg-status="removed"] .label-group,#uml g[data-cg-status="removed"] .label-group *,#uml g[data-cg-status="abandoned"] .label-group,#uml g[data-cg-status="abandoned"] .label-group *{text-decoration:line-through !important}
+#uml g[data-cg-change="added"] .label-container path,#uml g[data-cg-change="added"] .label-container rect{stroke:var(--accent) !important;stroke-width:3px !important}
+#uml g[data-cg-change="changed"] .label-container path,#uml g[data-cg-change="changed"] .label-container rect{stroke:var(--accent) !important;stroke-width:2.5px !important;stroke-dasharray:6 3 !important}
+#uml g[data-cg-change="removed"] .label-container path,#uml g[data-cg-change="removed"] .label-container rect{stroke:var(--f-stale) !important;stroke-width:3px !important}
+#uml g.cg-pulse{animation:cg-pulse .6s ease-in-out 3}
+@keyframes cg-pulse{50%{opacity:.25}}
+@media (max-width:600px){#cg-diagram{flex-basis:100%}}
+`
+
+// Browser-side module for the UML tab. MERMAID_URL is prepended by exportSolutionHtml ('' = no UML).
+const UML_CLIENT = String.raw`
+const U = JSON.parse(document.getElementById('cg-uml').textContent)
+const $ = (id) => document.getElementById(id)
+const FLAGS = ['matching', 'planned-not-built', 'built-not-planned', 'removed-but-built', 'unchecked']
+const CHANGES = ['added', 'changed', 'removed']
+const SYM = { matching: '✓', 'planned-not-built': '◌', 'built-not-planned': '+', 'removed-but-built': '!', unchecked: '?' }
+const TITLE = { matching: 'matching', 'planned-not-built': 'planned, not built', 'built-not-planned': 'built, not planned', 'removed-but-built': 'removed, still built', unchecked: 'unchecked' }
+const zero = (keys) => Object.fromEntries(keys.map((k) => [k, 0]))
+const N = U.steps.length
+const probe = { step: N, steps: N, rendered: false, nodes: 0, flags: zero(FLAGS), changes: zero(CHANGES), fallback: false }
+let tab = document.querySelector('[role=tab][aria-selected="true"]')?.dataset.tab || 'uml'
+window.__cg = window.__cg || {}
+Object.defineProperties(window.__cg, {
+  uml: { get: () => ({ ...probe, flags: { ...probe.flags }, changes: { ...probe.changes } }), enumerable: true },
+  tab: { get: () => tab, enumerable: true },
+})
+
+// --- tabs (wired before anything can fail) -------------------------------------------------------
+function show(t) {
+  tab = t
+  for (const b of document.querySelectorAll('[role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === t))
+  $('cg-panel-uml').hidden = t !== 'uml'
+  $('cg-root').hidden = t !== '3d'
+  dispatchEvent(new Event('cg-tab'))
+}
+for (const b of document.querySelectorAll('[role=tab]')) b.addEventListener('click', () => show(b.dataset.tab))
+
+if (N) {
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim()
+  const theme = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  let step = N, unplanned = 'components', timer = null, seq = 0, renders = 0, mermaidP = null
+  const variant = () => (step === N ? U.latest[unplanned] : U.steps[step - 1])
+  const nameOf = (id) => {
+    if (U.info[id]) return U.info[id]
+    if (id.includes('|')) { const [a, k, b] = id.split('|'); return nameOf(a) + ' ' + k + ' ' + nameOf(b) }
+    const dot = id.lastIndexOf('.')
+    if (dot > 0 && U.info[id.slice(0, dot)]) return U.info[id.slice(0, dot)] + '.' + id.slice(dot + 1)
+    return id.startsWith('code:') ? id.slice(id.lastIndexOf('/') + 1) : id
+  }
+  const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e }
+
+  // header counts (latest step, vs the code as scanned)
+  {
+    const h = $('cg-counts')
+    for (const f of FLAGS) { const s = el('span', SYM[f] + ' ' + (U.counts[f] || 0), 'f'); s.title = TITLE[f]; h.appendChild(s) }
+    if (U.scan) {
+      const at = U.scan.at ? new Date(U.scan.at).toTimeString().slice(0, 8) : 'not yet'
+      h.appendChild(el('span', 'vs code scanned ' + at + ' (' + U.scan.root + ')' + (U.scan.truncated ? ' · truncated' : ''), 'scan'))
+    }
+  }
+
+  function pulse(id) {
+    const g = $('uml').querySelector('[data-cg-id="' + CSS.escape(id) + '"], g.uml-box[data-id="' + CSS.escape(id) + '"]')
+    if (!g) return
+    g.classList.remove('cg-pulse'); void g.getBBox?.(); g.classList.add('cg-pulse')
+    setTimeout(() => g.classList.remove('cg-pulse'), 2000)
+  }
+
+  function chrome() {
+    const s = U.steps[step - 1], v = variant()
+    probe.step = step
+    $('cg-step').value = String(step)
+    $('cg-prev').disabled = step <= 1
+    $('cg-next').disabled = step >= N
+    $('cg-unplanned').disabled = step !== N
+    $('cg-caption').textContent = 'Step ' + step + ' of ' + N + ' · ' + s.label
+    const chips = $('cg-chips'); chips.replaceChildren()
+    for (const k of CHANGES) for (const t of s.changes[k]) chips.appendChild(el('span', k + ': ' + nameOf(t), 'cg-chip ' + k))
+    const dec = $('cg-decision'); dec.replaceChildren()
+    dec.appendChild(el('div', s.label, 'label'))
+    if (s.detail) dec.appendChild(el('div', s.detail, 'detail'))
+    if (s.drivenBy.length) dec.appendChild(el('div', 'driven by: ' + s.drivenBy.join(' · '), 'detail'))
+    const check = $('cg-check'); check.replaceChildren()
+    const by = {}
+    // marks are keyed by Mermaid class name
+    for (const [id, name] of Object.entries(v.names)) { const m = v.marks[name]; if (m && m.flag && m.flag !== 'matching') (by[m.flag] ||= []).push(id) }
+    for (const f of ['planned-not-built', 'built-not-planned', 'removed-but-built', 'unchecked']) {
+      if (!by[f]) continue
+      check.appendChild(el('h3', SYM[f] + ' ' + TITLE[f] + ' (' + by[f].length + ')'))
+      const ul = el('ul')
+      for (const id of by[f]) { const li = el('li'), b = el('button', nameOf(id)); b.type = 'button'; b.addEventListener('click', () => pulse(id)); li.appendChild(b); ul.appendChild(li) }
+      check.appendChild(ul)
+    }
+    if (!check.childNodes.length) check.appendChild(el('div', '✓ everything recorded matches the code', 'detail'))
+  }
+
+  function countDom(attrFlag, attrChange, sel) {
+    probe.flags = zero(FLAGS); probe.changes = zero(CHANGES)
+    const nodes = $('uml').querySelectorAll(sel)
+    for (const g of nodes) {
+      const f = g.getAttribute(attrFlag), c = g.getAttribute(attrChange)
+      if (f in probe.flags) probe.flags[f]++
+      if (c in probe.changes) probe.changes[c]++
+    }
+    probe.nodes = nodes.length
+  }
+
+  function mark(v) {
+    const root = $('uml')
+    for (const [id, name] of Object.entries(v.names)) {
+      const g = root.querySelector('g[id^="classId-' + name + '-"]')
+      if (!g) continue
+      const m = v.marks[name] || { flag: null, status: 'active', change: null }
+      g.setAttribute('data-cg-id', id)
+      g.setAttribute('data-cg-flag', m.flag || 'none')
+      g.setAttribute('data-cg-status', m.status)
+      g.setAttribute('data-cg-change', m.change || 'none')
+    }
+    countDom('data-cg-flag', 'data-cg-change', 'g[data-cg-id]')
+  }
+
+  function fallback(e) {
+    probe.fallback = true; probe.rendered = false; probe.error = String(e && e.message || e).slice(0, 200)
+    $('uml').innerHTML = U.static[theme()] || U.static.light
+    $('cg-note').textContent = 'Mermaid could not load: static diagram (latest step)'
+    countDom('data-flag', 'data-change', 'g.uml-box')
+  }
+
+  function loadMermaid() {
+    mermaidP ||= import(MERMAID_URL).then((m) => m.default || m)
+    return mermaidP
+  }
+
+  async function render() {
+    chrome()
+    const my = ++seq, v = variant()
+    probe.rendered = false
+    if (probe.fallback) { fallback(probe.error); return }
+    try {
+      const mermaid = await loadMermaid()
+      if (my !== seq) return
+      const dark = theme() === 'dark'
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base', darkMode: dark, themeVariables: {
+        darkMode: dark, background: css('--bg'), primaryColor: css('--node'), mainBkg: css('--node'), primaryTextColor: css('--fg'),
+        classText: css('--fg'), textColor: css('--fg'), primaryBorderColor: css('--line'), nodeBorder: css('--line'), lineColor: css('--line'),
+        secondaryColor: css('--node'), tertiaryColor: css('--bg'), fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '13px' } })
+      const id = 'cg-uml-' + (++renders)
+      let out
+      try { out = await mermaid.render(id, v.mermaid) } finally { document.getElementById('d' + id)?.remove() }
+      if (my !== seq) return
+      $('uml').innerHTML = out.svg
+      // fit the width, but never below 60 % of Mermaid's natural size: #cg-diagram scrolls rather than shrink the text
+      const svgEl = $('uml').querySelector('svg')
+      if (svgEl && svgEl.style.maxWidth) {
+        const natural = parseFloat(svgEl.style.maxWidth) || 0, fit = $('cg-diagram').clientWidth - 18
+        svgEl.style.width = Math.round(Math.min(natural, Math.max(fit, natural * 0.6))) + 'px'
+        svgEl.style.maxWidth = 'none'; svgEl.removeAttribute('width')
+      }
+      $('cg-note').textContent = ''
+      mark(v)
+      probe.rendered = true
+      delete probe.error
+    } catch (e) {
+      if (my === seq) fallback(e)
+    }
+  }
+
+  const go = (k) => { const n = Math.max(1, Math.min(N, k)); if (n !== step) { step = n; render() } }
+  $('cg-step').addEventListener('input', (e) => go(Number(e.target.value)))
+  $('cg-prev').addEventListener('click', () => go(step - 1))
+  $('cg-next').addEventListener('click', () => go(step + 1))
+  $('cg-unplanned').addEventListener('change', (e) => { unplanned = e.target.value; render() })
+  const stop = () => { clearInterval(timer); timer = null; $('cg-play').textContent = '⏵' }
+  $('cg-play').addEventListener('click', () => {
+    if (timer) return stop()
+    if (step >= N) go(1)
+    $('cg-play').textContent = '⏸'
+    timer = setInterval(() => (step >= N ? stop() : go(step + 1)), 1200)
+  })
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render)
+  new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  render()
+}
 `

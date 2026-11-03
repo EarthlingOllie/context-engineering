@@ -35,6 +35,10 @@ export function sanitizeMember(text: string): string {
     .replace(/[{};"`%]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
+    // markdown autolinks (email, scheme://, www.) render as "Unsupported markdown: link": break them
+    .replace(/@(?=\S)/g, '@\u200B')
+    .replace(/:\/\//g, ':\u200B//')
+    .replace(/\bwww\./gi, (w) => `${w.slice(0, 3)}\u200B.`)
   return defuse(s)
 }
 

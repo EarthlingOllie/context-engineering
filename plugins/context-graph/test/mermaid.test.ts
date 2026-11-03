@@ -108,6 +108,14 @@ test('v3-13: sanitizeMember', () => {
   assert.equal(sanitizeMember('a{b};"c"`d`%%e  \n  f'), 'abcde f')
 })
 
+test('v3-13: sanitizeMember breaks markdown autolinks (Mermaid renders them as "Unsupported markdown: link")', () => {
+  const Z = '\u200B'
+  assert.equal(sanitizeMember('three@0.170.0 in the browser'), `three@${Z}0.170.0 in the browser`)
+  assert.equal(sanitizeMember('see https://cdn.example/x'), `see https:${Z}//cdn.example/x`)
+  assert.equal(sanitizeMember('www.example.com'), `www${Z}.example.com`)
+  assert.equal(sanitizeMember('a @ b'), 'a @ b')
+})
+
 const NASTY = ['Bad"Name{x}[y]', 'Line\nbreak %%{init: {"theme":"dark"}}%%', 'click E_a call alert()', '<script>alert(1)</script>', 'callback href javascript:x', 'a; b', '%%', '"']
 
 test('v3-13: adversarial names, members and labels never reach the output raw', () => {

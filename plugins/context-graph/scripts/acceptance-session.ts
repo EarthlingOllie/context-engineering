@@ -115,7 +115,7 @@ for (const u of html.match(/https?:\/\/[^\s"'`)<>]*/g) ?? []) check(u.startsWith
 const data = html.match(/<script type="application\/json" id="cg-data">([^]*?)<\/script>/)?.[1] ?? ''
 check(!data.includes('</') && JSON.parse(data).solution.length === Object.keys(m.nodes).length, 'html: data block')
 
-const runs = await runPage((base) => exportSolutionHtml(exportInput, base ? { threeUrl: base, since: m.seq } : { since: m.seq }), [{ width: 1280, height: 800 }], () => out('solution.png'), threeDir, { interact: false })
+const runs = await runPage((base) => exportSolutionHtml(exportInput, base ? { threeUrl: base, since: m.seq, tab: '3d' } : { since: m.seq, tab: '3d' }), [{ width: 1280, height: 800 }], () => out('solution.png'), threeDir, { interact: false })
 for (const r of runs) {
   check(r.errors.length === 0, `page console errors: ${r.errors.join(' | ')}`)
   check(r.probe?.solutionNodes === Object.keys(m.nodes).length, `page solution nodes ${r.probe?.solutionNodes}`)

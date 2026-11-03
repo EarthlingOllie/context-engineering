@@ -181,7 +181,7 @@ test('feature 21: session.start registers context_graph; inspect, focus and clea
   expect(specs.length).toBe(1)
   expect(specs[0]!.name).toBe('context_graph')
   expect(specs[0]!.isDeferred).toBe(false)
-  expect(specs[0]!.inputSchema?.properties?.action?.enum).toEqual(['inspect', 'focus', 'clear', 'add', 'link', 'resolve', 'abandon', 'import'])
+  expect(specs[0]!.inputSchema?.properties?.action?.enum).toEqual(['inspect', 'focus', 'clear', 'add', 'link', 'resolve', 'abandon', 'import', 'uml.add', 'uml.relate', 'uml.remove', 'uml.scan'])
   expect(TOOL_SCHEMA).toBe(CORE_SCHEMA)
   expect(specs[0]!.inputSchema).toEqual(JSON.parse(JSON.stringify(CORE_SCHEMA)))
 

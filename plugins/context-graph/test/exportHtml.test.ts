@@ -106,3 +106,116 @@ test('v2-19: the page grows in exactly the nodes created after `since` (default:
   assert.equal(fresh(all).length, all.solution.length)
   assert.match(exportSolutionHtml(layeredInputs()), /n\.c > D\.since/)
 })
+
+// v3-18: the Artifact page gains the UML tab (v3 design.md 4.8).
+import { MERMAID_URL } from '../src/core/exportHtml.ts'
+import { applyDesignOps, emptyUml, parseDesignSeed } from '../src/core/uml.ts'
+import { emptyModel } from '../src/core/solution.ts'
+import { assemble, scanFile } from '../src/core/codeScan.ts'
+import { umlPageData } from '../src/core/diagram.ts'
+import { timeline } from '../src/core/timeline.ts'
+import { readFileSync } from 'node:fs'
+
+const umlFixture = (extra: object[] = []) => {
+  const seed = parseDesignSeed(readFileSync(new URL('./fixtures/uml-small.json', import.meta.url), 'utf8'))
+  const ops = [...seed.ops, ...(parseDesignSeed(JSON.stringify({ format: 'context-graph/solution@2', ops: extra })).ops)]
+  const { sol, uml } = applyDesignOps({ sol: emptyModel(), uml: emptyUml() }, ops).state
+  const src: Record<string, string> = {
+    'core/render.ts': 'export interface Options { theme: string }\nexport function render(s: unknown): string { return "" }',
+    'core/gl.ts': 'export class GlRenderer { frame(): void {} }',
+    'util/prng.ts': 'export function mulberry() {}',
+  }
+  const actual = assemble(Object.keys(src).map((p) => scanFile(p, src[p]!)), '/repo/src')
+  return { sol, uml, page: umlPageData(uml, sol, actual, { scannedAt: 0 }) }
+}
+const withUml = (extra: object[] = []) => ({ ...layeredInputs(), uml: umlFixture(extra).page })
+const modules = (html: string) => [...html.matchAll(/<script type="module">([^]*?)<\/script>/g)].map((m) => m[1]!)
+const umlJson = (html: string) => {
+  const m = html.match(/<script type="application\/json" id="cg-uml">([^]*?)<\/script>/)
+  assert.ok(m, 'cg-uml data block')
+  return m[1]!
+}
+
+test('v3-18: with uml the page keeps the Artifact contract; remote URLs are three@0.170.0/ or exactly MERMAID_URL', () => {
+  const html = exportSolutionHtml(withUml())
+  assert.ok(html.startsWith('<title>Context Window Graph</title>'), html.slice(0, 80))
+  for (const tag of ['<!doctype', '<html', '<head', '<body']) assert.equal(html.toLowerCase().includes(tag), false, tag)
+  const urls = html.match(/https?:\/\/[^\s"'`)<>\\]*/g) ?? []
+  assert.ok(urls.includes(MERMAID_URL))
+  assert.equal(MERMAID_URL, 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs')
+  for (const u of urls) assert.ok(u.startsWith(CDN) || u === MERMAID_URL, u)
+  const css = html.match(/<style>([^]*?)<\/style>/)![1]!
+  assert.match(css, /:root\s*\{[^}]*--bg:/)
+  assert.match(css, /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*--bg:/)
+  assert.match(css, /:root\[data-theme="dark"\]\s*\{[^}]*--bg:/)
+  assert.match(css, /body\s*\{[^}]*background:\s*var\(--bg\)/)
+})
+
+test('v3-18: a tab bar with UML design first, and a step range 1..steps', () => {
+  const { page, uml, sol } = umlFixture()
+  const html = exportSolutionHtml({ ...layeredInputs(), uml: page })
+  const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>([^<]*)<\/button>/g)].map((m) => m[1])
+  assert.deepEqual(tabs, ['UML design', '3D solution map'])
+  assert.match(html, /<button[^>]*role="tab"[^>]*aria-selected="true"[^>]*>UML design</)
+  const range = html.match(/<input type="range"[^>]*>/)
+  assert.ok(range, 'range input')
+  const steps = timeline(uml, sol).length
+  assert.equal(steps, 5)
+  assert.match(range[0], /\bmin="1"/)
+  assert.match(range[0], new RegExp(`\\bmax="${steps}"`))
+  assert.match(html, /<select[^>]*id="cg-unplanned"/)
+  for (const id of ['cg-prev', 'cg-next', 'cg-play', 'cg-caption', 'cg-chips', 'uml', 'cg-side', 'cg-counts']) assert.match(html, new RegExp(`id="${id}"`), id)
+  // tab: '3d' opens on the 3D tab
+  assert.match(exportSolutionHtml({ ...layeredInputs(), uml: page }, { tab: '3d' }), /<button[^>]*role="tab"[^>]*aria-selected="true"[^>]*>3D solution map</)
+})
+
+test('v3-18: two separate module scripts; mermaid is imported only in one, three only in the other', () => {
+  const html = exportSolutionHtml(withUml())
+  const mods = modules(html)
+  assert.equal(mods.length, 2)
+  const um = mods.filter((s) => s.includes('mermaid'))
+  const th = mods.filter((s) => /from 'three'/.test(s))
+  assert.equal(um.length, 1)
+  assert.equal(th.length, 1)
+  assert.notEqual(um[0], th[0])
+  assert.ok(um[0]!.includes(MERMAID_URL) && /import\(/.test(um[0]!))
+  assert.equal(/from 'three'/.test(um[0]!), false)
+  assert.equal(th[0]!.includes('mermaid'), false)
+  const over = exportSolutionHtml(withUml(), { mermaidUrl: 'http://127.0.0.1:9/mermaid.esm.min.mjs' })
+  assert.equal(over.includes(MERMAID_URL), false)
+  assert.ok(over.includes('http://127.0.0.1:9/mermaid.esm.min.mjs'))
+})
+
+test('v3-18: the UML JSON cannot close its script, has one step per timeline step and both static fallback SVGs', () => {
+  const evil = [
+    { op: 'add', kind: 'decision', id: 'decision:evil', label: '</script><script>alert(1)</script>' },
+    { op: 'uml.add', decision: 'decision:evil', kind: 'class', name: '</script><b>x', attributes: ['y: </style>'] },
+  ]
+  const { page, uml, sol } = umlFixture(evil)
+  const html = exportSolutionHtml({ ...layeredInputs(), uml: page })
+  const block = umlJson(html)
+  assert.equal(block.includes('</'), false)
+  const d = JSON.parse(block)
+  assert.equal(d.steps.length, timeline(uml, sol).length)
+  assert.equal(d.steps.length, 6)
+  for (const theme of ['dark', 'light']) {
+    assert.ok(d.static[theme].startsWith('<svg'), theme)
+    assert.ok(d.static[theme].includes('uml-box'), theme)
+  }
+  assert.notEqual(d.static.dark, d.static.light)
+  assert.equal(d.steps[5].mermaid, page.steps[5]!.mermaid)
+  assert.ok(d.latest.components && d.latest.all && d.latest.none)
+})
+
+test('v3-18: without uml the v2 page is unchanged apart from the tab bar and an empty-state UML tab', () => {
+  const v2 = exportSolutionHtml(layeredInputs())
+  const v3 = exportSolutionHtml(withUml())
+  const cg = (h: string) => h.match(/<script type="application\/json" id="cg-data">([^]*?)<\/script>/)![1]
+  assert.equal(cg(v2), cg(v3))
+  assert.equal(v2.includes('mermaid@'), false)
+  assert.match(v2, /No UML yet/)
+  assert.match(v2, /role="tab"[^>]*>UML design</)
+  assert.deepEqual(JSON.parse(umlJson(v2)).steps, [])
+  // the 3D module is the v2 solution client
+  assert.ok(modules(v2).some((s) => s.includes("document.getElementById('cg-data')")))
+})

@@ -17,7 +17,7 @@ const threeDir = ti >= 0 ? resolve(argv.splice(ti, 2)[1]!) : undefined
 const out = resolve(argv[0] ?? '.')
 mkdirSync(out, { recursive: true })
 const input = layeredInputs()
-const fragment = (threeUrl?: string) => exportSolutionHtml(input, threeUrl ? { threeUrl } : {})
+const fragment = (threeUrl?: string) => exportSolutionHtml(input, threeUrl ? { threeUrl, tab: '3d' } : { tab: '3d' })
 writeFileSync(resolve(out, 'smoke.html'), fragment())
 
 const want = {

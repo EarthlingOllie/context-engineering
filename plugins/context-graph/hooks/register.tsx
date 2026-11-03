@@ -322,12 +322,16 @@ async function serveTool($: Dollar, input: Record<string, unknown>): Promise<str
   if (action === 'add' || action === 'link' || action === 'resolve' || action === 'abandon' || action === 'import') {
     const mapped = toolInputToOps(input)
     if ('error' in mapped) return JSON.stringify({ ok: false, error: mapped.error })
+    // v3 S6: toolInput accepts uml.* ops; the shell serves them from S7 (v3-22). Until then they are refused here.
+    const solOps = mapped.ops.filter((op): op is SolOp => !op.op.startsWith('uml.'))
+    if (solOps.length !== mapped.ops.length) return JSON.stringify({ ok: false, error: 'ops: uml.* ops are not served by this build yet' })
+    mapped.ops = solOps
     if (action === 'import') {
-      const r = await importOps($, mapped.path ? { path: mapped.path } : { ops: mapped.ops }, mapped.mode === 'replace')
+      const r = await importOps($, mapped.path ? { path: mapped.path } : { ops: solOps }, mapped.mode === 'replace')
       if (!r.ok) return JSON.stringify(r)
       return JSON.stringify({ ok: true, applied: r.applied, failed: r.failed, dangling: r.dangling, ...(r.errors.length ? { errors: r.errors } : {}), model: modelSummary(r.model), export: await exportInfo($) })
     }
-    const { model, results } = await writeModel($, mapped.ops)
+    const { model, results } = await writeModel($, solOps)
     const r: Partial<OpResult> = results[0] ?? { ok: false, error: 'no-op' }
     return JSON.stringify({ ok: r.ok === true, ...(r.id ? { id: r.id } : {}), ...(r.error ? { error: r.error } : {}), ...(r.warnings?.length ? { warnings: r.warnings } : {}), model: modelSummary(model), export: await exportInfo($) })
   }
