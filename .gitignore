@@ -1,3 +1,4 @@
 # Agent worktrees created by the Claude Code harness
 .claude/worktrees/
 SCRATCH/
+.context-graph/
