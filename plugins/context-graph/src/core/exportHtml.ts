@@ -863,11 +863,16 @@ if (N) {
     const by = {}
     // marks are keyed by Mermaid class name
     for (const [id, name] of Object.entries(v.names)) { const m = v.marks[name]; if (m && m.flag && m.flag !== 'matching') (by[m.flag] ||= []).push(id) }
+    // planned members of built elements (pulse their element)
+    for (const [id, ms] of Object.entries(v.pending || {})) for (const mn of ms) (by['planned-not-built'] ||= []).push(id + '.' + mn)
     for (const f of ['planned-not-built', 'built-not-planned', 'removed-but-built', 'unchecked']) {
       if (!by[f]) continue
       check.appendChild(el('h3', SYM[f] + ' ' + TITLE[f] + ' (' + by[f].length + ')'))
       const ul = el('ul')
-      for (const id of by[f]) { const li = el('li'), b = el('button', nameOf(id)); b.type = 'button'; b.addEventListener('click', () => pulse(id)); li.appendChild(b); ul.appendChild(li) }
+      for (const id of by[f]) {
+        const li = el('li'), b = el('button', id.startsWith('code:') ? id.slice(5) : nameOf(id)), owner = v.names[id] ? id : id.slice(0, id.lastIndexOf('.'))
+        b.type = 'button'; b.addEventListener('click', () => pulse(owner)); li.appendChild(b); ul.appendChild(li)
+      }
       check.appendChild(ul)
     }
     if (!check.childNodes.length) check.appendChild(el('div', '✓ everything recorded matches the code', 'detail'))

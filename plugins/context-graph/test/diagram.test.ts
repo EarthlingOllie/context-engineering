@@ -196,3 +196,11 @@ test('v3-12: umlPageData merges the oldest steps beyond maxSteps into step 1', (
   assert.deepEqual(empty.steps, [])
   assert.ok(empty.latest.components.mermaid.startsWith('classDiagram'))
 })
+
+test('v3-12: a variant lists the planned-not-built members of its matched elements (for the cross-check panel)', () => {
+  const { sol, uml } = fixture()
+  const p = umlPageData(uml, sol, actual(), { scannedAt: 5 })
+  assert.deepEqual(p.latest.components.pending, { 'uml:renderer': ['MAX'] })
+  // without a scan nothing is checked, so nothing is pending
+  assert.equal(umlPageData(uml, sol, null).latest.components.pending, undefined)
+})

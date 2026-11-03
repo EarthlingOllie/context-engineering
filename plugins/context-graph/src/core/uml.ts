@@ -40,7 +40,7 @@ const strArr = (v: unknown) => v === undefined || (Array.isArray(v) && v.every(i
 const isUmlKind = (v: unknown): v is UmlKind => isStr(v) && (UML_KINDS as readonly string[]).includes(v)
 const isRelKind = (v: unknown): v is UmlRelKind => isStr(v) && (UML_REL_KINDS as readonly string[]).includes(v)
 const ID_RE = /^[a-z]+:[a-z0-9-]{1,48}$/
-const MEMBER_NAME_RE = /^\s*[+\-#~]?\s*([A-Za-z_$][\w$]*)/
+export const MEMBER_NAME_RE = /^\s*[+\-#~]?\s*([A-Za-z_$][\w$]*)/
 const relId = (from: string, kind: UmlRelKind, to: string) => `${from}|${kind}|${to}`
 
 function pick<T>(o: Record<string, unknown>): T {

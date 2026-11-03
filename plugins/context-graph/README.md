@@ -186,11 +186,19 @@ npm run validate    # claude plugin validate .
 npm run check       # all four
 npm run smoke -- <outdir> [--three <three@0.170.0 package dir>]        # the Artifact page in headless chromium
 npm run acceptance -- <seed.json> <transcript.jsonl> <outdir> [--three <dir>]
+npm run mermaid-check -- --mermaid <mermaid@11.4.1 package dir>       # every emitted diagram renders in real Mermaid
+npm run acceptance:uml -- <seed.json> <transcript.jsonl> <srcRoot> <outdir> [--three <dir>] [--mermaid <dir>] [--baseline <rev>]
 ```
 
 `npm run acceptance` imports a seed model against a real transcript, checks it, and writes `solution.svg`,
 `solution.html`, `solution.png` (the WebGL page), `pane.svg` and `pane.png` to the outdir. `--three` serves three.js
 from a local copy where cdn.jsdelivr.net is blocked.
+
+`npm run acceptance:uml` replays a design seed (format @2) as the decision timeline, scans `<srcRoot>`, cross-checks
+the latest step (and, with `--baseline`, the code at that git revision), then drives the Artifact page in Chromium
+through every step (slider, ◀ ▶, theme, unplanned filter, 3D tab, 390 px, a 404 Mermaid URL for the static fallback).
+It writes `steps/NN.mmd`, `crosscheck.json`, `pane-uml.svg`, `pane-uml-dark.svg`, `pane-uml.txt`, `solution.html`,
+`uml.png`, `uml-dark.png`, `uml-step2.png`, `3d.png`, `step-start.png`, `step-middle.png`, `step-end.png`, `pane.png`.
 
 `tsconfig.mod.json` needs the engine types at `.claude-plugin/types/claude-code/index.d.ts`, which is gitignored.
 Create them with `npm run types -- <path to plugin-authoring/types/claude-code.d.ts>`.

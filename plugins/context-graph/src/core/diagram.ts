@@ -5,6 +5,7 @@ import type { ActualDesign } from './codeScan.ts'
 import { crossCheck, UML_FLAGS } from './crossCheck.ts'
 import type { CrossCheck, UmlFlag } from './crossCheck.ts'
 import { toMermaid } from './mermaid.ts'
+import { MEMBER_NAME_RE } from './uml.ts'
 import type { SolutionModel } from './solution-types.ts'
 import { snapshotAt, timeline } from './timeline.ts'
 import type { TimelineStep } from './timeline.ts'
@@ -40,7 +41,11 @@ export interface DiagramInput {
   unplanned?: Unplanned; scannedAt?: number | null
 }
 export interface UmlMark { flag: UmlFlag | null; status: string; change: UmlChange | null }
-export interface UmlVariant { mermaid: string; names: Record<string, string>; marks: Record<string, UmlMark> }
+export interface UmlVariant {
+  mermaid: string; names: Record<string, string>; marks: Record<string, UmlMark>
+  /** element id -> names of its planned-not-built members (absent when there are none) */
+  pending?: Record<string, string[]>
+}
 export interface UmlPageStep extends UmlVariant {
   index: number; decision: string; label: string; abandoned: boolean; detail?: string; drivenBy: string[]
   changes: TimelineStep['changes']
@@ -206,6 +211,9 @@ export function buildDiagram(input: DiagramInput): Diagram {
   return d
 }
 
+/** the member's name, as uml.ts derives it */
+const memberName = (text: string): string => MEMBER_NAME_RE.exec(text)?.[1] ?? text
+
 function variant(d: Diagram): UmlVariant {
   const out = toMermaid(d)
   const marks: Record<string, UmlMark> = {}
@@ -213,7 +221,15 @@ function variant(d: Diagram): UmlVariant {
     const name = out.names[e.id]
     if (name) marks[name] = { flag: e.flag, status: e.status, change: e.change }
   }
-  return { mermaid: out.text, names: out.names, marks }
+  const v: UmlVariant = { mermaid: out.text, names: out.names, marks }
+  const pending: Record<string, string[]> = {}
+  for (const e of d.elements) {
+    if (!out.names[e.id]) continue
+    const names = e.members.filter((m) => m.flag === 'planned-not-built').map((m) => memberName(m.text))
+    if (names.length) pending[e.id] = names
+  }
+  if (Object.keys(pending).length) v.pending = pending
+  return v
 }
 
 /** Every step's Mermaid text (unplanned 'none' but at the latest step), plus the three latest variants. */

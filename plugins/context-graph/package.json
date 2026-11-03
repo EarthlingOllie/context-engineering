@@ -16,6 +16,7 @@
     "vendor": "node scripts/vendor-three.mjs",
     "install-dev": "node scripts/install-dev.mjs",
     "acceptance": "node scripts/acceptance-session.ts",
-    "mermaid-check": "node scripts/mermaid-check.ts"
+    "mermaid-check": "node scripts/mermaid-check.ts",
+    "acceptance:uml": "node scripts/acceptance-uml.ts"
   }
 }
