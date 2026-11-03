@@ -263,9 +263,19 @@ function drawLayered(scene: Scene, plan: LPlan, o: SvgOptions): string {
       { x: cx - w / 2, y: cy - gap - LINE_H, w, h: LINE_H },
       { x: cx - w / 2, y: cy + gap, w, h: LINE_H },
     ]
-    const spot = candidates.find((b) => b.x >= 0 && b.x + b.w <= o.width && b.y >= 0 && b.y + b.h <= o.height - 16 && !placed.some((p) => overlaps(p, b)))
+    // Solution labels are never dropped: when the four spots beside the node are taken, step further out, one line
+    // at a time above and below on either side, and draw a leader back to the node.
+    if (sol) for (let k = 1; k <= 40; k++) for (const dy of [-k * LINE_H, k * LINE_H]) {
+      candidates.push({ x: cx + gap, y: cy - 6 + dy, w, h: LINE_H }, { x: cx - gap - w, y: cy - 6 + dy, w, h: LINE_H })
+    }
+    const fits = (b: Box) => b.x >= 0 && b.x + b.w <= o.width && b.y >= 18 && b.y + b.h <= o.height - 16
+    const spot = candidates.find((b) => fits(b) && !placed.some((p) => overlaps(p, b)))
     if (!spot) continue
     placed.push(spot)
+    if (candidates.indexOf(spot) >= 4) {
+      const lx = spot.x > cx ? spot.x - 1 : spot.x + spot.w + 1
+      out.push(`<line class="leader" x1="${f1(cx)}" y1="${f1(cy)}" x2="${f1(lx)}" y2="${f1(spot.y + LINE_H / 2)}" stroke="${t.fg}" stroke-width="0.6" opacity="0.45"/>`)
+    }
     const style = sol
       ? `${n.kind === 'goal' ? ' font-weight="bold"' : ''}${n.status === 'abandoned' ? ' opacity="0.4" text-decoration="line-through"' : ` opacity="${r2(0.55 + 0.45 * clamp01(n.weight))}"`}`
       : ` opacity="0.6" font-size="10"`

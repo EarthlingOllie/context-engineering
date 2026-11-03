@@ -292,6 +292,7 @@ body{margin:0;background:var(--bg);color:var(--fg);overflow:hidden}
 #cg-tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--border);padding:4px 6px;border-radius:4px;display:none;max-width:min(50ch,calc(100% - 32px))}
 .cg-tag{position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;max-width:30ch;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 3px var(--bg),0 0 3px var(--bg)}
 .cg-tag.sol{font-weight:600}.cg-tag.goal{font-size:14px;max-width:48ch}.cg-tag.ev{color:var(--muted);font-size:11px}
+.cg-lead{position:absolute;left:0;top:0;height:1px;background:var(--muted);opacity:.5;transform-origin:0 0;pointer-events:none}
 .cg-tag.abandoned{text-decoration:line-through;opacity:.45}
 @media (max-width:600px){#cg-legend{display:none}.cg-tag{max-width:22ch}}
 `
@@ -458,7 +459,8 @@ const tags = [...labelSol.map((n) => ({ n, sol: true })), ...labelEv.map((n) => 
   if (sol) el.style.color = hex(D.colors[n.k])
   el.textContent = sol ? GLYPH[n.k] + ' ' + n.l : n.l
   root.appendChild(el)
-  return { n, sol, i, el, v: new THREE.Vector3() }
+  const lead = sol ? root.appendChild(Object.assign(document.createElement('div'), { className: 'cg-lead' })) : null
+  return { n, sol, i, el, lead, v: new THREE.Vector3() }
 })
 function placeTags() {
   const w0 = W(), h0 = H(), rr = root.getBoundingClientRect()
@@ -475,18 +477,26 @@ function placeTags() {
     const ew = t.el.offsetWidth || 120
     // right, left, above, below, then the four diagonals: the first spot that is on screen and free
     const spots = [[px + gap, py - 8], [px - gap - ew, py - 8], [px - ew / 2, py - gap - h], [px - ew / 2, py + gap - 4], [px + gap, py - 8 - h], [px + gap, py + 6], [px - gap - ew, py - 8 - h], [px - gap - ew, py + 6]]
+    // solution labels are never dropped: step further out a line at a time, with a leader back to the node
+    if (t.sol) for (let k = 2; k <= 30; k++) for (const dy of [-k * h, k * h]) spots.push([px + gap, py - 8 + dy], [px - gap - ew, py - 8 + dy])
+    let si = -1
     const live = layerOn && (i < 0 || grow[i] > 0.5) && t.v.z < 1 && Math.abs(t.v.x) < 1 && Math.abs(t.v.y) < 1
     let x = px + gap, y = py - 8, w = Math.min(ew, w0 - x), on = false
-    if (live) for (const [sx, sy] of spots) {
+    if (live) for (const [j, [sx, sy]] of spots.entries()) {
       const sw = Math.min(ew, w0 - sx)
       if (sx < 0 || sx > w0 - 24 || sy < 0 || sy > h0 - h) continue
       if (boxes.some((b) => sx < b.x + b.w && b.x < sx + sw && sy < b.y + (b.h ?? h) && b.y < sy + h)) continue
-      x = sx; y = sy; w = sw; on = true; break
+      x = sx; y = sy; w = sw; on = true; si = j; break
     }
     if (on) boxes.push({ x, y, w, h })
     t.el.style.display = on ? 'block' : 'none'
     t.el.style.maxWidth = Math.max(40, w0 - x - 8) + 'px'
     t.el.style.transform = 'translate(' + x + 'px,' + y + 'px)'
+    if (t.lead) {
+      const far = on && si >= 8, lx = x > px ? x - 1 : x + w + 1, ly = y + h / 2
+      t.lead.style.display = far ? 'block' : 'none'
+      if (far) { t.lead.style.width = Math.hypot(lx - px, ly - py) + 'px'; t.lead.style.transform = 'translate(' + px + 'px,' + py + 'px) rotate(' + Math.atan2(ly - py, lx - px) + 'rad)' }
+    }
   }
 }
 
@@ -609,6 +619,7 @@ window.__cg = Object.freeze(Object.defineProperties({}, {
   replaying: { get: () => replaying, enumerable: true },
   visibleMeshes: { get: () => visibleInstances(), enumerable: true },
   frames: { get: () => frames, enumerable: true },
+  solLabels: { get: () => tags.filter((t) => t.sol && t.el.style.display === 'block').length, enumerable: true },
 }))
 
 let frames = 0

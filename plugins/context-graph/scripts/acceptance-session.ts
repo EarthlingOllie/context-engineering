@@ -90,6 +90,7 @@ const abOp = Number(ab.match(/^<g [^>]*opacity="([\d.]+)"/)?.[1] ?? 1)
 check(ab !== '' && abOp <= 0.2, `svg: abandoned decision faded (opacity ${abOp})`)
 // the pane at a typical desktop width (120 columns x 8 px, 4:3), in the light theme
 const paneSvg = svgAt(960, 720, 'light')
+check((paneSvg.match(/<text class="label sol"/g) ?? []).length === Object.keys(m.nodes).length, 'pane: every solution node labelled')
 writeFileSync(out('pane.svg'), paneSvg)
 
 // ---------------------------------------------------------------- Artifact page (v2-14 checks) and its screenshot
@@ -108,6 +109,7 @@ for (const r of runs) {
   check(r.errors.length === 0, `page console errors: ${r.errors.join(' | ')}`)
   check(r.probe?.solutionNodes === Object.keys(m.nodes).length, `page solution nodes ${r.probe?.solutionNodes}`)
   check(r.probe?.openQuestions === 1, `page open questions ${r.probe?.openQuestions}`)
+  check(r.probe?.solLabels === Object.keys(m.nodes).length, `page solution labels ${r.probe?.solLabels} of ${Object.keys(m.nodes).length}`)
 }
 
 // pane.png: headless Chrome screenshot of the pane SVG (virtual time lets the grow-in finish)

@@ -254,3 +254,24 @@ test('v2-12: ladder drops evidence labels, then weak evidence edges, then uncite
   }
   assert.deepEqual(seen, { labelsOnly: true, weakGone: true, uncitedGone: true })
 })
+
+test('every solution node gets a non-overlapping label, even when crowded; only evidence labels drop', () => {
+  // 14 labelled solution nodes packed into a 120x60 patch: the four spots beside each node run out.
+  const kinds = ['goal', 'component', 'decision', 'constraint', 'question', 'risk', 'requirement'] as const
+  const items: SceneItem[] = Array.from({ length: 14 }, (_, k) => item(`${kinds[k % 7]}:n${k}`, {
+    kind: kinds[k % 7], layer: 'solution', shape: 'circle', status: k % 7 === 4 ? 'open' : 'active', health: 'in-window', labelled: true,
+    label: `${kinds[k % 7]} label ${k}`, x: 340 + (k % 4) * 30, y: 280 + Math.floor(k / 4) * 18, r: 6, weight: 0.5, depth: 100 + k,
+  }))
+  for (let k = 0; k < 6; k++) items.push(item(`turn:e${k}`, { kind: 'turn', layer: 'evidence', label: `evidence ${k}`, x: 360 + k * 8, y: 300, r: 3, weight: 1, depth: 400 + k, labelled: true }))
+  const sc: Scene = { width: 800, height: 600, items, edges: [], legend: { tokensInRadius: 0, totalTokens: 0, nodes: 6, blastNodes: 0, solution: { goal: 'g', components: 2, decisions: 2, openQuestions: 2, health: { inWindow: 14, compacted: 0, missing: 0 }, kinds: [...kinds] } } }
+  const svg = renderSvg(sc, { width: 800, height: 600, theme: 'dark' })
+  const labels = [...svg.matchAll(/<text class="label (sol|ev)" x="([\d.-]+)" y="([\d.-]+)"[^>]*>([^<]*)<\/text>/g)]
+  const sol = labels.filter((l) => l[1] === 'sol').map((l) => l[4])
+  for (const n of items.filter((i) => i.layer === 'solution')) assert.ok(sol.includes(n.label), `${n.id} unlabelled`)
+  const boxes = labels.map((l) => ({ x: +l[2], y: +l[3] - 10, w: l[4]!.length * 6.7, h: 13, t: l[4] }))
+  for (const a of boxes) for (const b of boxes) {
+    if (a === b) continue
+    assert.ok(!(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h), `labels ${a.t} and ${b.t} overlap`)
+    assert.ok(a.x >= 0 && a.x + a.w <= 800 && a.y >= 0, `${a.t} off canvas`)
+  }
+})

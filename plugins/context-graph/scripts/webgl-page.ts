@@ -7,7 +7,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { join, normalize, resolve, sep } from 'node:path'
 
-export interface Probe { solutionNodes: number; evidenceNodes: number; openQuestions: number; layers: string; replaying: boolean; visibleMeshes: number; frames: number }
+export interface Probe { solutionNodes: number; evidenceNodes: number; openQuestions: number; layers: string; replaying: boolean; visibleMeshes: number; frames: number; solLabels: number }
 export interface Viewport { width: number; height: number }
 export interface PageRun { viewport: Viewport; errors: string[]; probe?: Probe; layersCycle: { layers: string; visibleMeshes: number }[]; replay: { started: boolean; endedMs: number }; scrollWidth: number; png: string }
 
