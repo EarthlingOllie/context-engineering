@@ -30,8 +30,8 @@ import type { SolutionModel } from '../src/core/types.ts'
 
 export const LAYERED_VIEW = { yaw: 20, pitch: 35, distance: 0, fov: 50 }
 
-/** solution-small.json over synthGraph(4, 5); promptSeq 12, so the two questions (adds 13 and 14) are new. */
-export function layeredFixture(layers: 'both' | 'solution' | 'evidence' = 'both', size = { w: 800, h: 600 }): { scene: Scene; model: SolutionModel; graph: Graph } {
+/** The pure-pipeline inputs for solution-small.json over synthGraph(4, 5); promptSeq 12. */
+export function layeredInputs() {
   const graph = synthGraph(4, 5)
   const seed = parseSeed(readFileSync(new URL('./fixtures/solution-small.json', import.meta.url), 'utf8'))
   const model = { ...applyOps(emptyModel(), seed.ops, { isEvidence: (id) => Boolean(graph.nodes[id]) }).model, promptSeq: 12 }
@@ -39,6 +39,12 @@ export function layeredFixture(layers: 'both' | 'solution' | 'evidence' = 'both'
   const blast = blastRadius(graph, [{ id: 'prompt:p2', source: 'prompt' }])
   const rel = relevance(model, graph, focus, blast)
   const positions = layoutLayers(model, graph, { solution: {}, evidence: {} }, { seed: 1 })
-  const scene = buildLayeredScene({ model, graph, positions, relevance: rel, health: health(model, graph), view: LAYERED_VIEW, layers }, size)
+  return { model, graph, positions, relevance: rel, health: health(model, graph), blast }
+}
+
+/** solution-small.json over synthGraph(4, 5); promptSeq 12, so the two questions (adds 13 and 14) are new. */
+export function layeredFixture(layers: 'both' | 'solution' | 'evidence' = 'both', size = { w: 800, h: 600 }): { scene: Scene; model: SolutionModel; graph: Graph } {
+  const { model, graph, positions, relevance: rel, health: hl } = layeredInputs()
+  const scene = buildLayeredScene({ model, graph, positions, relevance: rel, health: hl, view: LAYERED_VIEW, layers }, size)
   return { scene, model, graph }
 }

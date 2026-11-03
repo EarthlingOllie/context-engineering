@@ -302,6 +302,20 @@ export function buildLayeredScene(input: LayeredSceneInput, size: { w: number; h
   if (showEv) for (const e of g.edges) pushEdge(e.from, e.to, 'evidence', 'evidence')
   edges.sort((a, b) => b.depth - a.depth)
 
+  const solution = solutionSummary(m, hl)
+  const blastIds = Object.keys(rel.weights).filter((id) => g.nodes[id] && rel.weights[id]! > 0)
+  const legend: Scene['legend'] = {
+    tokensInRadius: blastIds.reduce((a, id) => a + g.nodes[id]!.tokens, 0), totalTokens,
+    nodes: Object.keys(g.nodes).length, blastNodes: blastIds.length, solution,
+  }
+  const wt = g.latestTurnId ? g.nodes[g.latestTurnId]?.meta?.windowTokens : undefined
+  if (wt) legend.windowTokens = wt
+  if (input.note) legend.note = input.note
+  return { width: size.w, height: size.h, items, edges, legend }
+}
+
+/** Header counts for the solution layer: live components/decisions/open questions, health totals, kinds present. */
+export function solutionSummary(m: SolutionModel, hl: HealthReport): SolutionSummary {
   const nodes = Object.values(m.nodes)
   const live = nodes.filter((n) => n.status !== 'abandoned')
   const kinds = [...new Set(nodes.map((n) => n.kind))].sort((a, b) => Object.keys(SHAPES).indexOf(a) - Object.keys(SHAPES).indexOf(b))
@@ -313,13 +327,5 @@ export function buildLayeredScene(input: LayeredSceneInput, size: { w: number; h
     kinds,
   }
   if (m.goalId && m.nodes[m.goalId]) solution.goal = m.nodes[m.goalId]!.label
-  const blastIds = Object.keys(rel.weights).filter((id) => g.nodes[id] && rel.weights[id]! > 0)
-  const legend: Scene['legend'] = {
-    tokensInRadius: blastIds.reduce((a, id) => a + g.nodes[id]!.tokens, 0), totalTokens,
-    nodes: Object.keys(g.nodes).length, blastNodes: blastIds.length, solution,
-  }
-  const wt = g.latestTurnId ? g.nodes[g.latestTurnId]?.meta?.windowTokens : undefined
-  if (wt) legend.windowTokens = wt
-  if (input.note) legend.note = input.note
-  return { width: size.w, height: size.h, items, edges, legend }
+  return solution
 }

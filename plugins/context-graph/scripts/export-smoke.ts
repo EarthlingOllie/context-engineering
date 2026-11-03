@@ -1,57 +1,43 @@
-// Export smoke test (feature 15): render the fixture to a standalone WebGL page, open it in headless
-// chromium (three.js from the CDN through HTTPS_PROXY), require a <canvas> and no console errors, screenshot.
-// usage: node scripts/export-smoke.ts <out.html> <out.png> [--three <extracted three@0.170.0 package dir>]
-// --three serves three.js from a local copy of the npm package on 127.0.0.1 instead of the CDN
-// (use it where the egress policy blocks cdn.jsdelivr.net); out.html itself always points at the CDN.
-import { readFileSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
-import { createServer, type Server } from 'node:http'
-import type { AddressInfo } from 'node:net'
-import { join, normalize, resolve, sep } from 'node:path'
-import { buildGraph } from '../src/core/ingest.ts'
-import { blastRadius } from '../src/core/blast.ts'
-import { layout } from '../src/core/layout.ts'
-import { exportHtml } from '../src/core/exportHtml.ts'
+// Export smoke test (v2-15): render the solution fixture (test/fixtures/solution-small.json over a synthetic
+// transcript) as the Artifact fragment, open it in headless chromium at 1280x800 and 390x844 and assert:
+// a canvas, no console errors, window.__cg counts match the input, the layers button cycles
+// both -> solution -> evidence -> both changing visible mesh counts, replay ends within 6 s, no horizontal
+// scroll at 390px. Screenshots go to <outdir>/smoke-<w>x<h>.png.
+// usage: node scripts/export-smoke.ts [outdir] [--three <extracted three@0.170.0 package dir>]
+// --three serves three.js from 127.0.0.1 (use it where the egress policy blocks cdn.jsdelivr.net).
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { exportSolutionHtml } from '../src/core/exportHtml.ts'
+import { layeredInputs } from '../test/helpers.ts'
+import { runPage } from './webgl-page.ts'
 
 const argv = process.argv.slice(2)
 const ti = argv.indexOf('--three')
 const threeDir = ti >= 0 ? resolve(argv.splice(ti, 2)[1]!) : undefined
-const [htmlOut = 'context-graph.html', pngOut = 'export.png'] = argv.map((p) => resolve(p))
-const g = buildGraph(readFileSync(new URL('../test/fixtures/session-small.jsonl', import.meta.url), 'utf8'))
-const blast = blastRadius(g, [])
-const pos = layout(g, {}, { seed: 1 })
-const title = 'context-graph · session-small'
-writeFileSync(htmlOut!, exportHtml(g, pos, blast, { title }))
+const out = resolve(argv[0] ?? '.')
+mkdirSync(out, { recursive: true })
+const input = layeredInputs()
+const fragment = (threeUrl?: string) => exportSolutionHtml(input, threeUrl ? { threeUrl } : {})
+writeFileSync(resolve(out, 'smoke.html'), fragment())
 
-let url = 'file://' + htmlOut
-let server: Server | undefined
-if (threeDir) {
-  const page = exportHtml(g, pos, blast, { title, threeUrl: '/three/' })
-  server = createServer((req, res) => {
-    const path = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname)
-    if (path === '/') { res.writeHead(200, { 'content-type': 'text/html' }); res.end(page); return }
-    const file = path.startsWith('/three/') ? join(threeDir, normalize(path.slice(7))) : ''
-    if (!file.startsWith(threeDir + sep) || !existsSync(file)) { res.writeHead(404); res.end(); return }
-    res.writeHead(200, { 'content-type': 'text/javascript' }); res.end(readFileSync(file))
-  })
-  await new Promise<void>((ok) => server!.listen(0, '127.0.0.1', ok))
-  url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`
+const want = {
+  solutionNodes: Object.keys(input.model.nodes).length,
+  evidenceNodes: Object.keys(input.graph.nodes).length,
+  openQuestions: Object.values(input.model.nodes).filter((n) => n.kind === 'question' && n.status === 'open').length,
 }
-
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_PATH ?? '/opt/node22/lib/node_modules/playwright')
-const proxy = process.env.HTTPS_PROXY && !threeDir ? { server: process.env.HTTPS_PROXY } : undefined
-const browser = await chromium.launch({ proxy, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] })
-const errors: string[] = []
-try {
-  const page = await browser.newPage({ viewport: { width: 960, height: 640 } })
-  page.on('console', (m: { type(): string; text(): string }) => { if (m.type() === 'error') errors.push(m.text()) })
-  page.on('pageerror', (e: Error) => errors.push(String(e)))
-  await page.goto(url, { waitUntil: 'networkidle' })
-  await page.waitForSelector('canvas', { timeout: 15000 })
-  await page.waitForTimeout(800)
-  await page.screenshot({ path: pngOut })
-} catch (e) { errors.push(String(e).split("\n")[0]!) } finally { await browser.close(); server?.close() }
-if (errors.length) { console.error('console errors:\n' + errors.join('\n')); process.exit(1) }
-console.log(`ok: canvas found, no console errors, ${Object.keys(g.nodes).length} nodes, blast ${Object.keys(blast.weights).length}; wrote ${htmlOut} and ${pngOut}`)
+const runs = await runPage(fragment, [{ width: 1280, height: 800 }, { width: 390, height: 844 }], (v) => resolve(out, `smoke-${v.width}x${v.height}.png`), threeDir)
+const fails: string[] = []
+for (const r of runs) {
+  const at = `${r.viewport.width}x${r.viewport.height}`
+  if (r.errors.length) fails.push(`${at} console errors: ${r.errors.join(' | ')}`)
+  if (!r.probe) { fails.push(`${at} no __cg probe`); continue }
+  for (const k of Object.keys(want) as (keyof typeof want)[]) if (r.probe[k] !== want[k]) fails.push(`${at} ${k} ${r.probe[k]} != ${want[k]}`)
+  const seq = r.layersCycle.map((c) => c.layers).join('>')
+  if (seq !== 'solution>evidence>both') fails.push(`${at} layers cycle ${seq}`)
+  const counts = [r.probe.visibleMeshes, ...r.layersCycle.map((c) => c.visibleMeshes)]
+  if (!(counts[1] === want.solutionNodes && counts[2] === want.evidenceNodes && counts[0] === counts[3] && counts[0] > counts[1]!)) fails.push(`${at} visible mesh counts ${counts.join(',')}`)
+  if (!r.replay.started || r.replay.endedMs < 0 || r.replay.endedMs > 6000) fails.push(`${at} replay ${JSON.stringify(r.replay)}`)
+  if (r.viewport.width === 390 && r.scrollWidth > 390) fails.push(`${at} scrollWidth ${r.scrollWidth}`)
+}
+if (fails.length) { console.error('smoke failed:\n' + fails.join('\n')); process.exit(1) }
+console.log(`ok: ${runs.map((r) => `${r.viewport.width}x${r.viewport.height} ${JSON.stringify(r.probe)} replay ${r.replay.endedMs}ms scrollWidth ${r.scrollWidth}`).join('; ')}; screenshots in ${out}`)

@@ -2,7 +2,7 @@
 // No scripts, no event attributes; tooltips via <title>, hover via CSS, seed pulse via SMIL.
 // Degrades (labels -> weak edges -> out-of-window nodes -> top N) to stay within maxChars.
 import { SOL_COLOR_KINDS } from './scene.ts'
-import type { Scene, SceneEdge, SceneItem } from './scene.ts'
+import type { Scene, SceneEdge, SceneItem, SolutionSummary } from './scene.ts'
 
 export const SVG_MAX_CHARS = 131072
 const LABELS = 12
@@ -174,8 +174,11 @@ function solColor(n: SceneItem, k: number): string {
 }
 
 function headerLine(scene: Scene): string {
-  const S = scene.legend.solution
-  if (!S) return ''
+  return scene.legend.solution ? summaryLine(scene.legend.solution) : ''
+}
+
+/** 'GOAL label · n components · n decisions · n open questions · health i in / c compacted / m missing' */
+export function summaryLine(S: SolutionSummary): string {
   const pl = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
   const goal = S.goal ? `GOAL ${S.goal.length > 48 ? S.goal.slice(0, 47) + '…' : S.goal}` : 'no goal yet'
   return `${goal} · ${pl(S.components, 'component')} · ${pl(S.decisions, 'decision')} · ${pl(S.openQuestions, 'open question')} · health ${S.health.inWindow} in / ${S.health.compacted} compacted / ${S.health.missing} missing`
