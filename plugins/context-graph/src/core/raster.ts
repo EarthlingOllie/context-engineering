@@ -11,6 +11,17 @@ const FULL = 0x2588 // █
 const DOT = 0x25cf // ●
 const SMALL = 0x2022 // •
 const BRAILLE = 0x2800
+const MIDDOT = 0xb7 // ·
+
+/** Code points that render double-width in terminals (East Asian Wide/Fullwidth), BMP subset near our glyphs. */
+const WIDE: readonly [number, number][] = [[0x1100, 0x115f], [0x2329, 0x232a], [0x25fd, 0x25fe], [0x2b1b, 0x2b1c], [0x2b50, 0x2b50], [0x2b55, 0x2b55], [0x2e80, 0xa4cf], [0xac00, 0xd7a3], [0xf900, 0xfaff], [0xfe30, 0xfe6f], [0xff00, 0xff60], [0xffe0, 0xffe6]]
+const narrow = (cp: number) => cp < 0x10000 && !WIDE.some(([a, b]) => cp >= a && cp <= b)
+/** ◎ is East Asian Ambiguous (one cell in Western terminals); fall back to ● if it is ever wide. */
+export const GOAL_GLYPH = narrow(0x25ce) ? 0x25ce : 0x25cf
+const KIND_GLYPH_CP: Record<string, number> = {
+  goal: GOAL_GLYPH, component: 0x25cf, decision: 0x25a0, requirement: 0x25b2, constraint: 0x25c6,
+  assumption: 0x25c7, dependency: 0x2b21, risk: 0x2715, question: 0x3f,
+}
 // Braille dot bits by [sub-x][sub-y].
 const BIT = [[0x01, 0x02, 0x04, 0x40], [0x08, 0x10, 0x20, 0x80]] as const
 
@@ -62,8 +73,55 @@ export function rasterize(scene: Scene, cols: number, rows: number): Uint32Array
     fg[k] = dim(0xb0b8c4, 0.3 + 0.6 * edgeW[k]!)
   }
 
+  // v2 layered items: evidence as dim dots, solution nodes as kind glyphs, labels last.
+  const labels: { c: number; r: number; text: string; color: number }[] = []
+  // Solution glyphs always beat evidence dots; live nodes go first and a glyph whose cell is taken by
+  // another solution glyph moves to a free neighbouring cell, so no kind disappears in a crowded cluster.
+  const SOL_Z = -1e9
+  const layered = scene.items.filter((it) => it.layer)
+    .sort((a, b) => Number(a.layer !== 'solution') - Number(b.layer !== 'solution') || Number(a.status === 'abandoned') - Number(b.status === 'abandoned') || a.depth - b.depth)
+  for (const it of layered) {
+    const cx = it.x * sx, cy = it.y * sy
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue
+    let c = Math.floor(cx), r = Math.floor(cy)
+    if (c < 0 || r < 0 || c >= C || r >= R) continue
+    const sol = it.layer === 'solution'
+    if (sol && zbuf[r * C + c]! <= SOL_Z) {
+      const free = [[1, 0], [-1, 0], [0, -1], [0, 1], [2, 0], [-2, 0]].map(([dc, dr]) => [c + dc!, r + dr!] as const)
+        .find(([c2, r2]) => c2 >= 0 && r2 >= 0 && c2 < C && r2 < R && zbuf[r2 * C + c2]! > SOL_Z)
+      if (!free) continue
+      ;[c, r] = free
+    }
+    const k = r * C + c
+    const z = sol ? SOL_Z : it.depth
+    if (z >= zbuf[k]!) continue
+    zbuf[k] = z
+    if (sol) {
+      const f = it.status === 'abandoned' ? 0.35 : 0.55 + 0.45 * Math.max(0, Math.min(1, it.weight))
+      cp[k] = KIND_GLYPH_CP[it.kind] ?? DOT
+      fg[k] = dim(it.color, f)
+      if (it.kind === 'goal' || (it.kind === 'question' && it.status === 'open')) labels.push({ c: c + 2, r, text: it.label, color: dim(it.color, f) })
+    } else {
+      cp[k] = MIDDOT
+      fg[k] = dim(0x8b949e, 0.4 + 0.5 * Math.max(0, Math.min(1, it.weight)))
+    }
+  }
+  for (const l of labels) {
+    for (let i = 0; i < l.text.length && i < 28; i++) {
+      const c = l.c + i
+      if (c >= C) break
+      const k = l.r * C + c
+      if (zbuf[k]! <= SOL_Z) break // never write over a solution glyph
+      const ch = l.text.charCodeAt(i)
+      cp[k] = ch >= 0x20 && ch < 0x7f ? ch : 0x3f
+      fg[k] = l.color
+      zbuf[k] = -1e8
+    }
+  }
+
   // Nodes: discs in cell space (cells are ~2x taller than wide, so y radius is halved).
   for (const it of scene.items) {
+    if (it.layer) continue
     const cx = it.x * sx, cy = it.y * sy
     if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue
     const rc = it.r * sx

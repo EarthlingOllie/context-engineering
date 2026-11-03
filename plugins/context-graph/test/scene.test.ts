@@ -6,6 +6,10 @@ import { blastRadius } from '../src/core/blast.ts'
 import { layout } from '../src/core/layout.ts'
 import { synthGraph } from './helpers.ts'
 import type { Graph, GraphNode, Vec3 } from '../src/core/types.ts'
+import { applyOps, emptyModel } from '../src/core/solution.ts'
+import { relevance } from '../src/core/relevance.ts'
+import { health } from '../src/core/health.ts'
+import { layoutLayers } from '../src/core/layers.ts'
 
 const size = { w: 800, h: 600 }
 const view = { yaw: 0, pitch: 0, distance: 0, fov: 50 }
@@ -92,4 +96,93 @@ test('the auto-fit keeps every in-window node (with its radius) inside the frame
     assert.ok(i, `${n.id} drawn`)
     assert.ok(i.x - i.r >= 0 && i.x + i.r <= 640 && i.y - i.r >= 0 && i.y + i.r <= 480 - 16, `${n.id} off frame: ${i.x},${i.y} r${i.r}`)
   }
+})
+
+// ---- v2-10: layered scene ----
+import { buildLayeredScene, KIND_COLORS } from '../src/core/scene.ts'
+import { layeredFixture } from './helpers.ts'
+
+test('v2-10: items carry layer, shape by kind, status, health and isNew', () => {
+  const { scene } = layeredFixture()
+  const by = Object.fromEntries(scene.items.map((i) => [i.id, i]))
+  const shapes: Record<string, string> = {
+    'goal:show-the-context-window-as-a-graph': 'goal', 'component:pane': 'circle', 'decision:svg-projection': 'square',
+    'requirement:readable-in-30-seconds': 'triangle', 'constraint:no-webgl-in-panes': 'diamond', 'assumption:transcript-is-on-disk': 'diamond',
+    'dependency:three-js-maths': 'hex', 'risk:pane-always-dark': 'cross', 'question:do-panes-work-on-the-web': 'question',
+  }
+  for (const [id, shape] of Object.entries(shapes)) {
+    assert.equal(by[id]?.layer, 'solution', id)
+    assert.equal(by[id]!.shape, shape, id)
+  }
+  assert.equal(by['question:do-panes-work-on-the-web']!.status, 'open')
+  assert.equal(by['risk:pane-always-dark']!.status, 'resolved')
+  assert.equal(by['decision:webgl-in-pane']!.status, 'abandoned')
+  assert.equal(by['constraint:no-webgl-in-panes']!.health, 'in-window')
+  assert.equal(by['dependency:three-js-maths']!.health, 'never-loaded')
+  assert.equal(by['question:do-panes-work-on-the-web']!.isNew, true)
+  assert.equal(by['question:use-a-worker']!.isNew, true)
+  assert.equal(by['goal:show-the-context-window-as-a-graph']!.isNew, false)
+  assert.equal(by['turn:m1']?.layer, 'evidence')
+  assert.equal(by['turn:m1']!.shape, undefined)
+})
+
+test('v2-10: layers option filters items and edges by layer', () => {
+  const sol = layeredFixture('solution').scene
+  assert.ok(sol.items.length >= 14)
+  assert.ok(sol.items.every((i) => i.layer === 'solution'))
+  assert.ok(sol.edges.every((e) => e.layer === 'solution' && e.kind !== 'supported-by' && e.kind !== 'evidence'))
+  const ev = layeredFixture('evidence').scene
+  assert.ok(ev.items.length > 20)
+  assert.ok(ev.items.every((i) => i.layer === 'evidence'))
+  assert.ok(ev.edges.every((e) => e.kind === 'evidence'))
+})
+
+test('v2-10: labels for goal, components, decisions and open questions; at most 6 evidence labels', () => {
+  const { scene } = layeredFixture()
+  const labelled = new Set(scene.items.filter((i) => i.labelled).map((i) => i.id))
+  for (const id of ['goal:show-the-context-window-as-a-graph', 'component:pane', 'component:export-page', 'decision:svg-projection', 'decision:free-turn-hops', 'question:do-panes-work-on-the-web'])
+    assert.ok(labelled.has(id), id)
+  assert.ok(!labelled.has('question:use-a-worker'), 'abandoned question is not open')
+  assert.ok(scene.items.filter((i) => i.labelled && i.layer === 'solution').length <= 24)
+  const ev = scene.items.filter((i) => i.labelled && i.layer === 'evidence').length
+  assert.ok(ev >= 1 && ev <= 6, `evidence labels ${ev}`)
+})
+
+test('v2-10: solution labels capped at 24 in a large model', () => {
+  const ops = [{ op: 'add' as const, kind: 'goal' as const, label: 'G' }, ...Array.from({ length: 40 }, (_, i) => ({ op: 'add' as const, kind: 'component' as const, label: `C${i}` }))]
+  const model = applyOps(emptyModel(), ops).model
+  const g = synthGraph(1, 1)
+  const positions = layoutLayers(model, g, { solution: {}, evidence: {} }, { seed: 1 })
+  const s = buildLayeredScene({ model, graph: g, positions, relevance: relevance(model, g, { seeds: [] }, blastRadius(g, [])), health: health(model, g), view, layers: 'both' }, size)
+  const lab = s.items.filter((i) => i.labelled && i.layer === 'solution')
+  assert.equal(lab.length, 24)
+  assert.ok(lab.some((i) => i.kind === 'goal'))
+})
+
+test('v2-10: supported-by edges are kind supported-by; solution edges keep their kind', () => {
+  const { scene } = layeredFixture()
+  const kinds = new Set(scene.edges.map((e) => e.kind))
+  for (const k of ['supported-by', 'depends-on', 'constrains', 'decided-by', 'contradicts', 'evidence']) assert.ok(kinds.has(k as never), k)
+  const sb = scene.edges.filter((e) => e.kind === 'supported-by')
+  assert.ok(sb.some((e) => e.from === 'constraint:no-webgl-in-panes' && e.to === 'tool:u1'))
+})
+
+test('v2-10: every solution kind colour has >= 3:1 contrast on #0d1117 and #ffffff', () => {
+  const lum = (c: number) => {
+    const f = (v: number) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+    return 0.2126 * f((c >> 16) & 255) + 0.7152 * f((c >> 8) & 255) + 0.0722 * f(c & 255)
+  }
+  const ratio = (a: number, b: number) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
+  for (const k of ['goal', 'component', 'requirement', 'constraint', 'assumption', 'dependency', 'risk', 'decision', 'question'] as const) {
+    const c = KIND_COLORS[k]
+    assert.equal(typeof c, 'number', k)
+    assert.ok(ratio(c, 0x0d1117) >= 3, `${k} on dark ${ratio(c, 0x0d1117)}`)
+    assert.ok(ratio(c, 0xffffff) >= 3, `${k} on white ${ratio(c, 0xffffff)}`)
+  }
+})
+
+test('v2-10: every solution node fits inside the frame', () => {
+  const { scene } = layeredFixture()
+  for (const i of scene.items.filter((x) => x.layer === 'solution'))
+    assert.ok(i.x - i.r >= 0 && i.x + i.r <= scene.width && i.y - i.r >= 0 && i.y + i.r <= scene.height, i.id)
 })

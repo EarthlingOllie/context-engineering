@@ -62,3 +62,45 @@ test('toBase64 matches a Buffer-based little-endian reference', () => {
   assert.equal(toBase64(many), Buffer.from(many.buffer, many.byteOffset, many.byteLength).toString('base64'))
   assert.equal(DEFAULT_BG, 0x01000000)
 })
+
+// ---- v2-13: layered scene in the terminal ----
+import { layeredFixture } from './helpers.ts'
+
+/** East Asian Wide/Fullwidth ranges that matter below U+10000 (Unicode EastAsianWidth.txt, W/F). */
+const WIDE: [number, number][] = [
+  [0x1100, 0x115f], [0x231a, 0x231b], [0x2329, 0x232a], [0x23e9, 0x23ec], [0x23f0, 0x23f0], [0x23f3, 0x23f3], [0x25fd, 0x25fe],
+  [0x2614, 0x2615], [0x2648, 0x2653], [0x267f, 0x267f], [0x2693, 0x2693], [0x26a1, 0x26a1], [0x26aa, 0x26ab], [0x26bd, 0x26be],
+  [0x26c4, 0x26c5], [0x26ce, 0x26ce], [0x26d4, 0x26d4], [0x26ea, 0x26ea], [0x26f2, 0x26f3], [0x26f5, 0x26f5], [0x26fa, 0x26fa],
+  [0x26fd, 0x26fd], [0x2705, 0x2705], [0x270a, 0x270b], [0x2728, 0x2728], [0x274c, 0x274c], [0x274e, 0x274e], [0x2753, 0x2755],
+  [0x2757, 0x2757], [0x2795, 0x2797], [0x27b0, 0x27b0], [0x27bf, 0x27bf], [0x2b1b, 0x2b1c], [0x2b50, 0x2b50], [0x2b55, 0x2b55],
+  [0x2e80, 0x303e], [0x3041, 0xa4cf], [0xac00, 0xd7a3], [0xf900, 0xfaff], [0xfe10, 0xfe19], [0xfe30, 0xfe6f], [0xff00, 0xff60], [0xffe0, 0xffe6],
+]
+const printableNarrow = (cp: number) =>
+  cp >= 0x20 && cp !== 0x7f && cp < 0x10000 && !(cp >= 0x80 && cp < 0xa0) && !(cp >= 0x300 && cp < 0x370) &&
+  !(cp >= 0xd800 && cp < 0xe000) && !WIDE.some(([a, b]) => cp >= a && cp <= b)
+
+test('v2-13: 80x24 layered raster shows each kind glyph present; evidence only as a dot', () => {
+  const { scene, model } = layeredFixture()
+  const cells = rasterize(scene, 80, 24)
+  assert.equal(cells.length, 80 * 24 * 3)
+  const cps = new Set<number>()
+  for (let k = 0; k < cells.length; k += 3) {
+    assert.ok(printableNarrow(cells[k]!), `cp ${cells[k]!.toString(16)}`)
+    cps.add(cells[k]!)
+  }
+  const goalGlyph = printableNarrow(0x25ce) ? 0x25ce : 0x25cf
+  const glyph: Record<string, number> = {
+    goal: goalGlyph, component: 0x25cf, decision: 0x25a0, requirement: 0x25b2, constraint: 0x25c6, assumption: 0x25c7, dependency: 0x2b21, risk: 0x2715, question: 0x3f,
+  }
+  for (const k of new Set(Object.values(model.nodes).map((n) => n.kind))) assert.ok(cps.has(glyph[k]!), `${k} glyph ${glyph[k]!.toString(16)}`)
+  // v1 node glyphs never appear: evidence is drawn as a dim middle dot only
+  for (const v1 of [0x2588, 0x2022]) assert.ok(!cps.has(v1), `v1 glyph ${v1.toString(16)}`)
+  assert.ok(cps.has(0xb7), 'evidence dots')
+  // an evidence item that no solution glyph or label covers is a dot
+  const ev = scene.items.filter((i) => i.layer === 'evidence')
+  const dots = ev.filter((i) => { const c = Math.floor(i.x * 80 / scene.width), r = Math.floor(i.y * 24 / scene.height); return cells[(r * 80 + c) * 3] === 0xb7 })
+  assert.ok(dots.length >= 5, `dots ${dots.length}`)
+  const b64 = toBase64(cells)
+  const back = new Uint32Array(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)).buffer)
+  assert.deepEqual(back, cells)
+})
