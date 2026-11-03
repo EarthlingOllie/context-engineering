@@ -1,6 +1,6 @@
 {
   "name": "graph-orchestrator",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Claude Code plugin: an orchestrator skill that plans waves of dispatches, each a topology run as its own Workflow.",
   "scripts": {
     "build": "node build.mjs",

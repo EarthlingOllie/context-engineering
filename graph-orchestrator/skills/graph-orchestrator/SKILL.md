@@ -69,7 +69,7 @@ assess → plan wave → run wave → integrate → (frontier empty? render : re
 From the state file alone. Up to `--dispatches` dispatch specs, ids `w<wave>-d<n>`. For each, decide:
 
 - **topology** — from the catalog. One pass: `single`. Review until it passes: `generator-evaluator`. Independent parts at once: `fan-out`. Ordered stages: `chain`. One deliverable too big for one context, built session by session: `relay`. Several viable approaches, pick one: `best-of-n`. Research whose gaps show only after a pass: `iterative-fan-out`. Several independent reviews, one pass/fail: `panel`. A contested decision, as a verdict: `debate`. Prefer one dispatch whose topology holds the loop over several dispatches you would loop yourself.
-- **title** — what the dispatch is for, in two to six plain words ("Add the HTTP retry policy", "Map trace file access"). It names the dispatch's workflow, so whoever watches sees the wave as its goals; it heads the dispatch's node in the diagram. No quotes, backslashes or newlines.
+- **title** — what the dispatch is for, in two to six plain words ("Add the HTTP retry policy", "Map trace file access"). It names the dispatch's workflow, after its topology (`Fan-out: Map trace file access`), so whoever watches sees the wave as its goals; it heads the dispatch's node in the diagram. No quotes, backslashes or newlines.
 - **task** — one imperative sentence stating what done looks like.
 - **context** — only KNOWN lines the worker cannot derive from disk: a decision you made, a hypothesis a worker ruled out, a path an earlier dispatch returned. Cut anything findable by grep: conventions, ports, versions, file listings. If `context` is longer than `task`, you are pasting your window into the prompt.
 - **roles** — per role, the skill that supplies the domain (`tdd`, `code-review`, …) and the task-specific instructions. Name skills; never paste their text.
@@ -85,7 +85,7 @@ Each dispatch is its own `Workflow` run. Launch every dispatch of the wave in on
 
 ```
 Workflow({
-  script: "export const meta = { name: '<title>', description: '<id> · <topology>' }\nreturn await workflow({ scriptPath: '${CLAUDE_PLUGIN_ROOT}/workflows/dispatch.js' }, args)",
+  script: "export const meta = { name: '<Topology>: <title>', description: '<id> · <topology>' }\nreturn await workflow({ scriptPath: '${CLAUDE_PLUGIN_ROOT}/workflows/dispatch.js' }, args)",
   args: {
     now: "<ISO timestamp>",       // you have no clock: today's date, with the time if your context has one
     scratch: "SCRATCH",
@@ -95,7 +95,7 @@ Workflow({
 })
 ```
 
-The script is a two-line wrapper: its `meta` names the workflow after the dispatch, and it hands `args` to the plugin's dispatch script. Write it exactly as above with the title, id, topology and plugin root substituted; `meta` must stay a plain literal. Never paste `dispatch.js` itself.
+The script is a two-line wrapper: its `meta` names the workflow after the dispatch, and it hands `args` to the plugin's dispatch script. Write it exactly as above with the title, id, topology and plugin root substituted; `meta` must stay a plain literal. Never paste `dispatch.js` itself. `<Topology>` in the name is one of `Single`, `Generator-evaluator`, `Fan-out`, `Chain`, `Relay`, `Best-of-n`, `Iterative fan-out`, `Panel`, `Debate`: `name: 'Generator-evaluator: Add the HTTP retry policy'`. The agents inside are labelled by role only (`Generator (1 of 3): …`), except a chain's, which name their link (stage) and its topology (`Link 2 · Single, Worker: …`).
 
 Then say one line, `Wave <n> dispatched: <title>; <title>.`, and wait. Each workflow notifies you when it finishes; integrate once every workflow of the wave has reported. Never poll a running workflow or ask how it is going.
 

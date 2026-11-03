@@ -6,15 +6,27 @@ export type Call = { prompt: string; opts: AgentOptions; n: number; dispatch: st
 
 /**
  * Script agent outputs by a substring of "<dispatch id> <label>" ("Worker",
- * "Generator · round 2", "Branch 1 of 3", "w1-d2 Judge", "scribe"...).
+ * "Generator (2", "Worker (1 of 3)", "w1-d2 Judge", "Grapher"...).
  */
 export type Script = Record<string, unknown | ((call: Call) => unknown)>;
+
+/**
+ * A label without its task: "Worker (2 of 3)" for "Worker (2 of 3): part b".
+ * A chain stage's label also loses its link and topology: "Worker" for
+ * "Link 2 · Single, Worker: x".
+ */
+export function roleOf(label: string | undefined): string {
+  let l = label ?? "";
+  if (l.startsWith("Link ") && l.includes(", ")) l = l.slice(l.indexOf(", ") + 2);
+  const colon = l.indexOf(": ");
+  return colon === -1 ? l : l.slice(0, colon);
+}
 
 export function fakeRuntime(script: Script = {}) {
   const calls: Call[] = [];
   const logs: string[] = [];
   const defaults: Script = {
-    scribe: (c: Call) => ({ appended: c.prompt.split("\n").filter((l) => l.startsWith("{")).length, totalLines: 99 }),
+    Grapher: (c: Call) => ({ appended: c.prompt.split("\n").filter((l) => l.startsWith("{")).length, totalLines: 99 }),
     Evaluator: { pass: true, feedback: "", blocked: false },
     Partition: { subtasks: ["part a", "part b"], blocked: false },
   };
@@ -26,7 +38,7 @@ export function fakeRuntime(script: Script = {}) {
       const label = opts.label ?? "";
       const text = `${dispatch} ${label}`;
       const merged = { ...defaults, ...script };
-      // Longest matching key wins, so "Generator · round 2" beats "Generator".
+      // Longest matching key wins, so "Generator (2" beats "Generator".
       const key = Object.keys(merged)
         .filter((k) => text.includes(k))
         .sort((a, b) => b.length - a.length)[0];
@@ -37,7 +49,7 @@ export function fakeRuntime(script: Script = {}) {
     parallel: async (thunks) => Promise.all(thunks.map((t) => t().catch(() => null))),
     log: (m) => logs.push(m),
   });
-  return { rt: runtimeFor(""), runtimeFor, calls, logs, labels: () => calls.map((c) => c.opts.label ?? "") };
+  return { rt: runtimeFor(""), runtimeFor, calls, logs, labels: () => calls.map((c) => c.opts.label ?? ""), roles: () => calls.map((c) => roleOf(c.opts.label)) };
 }
 
 export function spec(over: Partial<DispatchSpec> & { id: string; topology: DispatchSpec["topology"] }): DispatchSpec {
@@ -72,7 +84,7 @@ export async function wave(dispatches: DispatchSpec[], script: Script = {}, extr
     dispatches.map((d) => runWorkflow({ ...baseArgs, dispatch: d, ...extra } as never, f.runtimeFor(d && typeof d === "object" ? String(d.id ?? "") : ""))),
   );
   const order = dispatches.map((d) => (d && typeof d === "object" ? String(d.id ?? "") : ""));
-  const scribes = f.calls.filter((c) => c.opts.label === "Trace scribe").sort((a, b) => order.indexOf(a.dispatch) - order.indexOf(b.dispatch));
+  const scribes = f.calls.filter((c) => roleOf(c.opts.label) === "Grapher").sort((a, b) => order.indexOf(a.dispatch) - order.indexOf(b.dispatch));
   const events = scribes.flatMap((c) => eventsOf(c.prompt));
   return { out: { results, events }, ...f };
 }

@@ -74,8 +74,8 @@ function feedbackItems(feedback: string): string[] {
 /**
  * One round's branch step, reusing fan-out's partition and branch steps. Each
  * branch gets the dispatch's full return contract (the reducer merges them, as
- * in a fan-out with a reducer). Labels are `r<round> partition` and
- * `r<round> branch i/n` after the dispatch id. Returns the sub-tasks run and the
+ * in a fan-out with a reducer). Branch labels carry the round and the branch:
+ * "Iterative fan-out, Worker (round 2 of 3, 1 of 2): <sub-task>". Returns the sub-tasks run and the
  * branches, or the result to return when the partition step stops the dispatch.
  */
 async function branchRound(
@@ -90,12 +90,12 @@ async function branchRound(
   let tasks: string[];
   if (Array.isArray(split)) tasks = split;
   else {
-    const part = await partitionStep(ctx, spec, split, width, { name: "iterative-fan-out", label: { role: "partition", round }, workerEntry });
+    const part = await partitionStep(ctx, spec, split, width, { name: "iterative-fan-out", label: { role: "partition" }, workerEntry });
     if (!part.ok) return part;
     tasks = part.subtasks;
   }
   const context = round === 1 ? spec.context : [...spec.context, `round ${round} of ${rounds} of an iterative fan-out: this sub-task fills a coverage gap the evaluator found`];
-  const branches = await branchStep(ctx, spec, tasks, { branchReturns: contractOf(spec), workerEntry, context, label: (i, n, task) => ({ role: "worker", round, branch: i, branches: n, task }), kind: "an iterative fan-out round" });
+  const branches = await branchStep(ctx, spec, tasks, { branchReturns: contractOf(spec), workerEntry, context, label: (i, n, task) => ({ role: "worker", round, rounds, index: i, count: n, task }), kind: "an iterative fan-out round" });
   return { ok: true, tasks, branches };
 }
 
@@ -153,7 +153,7 @@ async function runIterativeFanOut(ctx: TopologyContext, spec: DispatchSpec): Pro
           { title: "FINDINGS SO FAR", body },
         ],
       }),
-      { role: "evaluator", round },
+      { role: "evaluator", round, rounds: max_rounds },
     );
     if (!ev) return { ...fail(spec, `iterative-fan-out: evaluator returned nothing in round ${round}`, round), artifacts: artifacts() };
     const eq = blockedQuestion(ev, "evaluator");

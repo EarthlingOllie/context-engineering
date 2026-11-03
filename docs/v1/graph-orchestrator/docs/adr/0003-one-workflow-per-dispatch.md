@@ -17,7 +17,7 @@ A workflow's displayed name is its `meta.name`, which must be a literal, so nami
 ## Consequences
 
 - Watching a wave shows its goals: "Wave 1 dispatched" and one workflow per task, each with its own name.
-- Agent labels drop everything the workflow's name already says: no wave, no dispatch id, no task excerpt. A label is the role and its position: `Generator · round 1 of 3`, `Branch 2 of 4 — <its own sub-task>`, `Attempt 2 of 3`, `Stage 2 · Worker`, `Trace scribe`. Agents no longer get a phase.
+- Agent labels drop everything the workflow's name already says: no wave, no dispatch id, no task excerpt. A label is the role and its position: `Generator · round 1 of 3`, `Branch 2 of 4 — <its own sub-task>`, `Attempt 2 of 3`, `Stage 2 · Worker`, `Trace scribe`. Agents no longer get a phase. (Superseded by ADR-0004: workflows are named `<Topology>: <title>`, agents `<role> (n of m): <task>`.)
 - Dispatches in one wave cannot wait on each other. `dependsOn` names earlier waves only; a same-wave id makes the dispatch `failed` unrun, and ordered steps within a wave are a `chain`. ADR-0002's same-wave waiting is gone.
 - Each run has its own scribe and writes its own trace file, `<scratch>/trace/<id>.jsonl`, so parallel runs never append to the same file. The renderer reads the directory in dispatch order (wave, then dispatch number). There are no `wave_start` or `wave_end` lines. A wave's time comes from its dispatch lines and its status counts from their statuses. The renderer still reads v0.2 single-file traces.
 - The 1,000-agent limit is checked per dispatch (its demand plus the scribe), not summed across a wave. Each run has its own concurrency cap, so a wide wave's agents may run more at once than under ADR-0002.

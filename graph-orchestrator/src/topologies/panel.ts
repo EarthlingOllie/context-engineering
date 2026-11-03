@@ -67,7 +67,7 @@ async function runPanel(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
   const k = lenses.length;
 
   const raw = await ctx.rt.parallel(
-    lenses.map((lens) => async (): Promise<LensVerdict> => {
+    lenses.map((lens, li) => async (): Promise<LensVerdict> => {
       const skill = lens.skill ?? evalEntry?.skill;
       const entry: RoleEntry = { ...(skill ? { skill } : {}), instructions: evalEntry?.instructions ?? "" };
       const out = await callRole(
@@ -87,7 +87,7 @@ async function runPanel(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
             { title: "SUBMISSION", body: `the artifact(s) named in CONTEXT, produced for: ${spec.task}` },
           ],
         }),
-        { role: "evaluator", name: lens.name },
+        { role: "evaluator", name: lens.name, index: li + 1, count: k },
       );
       if (!out) return { lens, missing: true };
       const q = blockedQuestion(out, "evaluator");

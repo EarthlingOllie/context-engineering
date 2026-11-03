@@ -1,34 +1,44 @@
 /**
  * The one place a Workflow agent label is formatted. Each dispatch runs as its
- * own workflow, named for its purpose, so a label only says which agent this
- * is inside it: "Generator · round 1 of 3", "Branch 2 of 4 — parse headers",
- * "Attempt 2 of 3", "Judge". A chain stage is prefixed with its stage:
- * "Stage 2 · Worker". The scribe is "Trace scribe".
+ * own workflow, named "<Topology>: <title>" by the orchestrator ("Fan-out: Map
+ * trace file access"), so inside it an agent is labelled
+ *
+ *   <role> (n of m): <task>
+ *
+ * "Generator (1 of 3): Add the retry policy", "Worker (2 of 4): parse headers",
+ * "Judge: Pick a parser". `(n of m)` places the agent among the instances of its
+ * role and is left out when only one is configured. A role with a second axis
+ * (a debater's rounds, an iterative fan-out's rounds) names that axis:
+ * "Debater pro (round 1 of 2)", "Worker (round 2 of 3, 1 of 2)". A chain's
+ * stages each run their own topology, so a stage agent also names its link of
+ * the chain and that topology: "Link 2 · Generator-evaluator, Generator (1 of 2): …".
+ * The task is the agent's own (a branch's sub-task, else the dispatch's or
+ * stage's), one line, at most 40 characters.
  */
 
 export type LabelRole = "worker" | "generator" | "evaluator" | "partition" | "reducer" | "judge" | "debater" | "scribe";
 
 export type AgentLabelParts = {
+  /** The dispatch's (or chain stage's) topology; shown only for a chain stage, whose workflow name says only "Chain". */
+  topology?: string;
   role: LabelRole;
   /** The dispatch or chain-stage id; only a chain stage suffix (`-s2`) shows. */
   id?: string;
   /** Who the agent is within its role: a debater's name, a panel lens. */
   name?: string;
-  /** A branch's own sub-task; the dispatch task is the workflow's name, so it is never repeated here. */
+  /** What this agent is doing: a branch's sub-task, or the dispatch's task. */
   task?: string;
+  /** This agent among the instances of its role: branch, attempt, session, lens, check. */
+  index?: number;
+  count?: number;
+  /** The round, when the role repeats across rounds. */
   round?: number;
   rounds?: number;
-  session?: number;
-  sessions?: number;
-  attempt?: number;
-  attempts?: number;
-  branch?: number;
-  branches?: number;
 };
 
 export const EXCERPT_MAX = 40;
 
-const TITLES: Record<LabelRole, string> = {
+const ROLE_TITLES: Record<LabelRole, string> = {
   worker: "Worker",
   generator: "Generator",
   evaluator: "Evaluator",
@@ -36,8 +46,26 @@ const TITLES: Record<LabelRole, string> = {
   reducer: "Reducer",
   judge: "Judge",
   debater: "Debater",
-  scribe: "Trace scribe",
+  scribe: "Grapher",
 };
+
+const TOPOLOGY_TITLES: Record<string, string> = {
+  single: "Single",
+  "generator-evaluator": "Generator-evaluator",
+  "fan-out": "Fan-out",
+  chain: "Chain",
+  relay: "Relay",
+  "best-of-n": "Best-of-n",
+  "iterative-fan-out": "Iterative fan-out",
+  panel: "Panel",
+  debate: "Debate",
+};
+
+/** "Fan-out" for `fan-out`, as it heads a workflow name and a stage label; an unknown topology is shown as given, first letter capitalised. */
+export function topologyTitle(topology: string): string {
+  const t = String(topology).trim();
+  return TOPOLOGY_TITLES[t] ?? t.charAt(0).toUpperCase() + t.slice(1);
+}
 
 /** One line of the text, whitespace collapsed, at most EXCERPT_MAX characters including the ellipsis. */
 export function taskExcerpt(task: string | undefined, max = EXCERPT_MAX): string {
@@ -53,23 +81,24 @@ export function stageOf(id: string | undefined): string {
 
 const ofN = (i: number, n: number | undefined) => `${i}${n !== undefined ? ` of ${n}` : ""}`;
 
-export function agentLabel(parts: AgentLabelParts): string {
-  // A worker that is one of several is named by what it is one of.
-  const counters: Array<[string, number | undefined, number | undefined]> = [
-    ["Branch", parts.branch, parts.branches],
-    ["Attempt", parts.attempt, parts.attempts],
-    ["Session", parts.session, parts.sessions],
-  ];
-  let head = TITLES[parts.role];
-  const rest: string[] = [];
-  for (const [word, i, n] of counters) {
-    if (i === undefined) continue;
-    if (parts.role === "worker" && head === TITLES.worker) head = `${word} ${ofN(i, n)}`;
-    else rest.push(`${word.toLowerCase()} ${ofN(i, n)}`);
+/** "1 of 3", "round 2 of 3, 1 of 2", "round 1 of 2"; "" when the role has one instance. An axis whose total is 1 is left out. */
+function position(parts: AgentLabelParts): string {
+  const out: string[] = [];
+  const hasIndex = parts.index !== undefined && parts.count !== 1;
+  if (parts.round !== undefined && parts.rounds !== 1) {
+    // Bare when rounds are the role's only axis; named when the role also has an index (even a lone one) or a name.
+    const secondAxis = parts.index !== undefined || parts.name !== undefined;
+    out.push(`${secondAxis ? "round " : ""}${ofN(parts.round, parts.rounds)}`);
   }
-  if (parts.name) head += ` ${parts.name}`;
-  if (parts.round !== undefined) rest.push(`round ${ofN(parts.round, parts.rounds)}`);
+  if (hasIndex) out.push(ofN(parts.index!, parts.count));
+  return out.join(", ");
+}
+
+export function agentLabel(parts: AgentLabelParts): string {
   const stage = stageOf(parts.id);
+  const topology = stage ? [`Link ${stage}`, parts.topology ? topologyTitle(parts.topology) : ""].filter(Boolean).join(" · ") : "";
+  const role = ROLE_TITLES[parts.role] + (parts.name ? ` ${parts.name}` : "");
+  const pos = position(parts);
   const excerpt = taskExcerpt(parts.task);
-  return [stage ? `Stage ${stage}` : "", head, ...rest].filter(Boolean).join(" · ") + (excerpt ? ` — ${excerpt}` : "");
+  return `${topology ? `${topology}, ` : ""}${role}${pos ? ` (${pos})` : ""}${excerpt ? `: ${excerpt}` : ""}`;
 }

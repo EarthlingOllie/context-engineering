@@ -64,7 +64,7 @@ async function runRelay(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
       spec,
       "worker",
       buildPrompt({ role: "worker", task: spec.task, context: spec.context, entry: workerEntry, returns, artifactDir: ctx.artifactDir, sections }),
-      { role: "worker", session: s, sessions: n },
+      { role: "worker", index: s, count: n },
     );
     if (!out) return { ...fail(spec, `relay: worker returned nothing in session ${s}`, s), artifacts };
     const { question: wq, ...work } = readWorkOutput(out, returns.maxLines);
@@ -89,7 +89,7 @@ async function runRelay(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
           { title: `SUBMISSION (session ${s} of ${n})`, body: `${work.result}\nartifacts: ${artifacts.length ? artifacts.join(", ") : "none"}\nprogress: ${progress}` },
         ],
       }),
-      { role: "evaluator", session: s, sessions: n },
+      { role: "evaluator", index: Math.ceil(s / check_every), count: Math.ceil(n / check_every) },
     );
     if (!ev) return { ...fail(spec, `relay: evaluator returned nothing in session ${s}`, s), artifacts };
     const eq = blockedQuestion(ev);

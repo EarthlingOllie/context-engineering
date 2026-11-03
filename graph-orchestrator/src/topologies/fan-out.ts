@@ -134,7 +134,7 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
   // 2. Branches in parallel. Without a reducer the inline results are concatenated, so each gets a share of the lines.
   const n = subtasks.length;
   const branchReturns: ReturnContract = hasReducer ? returns : { shape: returns.shape, maxLines: Math.max(1, Math.floor(returns.maxLines / n)) };
-  const branches = await branchStep(ctx, spec, subtasks, { branchReturns, workerEntry, context: spec.context, label: (i, k, task) => ({ role: "worker", branch: i, branches: k, task }), kind: "a fan-out" });
+  const branches = await branchStep(ctx, spec, subtasks, { branchReturns, workerEntry, context: spec.context, label: (i, k, task) => ({ role: "worker", index: i, count: k, task }), kind: "a fan-out" });
   const finished = branches.filter((b) => b.status === "done");
   const artifacts = uniq(branches.flatMap((b) => b.artifacts));
   const gapQuestion = branchQuestions(branches);
