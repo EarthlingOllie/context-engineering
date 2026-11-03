@@ -13,7 +13,9 @@ const CENTROID_MIN = 0.5
 export function blastRadius(g: Graph, seeds: Seed[], opts?: { falloff?: number; maxHops?: number }): BlastRadius {
   const falloff = opts?.falloff ?? 0.5
   const maxHops = opts?.maxHops ?? 3
-  const seedIds = [...new Set((seeds.length ? seeds.map((s) => s.id) : g.latestPromptId ? [g.latestPromptId] : []).filter((id) => g.nodes[id]))].sort()
+  // seeds outside the transcript graph (solution ids) are ignored; with none left, the latest prompt is the seed
+  const known = seeds.map((s) => s.id).filter((id) => g.nodes[id])
+  const seedIds = [...new Set(known.length ? known : g.latestPromptId && g.nodes[g.latestPromptId] ? [g.latestPromptId] : [])].sort()
 
   const adj = new Map<string, [string, number][]>()
   const link = (a: string, b: string, cost: number) => {

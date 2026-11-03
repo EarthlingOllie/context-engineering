@@ -109,3 +109,11 @@ test('the latest prompt reaches every tool and file of its turns, however long t
     assert.equal(b.weights[`tool:u${i}`], 0.25)
   }
 })
+
+test('v2-24: solution seeds in focus do not change the blast radius (only-solution seeds fall back to the prompt)', () => {
+  const g = chain()
+  const auto = blastRadius(g, [])
+  assert.deepEqual(blastRadius(g, [{ id: 'question:x', source: 'model' }, { id: 'goal:g', source: 'model' }]), auto)
+  const withTool = blastRadius(g, [{ id: 'x2', source: 'model' }])
+  assert.deepEqual(blastRadius(g, [{ id: 'x2', source: 'model' }, { id: 'question:x', source: 'model' }]), withTool)
+})

@@ -184,10 +184,11 @@ test('feature 21: session.start registers context_graph; inspect, focus and clea
 
   for (let i = 1; i <= 8; i++) await feedTurn($ as never, i, `/repo/f${i}.ts`)
   const inspected = await callTool($ as never, { action: 'inspect' })
-  const body = JSON.parse(inspected.result) as { nodes: { id: string; kind: string; tokens: number; hop: number | null; weight: number }[] }
-  expect(body.nodes.length).toBeGreaterThan(0)
-  expect(body.nodes.length).toBeLessThanOrEqual(25)
-  for (const n of body.nodes) for (const k of ['id', 'kind', 'tokens', 'hop', 'weight']) expect(k in n).toBe(true)
+  // v2: the transcript nodes moved under `evidence` (top 15); `nodes` is the solution model
+  const body = JSON.parse(inspected.result) as { evidence: { nodes: { id: string; kind: string; tokens: number; hop: number | null; weight: number }[] } }
+  expect(body.evidence.nodes.length).toBeGreaterThan(0)
+  expect(body.evidence.nodes.length).toBeLessThanOrEqual(15)
+  for (const n of body.evidence.nodes) for (const k of ['id', 'kind', 'tokens', 'hop', 'weight']) expect(k in n).toBe(true)
 
   const focused = await callTool($ as never, { action: 'focus', match: 'f3.ts', nodeIds: ['nope:1'], note: 'n' })
   expect(focused.result).toContain('Focused on 1 nodes')
@@ -394,4 +395,141 @@ test('feature 24: no deny is returned for a tool the plugin does not own, even w
     expect('deny' in (r as object)).toBe(false)
     expect(r).toEqual({ result: { file: { content: 'abc' } } })
   }
+})
+
+// ------------------------------------------------------------------ v2: solution model (features v2-16..v2-18)
+
+test('v2-16: positions stored in the old pos-1 shape are declined and the pane still renders', async ($, on) => {
+  engine(on)
+  let seeded = 0
+  ;(on as On)('state.get', (_: unknown, e: { key?: string }, next: (e: never) => unknown) => {
+    if (e.key !== 'positions') return next(e as never)
+    seeded++
+    return { value: { value: { 'prompt:u1': { x: 1, y: 2, z: 3 } }, shape: 'pos-1' } }
+  })
+  await feedTurn($ as never, 1)
+  expect(seeded).toBeGreaterThan(0)
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect(await ui.find({ type: surface === 'terminal' ? 'Raster' : 'Svg' })).toBeDefined()
+    expect(await statusText(ui)).toMatch(/^4 nodes/)
+    await ui.unmount()
+  }
+})
+
+type Reply = { ok: boolean; id?: string; error?: string; warnings?: string[]; model: { nodes: number; open: string[]; abandoned: string[] }; export: { path: string; lastWrittenAt: number | null } }
+const author = async ($: unknown, input: object) => JSON.parse((await callTool($ as never, input)).result) as Reply
+const modelText = async ($: unknown) => (await run($ as never, 'model')).text ?? ''
+
+test('v2-17: the tool adds, links, resolves and abandons; a bad link changes nothing; inspect reports the model', async ($, on) => {
+  engine(on)
+  bootEnv(on, () => ({ value: FIXTURE }))
+  await $.session.start(START)
+  const ev = Object.keys(buildGraph(FIXTURE).nodes).find((id) => id.startsWith('turn:'))!
+
+  const g = await author($, { action: 'add', kind: 'goal', label: 'Visualise the context', evidence: [ev] })
+  expect(g.ok).toBe(true)
+  expect(g.id).toBe('goal:visualise-the-context')
+  expect((await author($, { action: 'add', kind: 'component', label: 'Pane' })).id).toBe('component:pane')
+  expect((await author($, { action: 'link', from: 'goal:visualise-the-context', to: 'component:pane', kind: 'depends-on' })).ok).toBe(true)
+  const q = await author($, { action: 'add', kind: 'question', label: 'Does it render?' })
+  expect(q.model.open).toEqual(['question:does-it-render'])
+  expect((await author($, { action: 'add', kind: 'decision', label: 'Use SVG' })).ok).toBe(true)
+  const r = await author($, { action: 'resolve', id: 'question:does-it-render', by: 'decision:use-svg', note: 'yes' })
+  expect(r.ok).toBe(true)
+  expect(r.model.open).toEqual([])
+  expect((await author($, { action: 'add', kind: 'decision', label: 'Use WebGL' })).ok).toBe(true)
+  const a = await author($, { action: 'abandon', id: 'decision:use-webgl', reason: 'no GPU in the pane' })
+  expect(a.ok).toBe(true)
+  expect(a.model.abandoned).toEqual(['decision:use-webgl'])
+  expect(a.model.nodes).toBe(5)
+  expect(a.export.path).toBe('/repo/.context-graph/solution.html')
+
+  const before = await modelText($)
+  const bad = await author($, { action: 'link', from: 'component:pane', to: 'decision:use-svg', kind: 'constrains' })
+  expect(bad.ok).toBe(false)
+  expect(bad.error).toBe('bad-link')
+  expect(await modelText($)).toBe(before)
+  const invalid = await author($, { action: 'add', kind: 'constrains', label: 'x' })
+  expect(invalid.ok).toBe(false)
+  expect(invalid.error).toMatch(/^kind/)
+
+  const ins = JSON.parse((await callTool($ as never, { action: 'inspect' })).result) as {
+    goal: { id: string; label: string } | null
+    nodes: { id: string; kind: string; status: string; label: string; health: string; relevance: number }[]
+    open: string[]
+    unjustified: string[]
+    touched: string[]
+    bearing: string[]
+    health: Record<string, number>
+    export: { path: string; lastWrittenAt: number | null }
+  }
+  expect(ins.goal?.id).toBe('goal:visualise-the-context')
+  expect(ins.nodes.length).toBe(5)
+  for (let i = 1; i < ins.nodes.length; i++) expect(ins.nodes[i - 1]!.relevance).toBeGreaterThanOrEqual(ins.nodes[i]!.relevance)
+  expect(ins.nodes.find((n) => n.id === 'goal:visualise-the-context')!.health).toBe('in-window')
+  expect(ins.nodes.find((n) => n.id === 'component:pane')!.health).toBe('never-loaded')
+  expect(ins.open).toEqual([])
+  expect(ins.unjustified).toEqual(['decision:use-svg'])
+  expect(ins.health).toEqual({ 'in-window': 1, compacted: 0, 'never-loaded': 3 })
+  expect(ins.export).toEqual({ path: '/repo/.context-graph/solution.html', lastWrittenAt: null })
+
+  const f = await callTool($ as never, { action: 'focus', nodeIds: ['component:pane'], note: 'pane' })
+  expect(f.result).toContain('Focused on 1 nodes')
+  const ins2 = JSON.parse((await callTool($ as never, { action: 'inspect' })).result) as { reason: string; touched: string[]; bearing: string[] }
+  expect(ins2.reason).toBe('model')
+  expect(ins2.touched).toEqual(['component:pane'])
+  expect(ins2.bearing).toEqual(['goal:visualise-the-context'])
+
+  const unknown = await callTool($ as never, { action: 'delete' })
+  expect(unknown.result).toContain('inspect | focus | clear | add | link | resolve | abandon | import')
+  for (const junk of [{}, { action: 'add', kind: 'goal' }, { action: 'import', ops: 'x' }, { action: 'link', from: 1 }, { action: 'focus', nodeIds: 'x' }]) {
+    const res = await callTool($ as never, junk)
+    expect(typeof res.result).toBe('string')
+  }
+})
+
+type ImportReply = { ok: boolean; error?: string; applied: number; failed: { i: number; error?: string }[]; dangling: string[]; model: { nodes: number } }
+const SEED = (ops: object[]) => JSON.stringify({ format: 'context-graph/solution@1', ops })
+
+test('v2-18: import merges inline ops, replaces on mode replace, reads a seed path, and reports read errors', async ($, on) => {
+  engine(on)
+  const files: Record<string, string> = {
+    '/repo/seed.json': SEED([
+      { op: 'add', kind: 'goal', label: 'G' },
+      { op: 'add', kind: 'risk', label: 'R', evidence: ['turn:nope'] },
+      { op: 'link', from: 'risk:r', to: 'goal:zzz', kind: 'constrains' },
+    ]),
+  }
+  bootEnv(on, (path) => {
+    if (path in files) return { value: files[path] }
+    if (path.endsWith('.jsonl')) return { value: FIXTURE }
+    throw new Error(`ENOENT: ${path}`)
+  })
+  await $.session.start(START)
+
+  const inline = JSON.parse((await callTool($ as never, { action: 'import', ops: [{ op: 'add', kind: 'component', label: 'A' }, { op: 'add', kind: 'component', label: 'B' }] })).result) as ImportReply
+  expect(inline.applied).toBe(2)
+  expect(inline.failed).toEqual([])
+  expect(inline.model.nodes).toBe(2)
+
+  const merged = JSON.parse((await callTool($ as never, { action: 'import', path: 'seed.json' })).result) as ImportReply
+  expect(merged.applied).toBe(2)
+  expect(merged.failed.length).toBe(1)
+  expect(merged.failed[0]!.i).toBe(2)
+  expect(merged.dangling).toEqual(['turn:nope'])
+  expect(merged.model.nodes).toBe(4)
+
+  const replaced = JSON.parse((await callTool($ as never, { action: 'import', path: '/repo/seed.json', mode: 'replace' })).result) as ImportReply
+  expect(replaced.model.nodes).toBe(2)
+
+  const missing = JSON.parse((await callTool($ as never, { action: 'import', path: 'nope.json' })).result) as ImportReply
+  expect(missing.ok).toBe(false)
+  expect(missing.error).toMatch(/^read: /)
+  const notSeed = JSON.parse((await callTool($ as never, { action: 'import', ops: [], path: undefined })).result) as ImportReply
+  expect(notSeed.applied).toBe(0)
+
+  expect((await run($ as never, 'import seed.json --replace')).text).toBe('Imported 3 ops (1 failed, 1 dangling).')
+  expect((await run($ as never, 'import nope.json')).text).toMatch(/^Import failed: read: /)
+  expect(await modelText($)).toContain('G')
 })
