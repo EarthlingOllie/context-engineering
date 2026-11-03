@@ -116,7 +116,7 @@ async function runBestOfN(ctx: TopologyContext, spec: DispatchSpec): Promise<Dis
         spec,
         "worker",
         buildPrompt({ role: "worker", task: spec.task, context: spec.context, entry: workerEntry, returns, artifactDir: ctx.artifactDir, sections }),
-        { role: "worker", attempt: index, attempts: n },
+        { role: "worker", index, count: n },
       );
       if (!out) {
         ctx.rt.log(`${spec.id}: attempt ${index}/${n} returned nothing; dropped`);

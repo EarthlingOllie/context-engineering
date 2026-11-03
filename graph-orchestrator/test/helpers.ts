@@ -6,9 +6,22 @@ export type Call = { prompt: string; opts: AgentOptions; n: number; dispatch: st
 
 /**
  * Script agent outputs by a substring of "<dispatch id> <label>" ("Worker",
- * "Generator · round 2", "Branch 1 of 3", "w1-d2 Judge", "scribe"...).
+ * "Generator (2", "Worker (1 of 3)", "w1-d2 Best-of-n, Judge", "scribe"...).
  */
 export type Script = Record<string, unknown | ((call: Call) => unknown)>;
+
+/**
+ * A label without its topology and task: "Worker (2 of 3)" for
+ * "Fan-out, Worker (2 of 3): part b"; "Chain stage 2 · Single, Worker: x" keeps
+ * nothing of its stage either. A label with no topology comes back as it is.
+ */
+export function roleOf(label: string | undefined): string {
+  const l = label ?? "";
+  const comma = l.indexOf(", ");
+  const rest = comma === -1 ? l : l.slice(comma + 2);
+  const colon = rest.indexOf(": ");
+  return colon === -1 ? rest : rest.slice(0, colon);
+}
 
 export function fakeRuntime(script: Script = {}) {
   const calls: Call[] = [];
@@ -26,7 +39,7 @@ export function fakeRuntime(script: Script = {}) {
       const label = opts.label ?? "";
       const text = `${dispatch} ${label}`;
       const merged = { ...defaults, ...script };
-      // Longest matching key wins, so "Generator · round 2" beats "Generator".
+      // Longest matching key wins, so "Generator (2" beats "Generator".
       const key = Object.keys(merged)
         .filter((k) => text.includes(k))
         .sort((a, b) => b.length - a.length)[0];
@@ -37,7 +50,7 @@ export function fakeRuntime(script: Script = {}) {
     parallel: async (thunks) => Promise.all(thunks.map((t) => t().catch(() => null))),
     log: (m) => logs.push(m),
   });
-  return { rt: runtimeFor(""), runtimeFor, calls, logs, labels: () => calls.map((c) => c.opts.label ?? "") };
+  return { rt: runtimeFor(""), runtimeFor, calls, logs, labels: () => calls.map((c) => c.opts.label ?? ""), roles: () => calls.map((c) => roleOf(c.opts.label)) };
 }
 
 export function spec(over: Partial<DispatchSpec> & { id: string; topology: DispatchSpec["topology"] }): DispatchSpec {
@@ -72,7 +85,7 @@ export async function wave(dispatches: DispatchSpec[], script: Script = {}, extr
     dispatches.map((d) => runWorkflow({ ...baseArgs, dispatch: d, ...extra } as never, f.runtimeFor(d && typeof d === "object" ? String(d.id ?? "") : ""))),
   );
   const order = dispatches.map((d) => (d && typeof d === "object" ? String(d.id ?? "") : ""));
-  const scribes = f.calls.filter((c) => c.opts.label === "Trace scribe").sort((a, b) => order.indexOf(a.dispatch) - order.indexOf(b.dispatch));
+  const scribes = f.calls.filter((c) => roleOf(c.opts.label) === "Trace scribe").sort((a, b) => order.indexOf(a.dispatch) - order.indexOf(b.dispatch));
   const events = scribes.flatMap((c) => eventsOf(c.prompt));
   return { out: { results, events }, ...f };
 }

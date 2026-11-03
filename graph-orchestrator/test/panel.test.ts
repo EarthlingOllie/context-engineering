@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { agentDemand } from "../src/topologies.ts";
-import { spec, wave, type Call } from "./helpers.ts";
+import { spec, wave, type Call, roleOf } from "./helpers.ts";
 
 const lenses = [
   { name: "correctness", focus: "behaviour vs spec" },
@@ -15,14 +15,14 @@ const panel = (params: Record<string, unknown>, over: Record<string, unknown> = 
   spec({ id: "w1-d1", topology: "panel", context: ["diff at /scratch/release.diff"], params: { lenses, pass_criteria: "no blocking defect", ...params }, ...over });
 
 test("panel: all lenses pass -> done, PASS, one evaluator per lens with its own LENS section", async () => {
-  const { out, calls, labels } = await wave([panel({})]);
+  const { out, calls, roles } = await wave([panel({})]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.result, "PASS");
   assert.equal(r.iterations, 1);
   const evals = calls.filter((c) => /Evaluator/.test(c.opts.label ?? ""));
   assert.equal(evals.length, 3);
-  assert.deepEqual(labels().filter((l) => !l.includes("scribe")), ["Evaluator correctness", "Evaluator caps", "Evaluator docs"]);
+  assert.deepEqual(roles().filter((l) => !l.includes("scribe")), ["Evaluator correctness (1 of 3)", "Evaluator caps (2 of 3)", "Evaluator docs (3 of 3)"]);
   const p = evals[0]!.prompt;
   assert.match(p, /LENS: correctness — behaviour vs spec/);
   assert.match(p, /judge only this lens/);
@@ -73,7 +73,7 @@ test("panel: a lens skill overrides roles.evaluator.skill; others keep the role'
 
 test("panel: with a reducer it gets the verdict and all feedback; result is verdict line then reducer result, artifacts its", async () => {
   let reducerCall: Call | undefined;
-  const { out, labels } = await wave([panel({ reducer: true })], {
+  const { out, roles } = await wave([panel({ reducer: true })], {
     "Evaluator caps": fails("1. caps bad"),
     Reducer: (c: Call) => {
       reducerCall = c;
@@ -84,7 +84,7 @@ test("panel: with a reducer it gets the verdict and all feedback; result is verd
   assert.equal(r.status, "done");
   assert.equal(r.result, "FAIL (2/3)\nmerged: 1 blocking defect");
   assert.deepEqual(r.artifacts, ["/scratch/merged.md"]);
-  assert.equal(labels().filter((l) => l.includes("Reducer")).length, 1);
+  assert.equal(roles().filter((l) => l.includes("Reducer")).length, 1);
   const p = reducerCall!.prompt;
   assert.match(p, /ROLE: reducer/);
   assert.match(p, /VERDICT:\nFAIL \(2\/3\)/);
@@ -103,13 +103,13 @@ test("panel: roles.reducer entry is used as the reducer", async () => {
 });
 
 test("panel: a blocked lens -> blocked with its question, no reducer runs", async () => {
-  const { out, labels } = await wave([panel({ reducer: true })], {
+  const { out, roles } = await wave([panel({ reducer: true })], {
     "Evaluator caps": { pass: false, feedback: "", blocked: true, question: "which cap table is current?" },
   });
   const r = out.results[0]!;
   assert.equal(r.status, "blocked");
   assert.match(r.question ?? "", /caps.*which cap table is current\?/);
-  assert.equal(labels().filter((l) => l.includes("Reducer")).length, 0);
+  assert.equal(roles().filter((l) => l.includes("Reducer")).length, 0);
 });
 
 test("panel: a blocked reducer -> blocked", async () => {
@@ -122,7 +122,7 @@ test("panel: a lens or reducer returning nothing -> failed", async () => {
   const lens = await wave([panel({ reducer: true })], { "Evaluator docs": null });
   assert.equal(lens.out.results[0]!.status, "failed");
   assert.match(lens.out.results[0]!.result, /docs/);
-  assert.equal(lens.labels().filter((l) => l.includes("Reducer")).length, 0);
+  assert.equal(lens.roles().filter((l) => l.includes("Reducer")).length, 0);
   const thrown = await wave([panel({})], { "Evaluator caps": () => { throw new Error("boom"); } });
   assert.equal(thrown.out.results[0]!.status, "failed");
   const red = await wave([panel({ reducer: true })], { Reducer: null });
@@ -131,7 +131,7 @@ test("panel: a lens or reducer returning nothing -> failed", async () => {
 });
 
 test("panel: param check before any agent; caps -> over_budget; malformed -> failed", async () => {
-  const { out, labels } = await wave([
+  const { out, roles } = await wave([
     spec({ id: "w1-d2", topology: "panel", params: { lenses: Array.from({ length: 7 }, (_, i) => ({ name: `l${i}`, focus: "f" })), pass_criteria: "p" } }),
     spec({ id: "w1-d3", topology: "panel", params: { lenses: [lenses[0], lenses[0]], pass_criteria: "p" } }),
     spec({ id: "w1-d4", topology: "panel", params: { lenses, pass_criteria: "p", pool: "any" } }),
@@ -139,7 +139,7 @@ test("panel: param check before any agent; caps -> over_budget; malformed -> fai
     spec({ id: "w1-d6", topology: "panel", params: { lenses: [], pass_criteria: "p" } }),
     spec({ id: "w1-d7", topology: "panel", params: { lenses: [{ name: "x" }], pass_criteria: "p" } }),
   ]);
-  assert.deepEqual(labels().filter((l) => l !== "Trace scribe"), [], "no role agent runs");
+  assert.deepEqual(roles().filter((l) => l !== "Trace scribe"), [], "no role agent runs");
   assert.deepEqual(out.results.map((r) => r.status), ["over_budget", "failed", "failed", "failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /cap of 6/);
   assert.match(out.results[1]!.result, /duplicate/);

@@ -7,8 +7,8 @@ import type { DispatchResult, DispatchSpec, ReturnContract, RoleEntry, Runtime, 
 import { ROLE_SCHEMAS, type RoleName } from "../roles.ts";
 import { type AgentLabelParts, agentLabel } from "../labels.ts";
 
-/** What a role call says about itself for its agent label; the stage prefix comes from the spec id. */
-export type RoleLabel = Omit<AgentLabelParts, "id">;
+/** What a role call says about itself for its agent label; the topology, stage prefix and (unless a branch names its own) task come from the spec. */
+export type RoleLabel = Omit<AgentLabelParts, "id" | "topology">;
 
 export const MAX_LINES = 20;
 export const MAX_WIDTH = 9;
@@ -176,7 +176,7 @@ export async function callRole(
   roleLabel: RoleLabel,
   schema: Record<string, unknown> = ROLE_SCHEMAS[role],
 ): Promise<Record<string, unknown> | null> {
-  const label = agentLabel({ ...roleLabel, id: spec.id });
+  const label = agentLabel({ topology: String(spec.topology), task: spec.task, ...roleLabel, id: spec.id });
   let out: unknown;
   try {
     out = await ctx.rt.agent(prompt, { label, schema });

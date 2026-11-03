@@ -50,7 +50,7 @@ test("the script body runs under a harness-shaped scope and returns the dispatch
   assert.equal(out.status, "done");
   assert.deepEqual(out.stages, ["w1-d2-s1:done", "w1-d2-s2:done"]);
   assert.equal(out.scribe?.appended, 3);
-  assert.deepEqual(f.labels(), ["Stage 1 · Worker", "Stage 2 · Generator · round 1 of 1", "Stage 2 · Evaluator · round 1 of 1", "Trace scribe"]);
+  assert.deepEqual(f.labels(), ["Chain stage 1 · Single, Worker: a", "Chain stage 2 · Generator-evaluator, Generator: b", "Chain stage 2 · Generator-evaluator, Evaluator: b", "Chain, Trace scribe: w1-d2 trace lines"]);
   assert.equal(f.logs[0], "w1-d2: chain, up to 3 agent(s) + 1 scribe");
 });
 
