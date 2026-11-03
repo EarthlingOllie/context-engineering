@@ -53,20 +53,24 @@ export function layout(g: Graph, prev: Record<string, Vec3>, opts?: { iterations
   }
 
   const dx = new Float64Array(n), dy = new Float64Array(n), dz = new Float64Array(n)
+  const live = Uint8Array.from(nodes, (nd) => (nd.inWindow ? 1 : 0))
   const t0 = warm ? L * 0.5 : R * 0.5
   for (let it = 0; it < iterations; it++) {
     const temp = t0 * (1 - it / iterations) + 0.05
     dx.fill(0); dy.fill(0); dz.fill(0)
     for (let i = 0; i < n; i++) {
+      const xi = x[i]!, yi = y[i]!, zi = z[i]!, li = live[i]!
+      let fx = 0, fy = 0, fz = 0
       for (let j = i + 1; j < n; j++) {
-        let ex = x[i]! - x[j]!, ey = y[i]! - y[j]!, ez = z[i]! - z[j]!
+        let ex = xi - x[j]!, ey = yi - y[j]!, ez = zi - z[j]!
         let d2 = ex * ex + ey * ey + ez * ez
         if (d2 < 1e-4) { ex = 0.01 * ((i - j) % 3); ey = 0.01; ez = 0; d2 = 1e-4 }
         // k^2/d divided by d to normalise direction; the out-of-window shell barely pushes the live core
-        const f = ((L * L) / d2) * (nodes[i]!.inWindow === nodes[j]!.inWindow ? 1 : 0.05)
-        dx[i] = dx[i]! + ex * f; dy[i] = dy[i]! + ey * f; dz[i] = dz[i]! + ez * f
+        const f = ((L * L) / d2) * (li === live[j] ? 1 : 0.05)
+        fx += ex * f; fy += ey * f; fz += ez * f
         dx[j] = dx[j]! - ex * f; dy[j] = dy[j]! - ey * f; dz[j] = dz[j]! - ez * f
       }
+      dx[i] = dx[i]! + fx; dy[i] = dy[i]! + fy; dz[i] = dz[i]! + fz
     }
     for (const [a, b] of edges) {
       const ex = x[a]! - x[b]!, ey = y[a]! - y[b]!, ez = z[a]! - z[b]!
