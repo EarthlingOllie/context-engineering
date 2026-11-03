@@ -275,3 +275,28 @@ test('every solution node gets a non-overlapping label, even when crowded; only 
     assert.ok(a.x >= 0 && a.x + a.w <= 800 && a.y >= 0, `${a.t} off canvas`)
   }
 })
+
+test('solution labels never sit on another node marker', () => {
+  // Each node's right-hand spot runs over its neighbour, and an evidence node sits under the goal's spot.
+  const sol: SceneItem[] = [
+    item('goal:g', { kind: 'goal', layer: 'solution', shape: 'goal', status: 'active', health: 'in-window', labelled: true, label: 'Mod pane: projected graph beside the chat', x: 300, y: 300, r: 11, weight: 1, depth: 100 }),
+    item('component:c', { kind: 'component', layer: 'solution', shape: 'square', status: 'active', health: 'in-window', labelled: true, label: 'Solution map layer (v2)', x: 380, y: 302, r: 6, weight: 0.8, depth: 101 }),
+    item('constraint:w', { kind: 'constraint', layer: 'solution', shape: 'diamond', status: 'active', health: 'in-window', labelled: true, label: "Mod panes can't run WebGL", x: 470, y: 298, r: 6, weight: 0.6, depth: 102 }),
+    item('decision:d', { kind: 'decision', layer: 'solution', shape: 'hex', status: 'active', health: 'in-window', labelled: true, label: 'On claude.ai, show the view as a page', x: 250, y: 296, r: 6, weight: 0.7, depth: 103 }),
+    item('risk:r', { kind: 'risk', layer: 'solution', shape: 'cross', status: 'active', health: 'in-window', labelled: true, label: 'Review bug: blast radius', x: 300, y: 278, r: 6, weight: 0.5, depth: 104 }),
+  ]
+  const ev = [item('turn:e', { kind: 'turn', layer: 'evidence', label: 'e', x: 520, y: 299, r: 5, weight: 0.5, depth: 300 })]
+  const items = [...sol, ...ev]
+  const sc: Scene = { width: 800, height: 600, items, edges: [], legend: { tokensInRadius: 0, totalTokens: 0, nodes: 1, blastNodes: 0, solution: { goal: 'g', components: 1, decisions: 1, openQuestions: 0, health: { inWindow: 5, compacted: 0, missing: 0 }, kinds: ['goal', 'component', 'constraint', 'decision', 'risk'] } } }
+  const svg = renderSvg(sc, { width: 800, height: 600, theme: 'light' })
+  const labels = [...svg.matchAll(/<text class="label sol" x="([\d.-]+)" y="([\d.-]+)"[^>]*>([^<]*)<\/text>/g)]
+  assert.equal(labels.length, sol.length)
+  for (const l of labels) {
+    const b = { x: +l[1]!, y: +l[2]! - 10, w: l[3]!.length * 6.7, h: 13 }
+    for (const n of items) {
+      const r = n.layer === 'solution' ? n.r + 3.5 : n.r
+      const nx = Math.max(b.x, Math.min(n.x, b.x + b.w)), ny = Math.max(b.y, Math.min(n.y, b.y + b.h))
+      assert.ok(Math.hypot(nx - n.x, ny - n.y) >= r, `label '${l[3]}' covers the marker of ${n.id}`)
+    }
+  }
+})

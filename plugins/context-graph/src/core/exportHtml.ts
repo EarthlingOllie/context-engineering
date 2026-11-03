@@ -462,8 +462,26 @@ const tags = [...labelSol.map((n) => ({ n, sol: true })), ...labelEv.map((n) => 
   const lead = sol ? root.appendChild(Object.assign(document.createElement('div'), { className: 'cg-lead' })) : null
   return { n, sol, i, el, lead, v: new THREE.Vector3() }
 })
+// Every node's on-screen marker (solution nodes with their health ring), so solution labels never cover a node.
+const mv = new THREE.Vector3(), right = new THREE.Vector3()
+let markers = [], labelHits = 0
+function screenMarkers(w0, h0) {
+  right.setFromMatrixColumn(camera.matrixWorld, 0)
+  const out = [], add = (p, r, sol, i) => {
+    mv.set(p[0], p[1], p[2]).project(camera)
+    if (mv.z >= 1) return
+    const x = (mv.x + 1) / 2 * w0, y = (1 - mv.y) / 2 * h0
+    mv.set(p[0], p[1], p[2]).addScaledVector(right, r).project(camera)
+    out.push({ x, y, r: Math.hypot((mv.x + 1) / 2 * w0 - x, (1 - mv.y) / 2 * h0 - y) + 2, sol, i })
+  }
+  if (groups.solution.visible) D.solution.forEach((n, i) => { if (grow[i] > 0.5) add(n.p, (n.r + 3) * grow[i], true, i) })
+  if (groups.evidence.visible) D.evidence.forEach((n) => add(n.p, evR(n.t) * (1 + 0.5 * n.w), false, -1))
+  return out
+}
+const hitsMarker = (x, y, w, h, m) => Math.hypot(Math.max(x, Math.min(m.x, x + w)) - m.x, Math.max(y, Math.min(m.y, y + h)) - m.y) < m.r
 function placeTags() {
   const w0 = W(), h0 = H(), rr = root.getBoundingClientRect()
+  markers = screenMarkers(w0, h0); labelHits = 0
   // the HUD and the buttons are occupied space too
   const boxes = [...root.querySelectorAll('#cg-header, #cg-legend, #cg-oq button, #cg-buttons')].map((el) => {
     const b = el.getBoundingClientRect()
@@ -473,27 +491,36 @@ function placeTags() {
     const layerOn = t.sol ? groups.solution.visible : groups.evidence.visible
     const i = t.i
     t.v.set(...t.n.p).project(camera)
-    const px = (t.v.x + 1) / 2 * w0, py = (1 - t.v.y) / 2 * h0, gap = t.sol ? 10 : 6, h = 16
+    const px = (t.v.x + 1) / 2 * w0, py = (1 - t.v.y) / 2 * h0, h = 16
+    const own = t.sol ? markers.find((m) => m.sol && m.i === i) : null, gap = t.sol ? Math.max(10, (own?.r ?? 0) + 4) : 6
     const ew = t.el.offsetWidth || 120
     // right, left, above, below, then the four diagonals: the first spot that is on screen and free
     const spots = [[px + gap, py - 8], [px - gap - ew, py - 8], [px - ew / 2, py - gap - h], [px - ew / 2, py + gap - 4], [px + gap, py - 8 - h], [px + gap, py + 6], [px - gap - ew, py - 8 - h], [px - gap - ew, py + 6]]
     // solution labels are never dropped: step further out a line at a time, with a leader back to the node
     if (t.sol) for (let k = 2; k <= 30; k++) for (const dy of [-k * h, k * h]) spots.push([px + gap, py - 8 + dy], [px - gap - ew, py - 8 + dy])
     let si = -1
+    // solution labels avoid every other node's marker, then only solution markers, then labels only
+    const near = t.sol ? markers.filter((m) => m !== own && Math.abs(m.x - px) < ew + gap + m.r + 4 && Math.abs(m.y - py) < 32 * h + m.r) : []
+    const tiers = t.sol ? [near, near.filter((m) => m.sol), []] : [[]]
     const live = layerOn && (i < 0 || grow[i] > 0.5) && t.v.z < 1 && Math.abs(t.v.x) < 1 && Math.abs(t.v.y) < 1
     let x = px + gap, y = py - 8, w = Math.min(ew, w0 - x), on = false
-    if (live) for (const [j, [sx, sy]] of spots.entries()) {
-      const sw = Math.min(ew, w0 - sx)
-      if (sx < 0 || sx > w0 - 24 || sy < 0 || sy > h0 - h) continue
-      if (boxes.some((b) => sx < b.x + b.w && b.x < sx + sw && sy < b.y + (b.h ?? h) && b.y < sy + h)) continue
-      x = sx; y = sy; w = sw; on = true; si = j; break
+    if (live) for (const obst of tiers) {
+      for (const [j, [sx, sy]] of spots.entries()) {
+        const sw = Math.min(ew, w0 - sx)
+        if (sx < 0 || sx > w0 - 24 || sy < 0 || sy > h0 - h) continue
+        if (boxes.some((b) => sx < b.x + b.w && b.x < sx + sw && sy < b.y + (b.h ?? h) && b.y < sy + h)) continue
+        if (obst.some((m) => hitsMarker(sx, sy, sw, h, m))) continue
+        x = sx; y = sy; w = sw; on = true; si = j; break
+      }
+      if (on) break
     }
     if (on) boxes.push({ x, y, w, h })
+    if (on && t.sol && markers.some((m) => m !== own && hitsMarker(x, y, w, h, m))) labelHits++
     t.el.style.display = on ? 'block' : 'none'
     t.el.style.maxWidth = Math.max(40, w0 - x - 8) + 'px'
     t.el.style.transform = 'translate(' + x + 'px,' + y + 'px)'
     if (t.lead) {
-      const far = on && si >= 8, lx = x > px ? x - 1 : x + w + 1, ly = y + h / 2
+      const far = on && si >= 4, lx = x > px ? x - 1 : x + w + 1, ly = y + h / 2
       t.lead.style.display = far ? 'block' : 'none'
       if (far) { t.lead.style.width = Math.hypot(lx - px, ly - py) + 'px'; t.lead.style.transform = 'translate(' + px + 'px,' + py + 'px) rotate(' + Math.atan2(ly - py, lx - px) + 'rad)' }
     }
@@ -620,6 +647,7 @@ window.__cg = Object.freeze(Object.defineProperties({}, {
   visibleMeshes: { get: () => visibleInstances(), enumerable: true },
   frames: { get: () => frames, enumerable: true },
   solLabels: { get: () => tags.filter((t) => t.sol && t.el.style.display === 'block').length, enumerable: true },
+  labelHits: { get: () => labelHits, enumerable: true },
 }))
 
 let frames = 0

@@ -252,6 +252,13 @@ function drawLayered(scene: Scene, plan: LPlan, o: SvgOptions): string {
     ...(plan.evLabels ? plan.ev.filter((n) => n.labelled).sort((a, b) => b.weight - a.weight || (a.id < b.id ? -1 : 1)) : []),
   ]
   const placed: Box[] = [{ x: 0, y: 0, w: o.width, h: 18 }]
+  // Node markers are obstacles too: a label must not cover another node (solution markers include the health ring).
+  const markers = [
+    ...plan.sol.map((n) => ({ id: n.id, ev: false, x: n.x * sx, y: n.y * sy, r: n.r + 4 })),
+    ...plan.ev.map((n) => ({ id: n.id, ev: true, x: n.x * sx, y: n.y * sy, r: n.r + 1 })),
+  ]
+  const hitsMarker = (b: Box, m: { x: number; y: number; r: number }) =>
+    Math.hypot(Math.max(b.x, Math.min(m.x, b.x + b.w)) - m.x, Math.max(b.y, Math.min(m.y, b.y + b.h)) - m.y) < m.r
   for (const n of want) {
     const sol = n.layer === 'solution'
     const maxLen = n.kind === 'goal' ? 48 : sol ? 32 : 26
@@ -269,7 +276,12 @@ function drawLayered(scene: Scene, plan: LPlan, o: SvgOptions): string {
       candidates.push({ x: cx + gap, y: cy - 6 + dy, w, h: LINE_H }, { x: cx - gap - w, y: cy - 6 + dy, w, h: LINE_H })
     }
     const fits = (b: Box) => b.x >= 0 && b.x + b.w <= o.width && b.y >= 18 && b.y + b.h <= o.height - 16
-    const spot = candidates.find((b) => fits(b) && !placed.some((p) => overlaps(p, b)))
+    const free = (b: Box) => fits(b) && !placed.some((p) => overlaps(p, b))
+    // Solution labels avoid every marker, falling back to solution markers only, then labels only.
+    const clear = (evToo: boolean) => (b: Box) => !markers.some((m) => m.id !== n.id && (evToo || !m.ev) && hitsMarker(b, m))
+    const spot = sol
+      ? candidates.find((b) => free(b) && clear(true)(b)) ?? candidates.find((b) => free(b) && clear(false)(b)) ?? candidates.find(free)
+      : candidates.find(free)
     if (!spot) continue
     placed.push(spot)
     if (candidates.indexOf(spot) >= 4) {
