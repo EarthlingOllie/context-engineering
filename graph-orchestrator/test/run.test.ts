@@ -11,7 +11,7 @@ test("single: one worker call, one done result, prompt carries stance, context, 
     [spec({ id: "w1-d1", topology: "single", task: "Write the leap-year helper", context: ["tests live in test/", "use node:test"], roles: { worker: { skill: "tdd", instructions: "red first" } } })],
     { Worker: { result: "/scratch/t/leap.js\nexports isLeap", artifacts: ["/scratch/t/leap.js"], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Single, Worker: Write the leap-year helper", "Single, Trace scribe: w1-d1 trace lines"]);
+  assert.deepEqual(labels(), ["Worker: Write the leap-year helper", "Trace scribe: w1-d1 trace lines"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 1);
@@ -106,7 +106,7 @@ test("fan-out: explicit split runs one branch per sub-task in parallel and conca
     [spec({ id: "w1-d1", topology: "fan-out", task: "Survey the three modules", params: { split: ["module a", "module b", "module c"] }, returns: { shape: "a line per module", maxLines: 6 } })],
     { "Worker (1 of 3)": { result: "a: fine", artifacts: ["/scratch/t/a.md"], blocked: false }, "Worker (2 of 3)": { result: "b: fine", artifacts: [], blocked: false }, "Worker (3 of 3)": { result: "c: fine", artifacts: [], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Fan-out, Worker (1 of 3): module a", "Fan-out, Worker (2 of 3): module b", "Fan-out, Worker (3 of 3): module c", "Fan-out, Trace scribe: w1-d1 trace lines"]);
+  assert.deepEqual(labels(), ["Worker (1 of 3): module a", "Worker (2 of 3): module b", "Worker (3 of 3): module c", "Trace scribe: w1-d1 trace lines"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.result, "[1] a: fine\n[2] b: fine\n[3] c: fine");
@@ -193,7 +193,7 @@ test("fan-out: a partition instruction runs a partition agent first, then at mos
     [spec({ id: "w1-d1", topology: "fan-out", params: { width: 2, split: "split by package" } })],
     { Partition: { subtasks: ["pkg a", "pkg b", "pkg c"], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Fan-out, Partition: do w1-d1", "Fan-out, Worker (1 of 2): pkg a", "Fan-out, Worker (2 of 2): pkg b", "Fan-out, Trace scribe: w1-d1 trace lines"]);
+  assert.deepEqual(labels(), ["Partition: do w1-d1", "Worker (1 of 2): pkg a", "Worker (2 of 2): pkg b", "Trace scribe: w1-d1 trace lines"]);
   assert.match(calls[0]!.prompt, /PARTITION INSTRUCTION:\nsplit by package/);
   assert.match(calls[0]!.prompt, /at most 2 independent sub-tasks/);
   assert.match(calls[1]!.prompt, /TASK: pkg a/);
@@ -219,11 +219,11 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
       }),
     ],
     {
-      "Chain stage 1 · Single, Worker": { result: "/scratch/t/research.md\nthree findings", artifacts: ["/scratch/t/research.md"], blocked: false },
+      "Stage 1 · Single, Worker": { result: "/scratch/t/research.md\nthree findings", artifacts: ["/scratch/t/research.md"], blocked: false },
       Generator: { result: "/scratch/t/writeup.md", artifacts: ["/scratch/t/writeup.md"], blocked: false },
     },
   );
-  assert.deepEqual(labels(), ["Chain stage 1 · Single, Worker: research", "Chain stage 2 · Generator-evaluator, Generator (1 of 2): write it up", "Chain stage 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Chain, Trace scribe: w3-d1 trace lines"]);
+  assert.deepEqual(labels(), ["Stage 1 · Single, Worker: research", "Stage 2 · Generator-evaluator, Generator (1 of 2): write it up", "Stage 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Trace scribe: w3-d1 trace lines"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
@@ -242,9 +242,9 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
 test("chain: stops at the first stage that is not done and carries its status and question", async () => {
   const { out, labels, roles } = await wave(
     [spec({ id: "w1-d1", topology: "chain", params: { stages: [{ topology: "single", task: "a" }, { topology: "single", task: "b" }] } })],
-    { "Chain stage 1 · Single, Worker": { result: "", artifacts: [], blocked: true, question: "Which region?" } },
+    { "Stage 1 · Single, Worker": { result: "", artifacts: [], blocked: true, question: "Which region?" } },
   );
-  assert.deepEqual(labels(), ["Chain stage 1 · Single, Worker: a", "Chain, Trace scribe: w1-d1 trace lines"]);
+  assert.deepEqual(labels(), ["Stage 1 · Single, Worker: a", "Trace scribe: w1-d1 trace lines"]);
   const r = out.results[0]!;
   assert.equal(r.status, "blocked");
   assert.equal(r.question, "Which region?");
@@ -284,13 +284,13 @@ test("malformed specs: unknown topology, missing id, missing task and non-object
 
 test("an agent that throws yields a failed result for that dispatch and the other workflows are untouched", async () => {
   const { out, logs } = await wave([spec({ id: "w1-d1", topology: "single" }), spec({ id: "w1-d2", topology: "single" })], {
-    "w1-d1 Single, Worker": () => {
+    "w1-d1 Worker": () => {
       throw new Error("boom");
     },
   });
   assert.equal(out.results[0]!.status, "failed");
   assert.match(out.results[0]!.result, /worker returned nothing/);
-  assert.ok(logs.some((l) => /^w1-d1: Single, Worker: do w1-d1 threw: boom/.test(l)), "the error is logged");
+  assert.ok(logs.some((l) => /^w1-d1: Worker: do w1-d1 threw: boom/.test(l)), "the error is logged");
   assert.equal(out.results[1]!.status, "done");
   assert.equal(out.results[0]!.scribe?.appended, 1);
 });
@@ -326,8 +326,8 @@ test("a role that throws mid-topology is logged and the result keeps what the to
   assert.match(ge.result, /evaluator returned nothing in round 2/);
   assert.equal(ge.iterations, 2);
   assert.deepEqual(ge.artifacts, ["/scratch/t/gen.md"], "the generator's artifacts from the rounds already spent survive");
-  assert.ok(logs.some((l) => /^w1-d1: Fan-out, Reducer: do w1-d1 threw: reducer crashed/.test(l)), "the reducer's error is logged");
-  assert.ok(logs.some((l) => /^w1-d2: Generator-evaluator, Evaluator \(2 of 3\): do w1-d2 threw: evaluator crashed/.test(l)), "the evaluator's error is logged");
+  assert.ok(logs.some((l) => /^w1-d1: Reducer: do w1-d1 threw: reducer crashed/.test(l)), "the reducer's error is logged");
+  assert.ok(logs.some((l) => /^w1-d2: Evaluator \(2 of 3\): do w1-d2 threw: evaluator crashed/.test(l)), "the evaluator's error is logged");
 });
 
 // ---------- one workflow per dispatch: demand, refusals, trace, scribe ----------
@@ -390,7 +390,7 @@ test("the scribe writes the dispatch's own trace file: humans first, stamped wit
   assert.equal(second!.wave, 2);
   assert.equal(out.results[0]!.title, "Add the retry policy");
   const scribe = calls.at(-1)!;
-  assert.equal(scribe.opts.label, "Single, Trace scribe: w2-d1 trace lines");
+  assert.equal(scribe.opts.label, "Trace scribe: w2-d1 trace lines");
   assert.match(scribe.prompt, /Append the 2 line\(s\)/);
   assert.match(scribe.prompt, /to the file \/scratch\/t\/trace\/w2-d1\.jsonl/);
   assert.match(scribe.prompt, /<<<TRACE\n\{.*\nTRACE>>>/s);

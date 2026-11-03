@@ -50,15 +50,15 @@ test("the script body runs under a harness-shaped scope and returns the dispatch
   assert.equal(out.status, "done");
   assert.deepEqual(out.stages, ["w1-d2-s1:done", "w1-d2-s2:done"]);
   assert.equal(out.scribe?.appended, 3);
-  assert.deepEqual(f.labels(), ["Chain stage 1 · Single, Worker: a", "Chain stage 2 · Generator-evaluator, Generator: b", "Chain stage 2 · Generator-evaluator, Evaluator: b", "Chain, Trace scribe: w1-d2 trace lines"]);
+  assert.deepEqual(f.labels(), ["Stage 1 · Single, Worker: a", "Stage 2 · Generator-evaluator, Generator: b", "Stage 2 · Generator-evaluator, Evaluator: b", "Trace scribe: w1-d2 trace lines"]);
   assert.equal(f.logs[0], "w1-d2: chain, up to 3 agent(s) + 1 scribe");
 });
 
 test("the wrapper the orchestrator writes: a named meta and one nested workflow() call that passes args through", async () => {
-  const wrapper = `export const meta = { name: 'Add HTTP retry policy', description: 'w1-d1 · single' }
+  const wrapper = `export const meta = { name: 'Single: Add HTTP retry policy', description: 'w1-d1 · single' }
 return await workflow({ scriptPath: '/plugin/workflows/dispatch.js' }, args)`;
   const { meta, body } = splitScript(wrapper.replace("description: 'w1-d1 · single' }", "description: 'w1-d1 · single',\n}"));
-  assert.equal(meta["name"], "Add HTTP retry policy");
+  assert.equal(meta["name"], "Single: Add HTTP retry policy");
   const run = new AsyncFunction("workflow", "args", body);
   const seen: unknown[] = [];
   const out = await run(async (ref: unknown, a: unknown) => (seen.push(ref, a), "child result"), { dispatch: { id: "w1-d1" } });

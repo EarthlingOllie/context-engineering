@@ -1,23 +1,25 @@
 /**
  * The one place a Workflow agent label is formatted. Each dispatch runs as its
- * own workflow, named for its purpose; inside it every agent is labelled
+ * own workflow, named "<Topology>: <title>" by the orchestrator ("Fan-out: Map
+ * trace file access"), so inside it an agent is labelled
  *
- *   <topology>, <role> (n of m): <task>
+ *   <role> (n of m): <task>
  *
- * "Generator-evaluator, Generator (1 of 3): Add the retry policy",
- * "Fan-out, Worker (2 of 4): parse headers", "Best-of-n, Judge: Pick a parser".
- * `(n of m)` places the agent among the instances of its role and is left out
- * when only one is configured. A role with a second axis (a debater's rounds, an
- * iterative fan-out's rounds) names that axis: "Debate, Debater pro (round 1 of 2)",
- * "Iterative fan-out, Worker (round 2 of 3, 1 of 2)". A chain stage is prefixed
- * with its stage: "Chain stage 2 · Single, Worker: …". The task is the agent's
- * own (a branch's sub-task, else the dispatch's), one line, at most 40 characters.
+ * "Generator (1 of 3): Add the retry policy", "Worker (2 of 4): parse headers",
+ * "Judge: Pick a parser". `(n of m)` places the agent among the instances of its
+ * role and is left out when only one is configured. A role with a second axis
+ * (a debater's rounds, an iterative fan-out's rounds) names that axis:
+ * "Debater pro (round 1 of 2)", "Worker (round 2 of 3, 1 of 2)". A chain's
+ * stages each run their own topology, so a stage agent also names its stage
+ * and that topology: "Stage 2 · Generator-evaluator, Generator (1 of 2): …".
+ * The task is the agent's own (a branch's sub-task, else the dispatch's or
+ * stage's), one line, at most 40 characters.
  */
 
 export type LabelRole = "worker" | "generator" | "evaluator" | "partition" | "reducer" | "judge" | "debater" | "scribe";
 
 export type AgentLabelParts = {
-  /** The dispatch's topology; omitted only where none is known (a malformed spec's scribe). */
+  /** The dispatch's (or chain stage's) topology; shown only for a chain stage, whose workflow name says only "Chain". */
   topology?: string;
   role: LabelRole;
   /** The dispatch or chain-stage id; only a chain stage suffix (`-s2`) shows. */
@@ -59,7 +61,7 @@ const TOPOLOGY_TITLES: Record<string, string> = {
   debate: "Debate",
 };
 
-/** "Fan-out" for `fan-out`; an unknown topology is shown as given, first letter capitalised. */
+/** "Fan-out" for `fan-out`, as it heads a workflow name and a stage label; an unknown topology is shown as given, first letter capitalised. */
 export function topologyTitle(topology: string): string {
   const t = String(topology).trim();
   return TOPOLOGY_TITLES[t] ?? t.charAt(0).toUpperCase() + t.slice(1);
@@ -94,7 +96,7 @@ function position(parts: AgentLabelParts): string {
 
 export function agentLabel(parts: AgentLabelParts): string {
   const stage = stageOf(parts.id);
-  const topology = [stage ? `Chain stage ${stage}` : "", parts.topology ? topologyTitle(parts.topology) : ""].filter(Boolean).join(" · ");
+  const topology = stage ? [`Stage ${stage}`, parts.topology ? topologyTitle(parts.topology) : ""].filter(Boolean).join(" · ") : "";
   const role = ROLE_TITLES[parts.role] + (parts.name ? ` ${parts.name}` : "");
   const pos = position(parts);
   const excerpt = taskExcerpt(parts.task);

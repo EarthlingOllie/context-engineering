@@ -7,7 +7,7 @@ import type { DispatchResult, DispatchSpec, ReturnContract, RoleEntry, Runtime, 
 import { ROLE_SCHEMAS, type RoleName } from "../roles.ts";
 import { type AgentLabelParts, agentLabel } from "../labels.ts";
 
-/** What a role call says about itself for its agent label; the topology, stage prefix and (unless a branch names its own) task come from the spec. */
+/** What a role call says about itself for its agent label; the stage and its topology (chain stages only) and, unless a branch names its own, the task come from the spec. */
 export type RoleLabel = Omit<AgentLabelParts, "id" | "topology">;
 
 export const MAX_LINES = 20;

@@ -26,7 +26,7 @@ test("iterative-fan-out pass: round 1 branches, evaluator passes, reducer merges
   assert.deepEqual(r.artifacts, ["/s/a.md", "/s/b.md", "/s/merged.md"]);
   assert.equal(r.question, undefined);
   assert.deepEqual(roles(), ["Worker (round 1 of 2, 1 of 2)", "Worker (round 1 of 2, 2 of 2)", "Evaluator (1 of 2)", "Reducer", "Trace scribe"]);
-  assert.deepEqual(labels().slice(0, 3), ["Iterative fan-out, Worker (round 1 of 2, 1 of 2): scan src/a", "Iterative fan-out, Worker (round 1 of 2, 2 of 2): scan src/b", "Iterative fan-out, Evaluator (1 of 2): map trace file access"]);
+  assert.deepEqual(labels().slice(0, 3), ["Worker (round 1 of 2, 1 of 2): scan src/a", "Worker (round 1 of 2, 2 of 2): scan src/b", "Evaluator (1 of 2): map trace file access"]);
   assert.ok(calls.every((c) => c.opts.phase === undefined), "agents carry no phase: the workflow is the dispatch");
   assert.match(calls[0]!.prompt, /TASK: scan src\/a/);
   assert.match(calls[0]!.prompt, /cite file:line/);
@@ -66,7 +66,7 @@ test("iterative-fan-out gaps: failing feedback becomes the next split, numbering
   assert.match(calls[3]!.prompt, /round 2 of 2/);
   assert.ok(logs.some((l) => /cover src\/e/.test(l)), "the truncated extra is logged");
   // Round-2 evaluator and reducer see findings from both rounds.
-  assert.match(calls[5]!.prompt, /ok: Iterative fan-out, Worker \(round 1 of 2, 1 of 2\): scan src\/a/);
+  assert.match(calls[5]!.prompt, /ok: Worker \(round 1 of 2, 1 of 2\): scan src\/a/);
   assert.match(calls[5]!.prompt, /c\.ts:1 imports trace/);
   assert.match(calls[6]!.prompt, /round 1[\s\S]*round 2/);
   assert.ok(r.artifacts.includes("/s/c.md"));

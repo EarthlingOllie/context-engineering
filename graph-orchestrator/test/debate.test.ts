@@ -82,10 +82,10 @@ test("debate: a debater that returns nothing (or an empty position) fails the di
   const d = (id: string) => spec({ id, topology: "debate", roles: { judge: { instructions: "j" } }, params: { participants: two, rounds: 2 } });
   const { out, calls } = await wave([d("w1-d1"), d("w1-d2"), d("w1-d3")], {
     Debater: echo,
-    "w1-d1 Debate, Debater check (round 2": null,
-    "w1-d2 Debate, Debater flag (round 1": { position: "   ", blocked: false },
+    "w1-d1 Debater check (round 2": null,
+    "w1-d2 Debater flag (round 1": { position: "   ", blocked: false },
     Judge: verdict,
-    "w1-d3 Debate, Judge": null,
+    "w1-d3 Judge": null,
   });
   assert.deepEqual(out.results.map((r) => r.status), ["failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /check returned nothing in round 2/);

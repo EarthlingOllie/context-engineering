@@ -6,21 +6,20 @@ export type Call = { prompt: string; opts: AgentOptions; n: number; dispatch: st
 
 /**
  * Script agent outputs by a substring of "<dispatch id> <label>" ("Worker",
- * "Generator (2", "Worker (1 of 3)", "w1-d2 Best-of-n, Judge", "scribe"...).
+ * "Generator (2", "Worker (1 of 3)", "w1-d2 Judge", "scribe"...).
  */
 export type Script = Record<string, unknown | ((call: Call) => unknown)>;
 
 /**
- * A label without its topology and task: "Worker (2 of 3)" for
- * "Fan-out, Worker (2 of 3): part b"; "Chain stage 2 · Single, Worker: x" keeps
- * nothing of its stage either. A label with no topology comes back as it is.
+ * A label without its task: "Worker (2 of 3)" for "Worker (2 of 3): part b".
+ * A chain stage's label also loses its stage and topology: "Worker" for
+ * "Stage 2 · Single, Worker: x".
  */
 export function roleOf(label: string | undefined): string {
-  const l = label ?? "";
-  const comma = l.indexOf(", ");
-  const rest = comma === -1 ? l : l.slice(comma + 2);
-  const colon = rest.indexOf(": ");
-  return colon === -1 ? rest : rest.slice(0, colon);
+  let l = label ?? "";
+  if (l.startsWith("Stage ") && l.includes(", ")) l = l.slice(l.indexOf(", ") + 2);
+  const colon = l.indexOf(": ");
+  return colon === -1 ? l : l.slice(0, colon);
 }
 
 export function fakeRuntime(script: Script = {}) {
