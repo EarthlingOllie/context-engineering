@@ -203,10 +203,10 @@ function bigLayered(): Scene {
   const kinds = ['component', 'decision', 'constraint', 'question', 'risk'] as const
   for (let i = 0; i < 200; i++) items.push(item(`${kinds[i % 5]}:node-${i}`, {
     kind: kinds[i % 5], layer: 'solution', shape: 'circle', status: i % 5 === 3 ? 'open' : 'active', health: 'in-window', labelled: i < 24,
-    label: `Solution node number ${i}`, x: i < 24 ? 20 : 20 + (i * 37) % 760, y: i < 24 ? 30 + i * 20 : 30 + (i * 53) % 480, r: 6, weight: 0.12 + (i % 3) / 3, depth: 100 + i, color: 0x3b82e0,
+    label: `Solution node number ${i}`, x: i < 24 ? 20 : 20 + (i * 37) % 540, y: i < 24 ? 30 + i * 20 : 30 + (i * 53) % 480, r: 6, weight: 0.12 + (i % 3) / 3, depth: 100 + i, color: 0x3b82e0,
   }))
   for (let i = 0; i < 300; i++) items.push(item(`turn:e${i}`, {
-    kind: 'turn', layer: 'evidence', label: `evidence ${i} with a longer label`, x: i < 6 ? 760 : (i * 41) % 800, y: i < 6 ? 100 + i * 30 : (i * 29) % 600, r: 3,
+    kind: 'turn', layer: 'evidence', label: `evidence ${i} with a longer label`, x: i < 6 ? 760 : (i * 41) % 560, y: i < 6 ? 100 + i * 30 : (i * 29) % 600, r: 3,
     weight: (i % 10) / 10, depth: 400 + i, inWindow: i % 4 !== 0, labelled: i < 6, cited: i % 6 === 0,
   }))
   for (let i = 0; i < 300; i++) edges.push({ x1: (i * 41) % 800, y1: (i * 29) % 600, x2: ((i + 1) * 41) % 800, y2: ((i + 1) * 29) % 600, weight: i % 2 ? 0.1 : 0.5, depth: 400 + i, kind: 'evidence', layer: 'evidence', from: `turn:e${i}`, to: `turn:e${(i + 1) % 300}` })
@@ -297,6 +297,34 @@ test('solution labels never sit on another node marker', () => {
       const r = n.layer === 'solution' ? n.r + 3.5 : n.r
       const nx = Math.max(b.x, Math.min(n.x, b.x + b.w)), ny = Math.max(b.y, Math.min(n.y, b.y + b.h))
       assert.ok(Math.hypot(nx - n.x, ny - n.y) >= r, `label '${l[3]}' covers the marker of ${n.id}`)
+    }
+  }
+})
+
+test('evidence labels never sit on another node marker; they are dropped instead', () => {
+  // The evidence node's right-hand spot runs over a requirement, its left over another evidence node.
+  const sol: SceneItem[] = [
+    item('goal:g', { kind: 'goal', layer: 'solution', shape: 'goal', status: 'active', health: 'in-window', labelled: true, label: 'Goal', x: 150, y: 450, r: 11, weight: 1, depth: 100 }),
+    item('requirement:r', { kind: 'requirement', layer: 'solution', shape: 'square', status: 'active', health: 'in-window', labelled: true, label: 'Show the shape of the solution', x: 340, y: 305, r: 6, weight: 0.6, depth: 101 }),
+  ]
+  const ev = [
+    item('turn:a', { kind: 'turn', layer: 'evidence', labelled: true, label: '(assistant turn)', x: 300, y: 300, r: 5, weight: 0.9, depth: 300 }),
+    item('turn:b', { kind: 'turn', layer: 'evidence', labelled: true, label: 'task notification', x: 260, y: 300, r: 5, weight: 0.8, depth: 301 }),
+    item('turn:c', { kind: 'turn', layer: 'evidence', labelled: true, label: 'c', x: 300, y: 275, r: 5, weight: 0.1, depth: 302 }),
+    item('turn:d', { kind: 'turn', layer: 'evidence', labelled: true, label: 'd', x: 300, y: 325, r: 5, weight: 0.1, depth: 303 }),
+  ]
+  const items = [...sol, ...ev]
+  const sc: Scene = { width: 800, height: 600, items, edges: [], legend: { tokensInRadius: 0, totalTokens: 0, nodes: 4, blastNodes: 0, solution: { goal: 'g', components: 0, decisions: 0, openQuestions: 0, health: { inWindow: 2, compacted: 0, missing: 0 }, kinds: ['goal', 'requirement'] } } }
+  const svg = renderSvg(sc, { width: 800, height: 600, theme: 'light' })
+  assert.equal([...svg.matchAll(/<text class="label sol"/g)].length, sol.length)
+  for (const l of svg.matchAll(/<text class="label ev" x="([\d.-]+)" y="([\d.-]+)"[^>]*>([^<]*)<\/text>/g)) {
+    const b = { x: +l[1]!, y: +l[2]! - 10, w: l[3]!.length * 6.7, h: 13 }
+    const own = ev.find((n) => n.label === l[3])
+    for (const n of items) {
+      if (n === own) continue
+      const r = n.layer === 'solution' ? n.r + 3.5 : n.r
+      const nx = Math.max(b.x, Math.min(n.x, b.x + b.w)), ny = Math.max(b.y, Math.min(n.y, b.y + b.h))
+      assert.ok(Math.hypot(nx - n.x, ny - n.y) >= r, `evidence label '${l[3]}' covers the marker of ${n.id}`)
     }
   }
 })

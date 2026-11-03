@@ -91,13 +91,16 @@ check(ab !== '' && abOp <= 0.2, `svg: abandoned decision faded (opacity ${abOp})
 // the pane at a typical desktop width (120 columns x 8 px, 4:3), in the light theme
 const paneSvg = svgAt(960, 720, 'light')
 check((paneSvg.match(/<text class="label sol"/g) ?? []).length === Object.keys(m.nodes).length, 'pane: every solution node labelled')
-// no solution label covers another node's marker (solution markers include the health ring)
+// no label (solution or evidence) covers another node's marker (solution markers include the health ring)
 const paneItems = buildLayeredScene(input, { w: 960, h: 720 }).items
-for (const l of paneSvg.matchAll(/<text class="label sol" x="([\d.-]+)" y="([\d.-]+)"[^>]*>([^<]*)<\/text>/g)) {
-  const b = { x: +l[1]!, y: +l[2]! - 10, w: l[3]!.length * 6.7, h: 13 }
-  const own = paneItems.find((n) => n.layer === 'solution' && l[3]!.replace('…', '').length > 0 && n.label.startsWith(l[3]!.replace('…', '')))
+for (const l of paneSvg.matchAll(/<text class="label (sol|ev)" x="([\d.-]+)" y="([\d.-]+)"[^>]*>([^<]*)<\/text>/g)) {
+  const [, cls, x, y, raw] = l as unknown as [string, string, string, string, string]
+  const text = raw.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
+  const b = { x: +x, y: +y - 10, w: text.length * 6.7, h: 13 }
+  const stem = text.replace('…', '')
+  const own = paneItems.find((n) => (n.layer === 'solution') === (cls === 'sol') && stem.length > 0 && n.label.startsWith(stem))
   const hit = paneItems.find((n) => n !== own && Math.hypot(Math.max(b.x, Math.min(n.x, b.x + b.w)) - n.x, Math.max(b.y, Math.min(n.y, b.y + b.h)) - n.y) < (n.layer === 'solution' ? n.r + 3.5 : n.r))
-  check(!hit, `pane: label '${l[3]}' covers ${hit?.id}`)
+  check(!hit, `pane: label '${text}' covers ${hit?.id}`)
 }
 writeFileSync(out('pane.svg'), paneSvg)
 
@@ -118,7 +121,7 @@ for (const r of runs) {
   check(r.probe?.solutionNodes === Object.keys(m.nodes).length, `page solution nodes ${r.probe?.solutionNodes}`)
   check(r.probe?.openQuestions === 1, `page open questions ${r.probe?.openQuestions}`)
   check(r.probe?.solLabels === Object.keys(m.nodes).length, `page solution labels ${r.probe?.solLabels} of ${Object.keys(m.nodes).length}`)
-  check(r.probe?.labelHits === 0, `page: ${r.probe?.labelHits} solution labels cover a node marker`)
+  check(r.probe?.labelHits === 0, `page: ${r.probe?.labelHits} labels cover a node marker`)
 }
 
 // pane.png: headless Chrome screenshot of the pane SVG (virtual time lets the grow-in finish)

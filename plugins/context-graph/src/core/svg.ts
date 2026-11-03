@@ -277,11 +277,12 @@ function drawLayered(scene: Scene, plan: LPlan, o: SvgOptions): string {
     }
     const fits = (b: Box) => b.x >= 0 && b.x + b.w <= o.width && b.y >= 18 && b.y + b.h <= o.height - 16
     const free = (b: Box) => fits(b) && !placed.some((p) => overlaps(p, b))
-    // Solution labels avoid every marker, falling back to solution markers only, then labels only.
+    // Solution labels avoid every marker, falling back to solution markers only, then labels only;
+    // evidence labels avoid every marker or are dropped.
     const clear = (evToo: boolean) => (b: Box) => !markers.some((m) => m.id !== n.id && (evToo || !m.ev) && hitsMarker(b, m))
     const spot = sol
       ? candidates.find((b) => free(b) && clear(true)(b)) ?? candidates.find((b) => free(b) && clear(false)(b)) ?? candidates.find(free)
-      : candidates.find(free)
+      : candidates.find((b) => free(b) && clear(true)(b))
     if (!spot) continue
     placed.push(spot)
     if (candidates.indexOf(spot) >= 4) {
