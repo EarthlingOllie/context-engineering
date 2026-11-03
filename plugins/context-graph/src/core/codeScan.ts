@@ -321,10 +321,13 @@ function read(src: string, scan: FileScan): void {
   const readType = (k: number, end: number, opts: { body?: boolean; arrow?: boolean } = {}): number => {
     let d = 0
     let j = k
+    /** index of the last '>' that closed a type-argument list: not a binary operator, so no continuation */
+    let angleClose = -1
     for (; j < end; j++) {
       const t = toks[j]!
       if (d === 0) {
         if (t.t === 'p' && (t.v === ';' || t.v === ',' || t.v === '=' || CLOSE.has(t.v))) break
+        if (j > k && t.nl && angleClose === j - 1 && !(t.t === 'p' && CONT_AT.has(t.v))) break
         if (opts.arrow && t.t === 'p' && t.v === '=>') break
         if (j > k && t.t === 'p' && t.v === '{' && opts.body) {
           const p = T(j - 1)
@@ -335,7 +338,7 @@ function read(src: string, scan: FileScan): void {
       }
       if (t.t !== 'p') continue
       if (OPEN.has(t.v) || t.v === '<') d++
-      else if ((CLOSE.has(t.v) || t.v === '>') && d > 0) d--
+      else if ((CLOSE.has(t.v) || t.v === '>') && d > 0) { d--; if (t.v === '>') angleClose = j }
     }
     return j
   }

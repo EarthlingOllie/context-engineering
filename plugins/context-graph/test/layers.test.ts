@@ -92,6 +92,8 @@ test('v2-09: 200 solution + 300 evidence nodes lay out in under 60 ms (median of
   assert.equal(Object.keys(big.nodes).length, 200)
   const gg = synthGraph(36, 5, 48) // 36 prompts + 36 turns + 180 tools + 48 files = 300
   assert.equal(Object.keys(gg.nodes).length, 300)
+  // two warm-up runs so the JIT is not timed (the median flaked at ~63 ms cold under --test-concurrency=2)
+  for (let k = 0; k < 2; k++) layoutLayers(big, gg, { solution: {}, evidence: {} }, { seed: 1 })
   const times: number[] = []
   for (let k = 0; k < 5; k++) {
     const t = performance.now()

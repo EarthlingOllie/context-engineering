@@ -321,3 +321,21 @@ test('v3-09: a failing list never rejects', async () => {
   const res = await collectSources('/nowhere', fs)
   assert.deepEqual(res, { files: {}, skipped: [{ path: '', reason: 'list: ENOTDIR' }], truncated: false, read: 0 })
 })
+
+test('v3-07: a member type ending in a generic closer ends at the newline (no merged members, no comment text)', () => {
+  const scan = scanFile('m.ts', [
+    'export interface M {',
+    '  nodes: Record<string, Node>',
+    '  /** unique on (from,to,kind) */',
+    '  edges: Edge[]',
+    '  map: Map<string, Array<Node>>',
+    '  seq: number',
+    '  pair: Map<string,',
+    '    number>',
+    '}',
+  ].join('\n'))
+  assert.deepEqual(scan.errors, [])
+  assert.deepEqual(scan.types[0]!.attributes.map((a) => a.text), [
+    '+nodes: Record<string, Node>', '+edges: Edge[]', '+map: Map<string, Array<Node>>', '+seq: number', '+pair: Map<string, number>',
+  ])
+})
