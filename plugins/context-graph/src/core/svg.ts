@@ -15,7 +15,7 @@ const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y <
 
 export interface SvgOptions { width: number; height: number; maxChars?: number; theme: 'dark' | 'light' }
 
-const THEMES = {
+export const THEMES = {
   dark: { bg: '#0d1117', fg: '#c9d1d9', edge: '#8b949e', ring: '#ffd866', shade: 1 },
   // kind colours are tuned for a dark ground; scaling them by 0.65 keeps >= 3:1 contrast on white
   light: { bg: '#ffffff', fg: '#24292f', edge: '#57606a', ring: '#bf8700', shade: 0.65 },

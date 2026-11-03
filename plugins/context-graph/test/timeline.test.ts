@@ -6,6 +6,7 @@ import { applyDesignOps, applyUmlOps, emptyUml, parseDesignSeed } from '../src/c
 import { emptyModel } from '../src/core/solution.ts'
 import { snapshotAt, timeline } from '../src/core/timeline.ts'
 import type { DesignOp, UmlModel, UmlOp } from '../src/core/types.ts'
+import { bestMs } from './helpers.ts'
 
 const dec = (label: string): DesignOp => ({ op: 'add', kind: 'decision', label })
 const add = (name: string, decision: string, extra: Record<string, unknown> = {}) => ({ op: 'uml.add', decision, kind: 'component', name, ...extra }) as UmlOp
@@ -78,10 +79,11 @@ test('v3-06: 4000 log entries -> timeline and every snapshot under 150 ms', () =
   }
   const u: UmlModel = applyUmlOps(emptyUml(), ops, ctx).model
   assert.equal(u.log.length, 4000)
-  const t0 = performance.now()
+  // a fresh copy per run: snapshotAt caches per model object
+  const copies = Array.from({ length: 4 }, () => structuredClone(u))
+  let i = 0
+  const ms = bestMs(() => { const c = copies[i++]!; const st = timeline(c); for (let k = 0; k <= st.length; k++) snapshotAt(c, k) }, 3, 1)
   const steps = timeline(u)
-  for (let k = 0; k <= steps.length; k++) snapshotAt(u, k)
-  const ms = performance.now() - t0
   assert.equal(steps.length, 100)
   assert.ok(ms < 150, `${ms.toFixed(1)} ms`)
   assert.deepEqual(snapshotAt(u, steps.length), { elements: u.elements, relations: u.relations })

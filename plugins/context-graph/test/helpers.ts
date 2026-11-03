@@ -48,3 +48,14 @@ export function layeredFixture(layers: 'both' | 'solution' | 'evidence' = 'both'
   const scene = buildLayeredScene({ model, graph, positions, relevance: rel, health: hl, view: LAYERED_VIEW, layers }, size)
   return { scene, model, graph }
 }
+
+/**
+ * Best (minimum) wall time of `runs` calls after `warm` untimed ones. Timing budgets assert on the best run: the
+ * algorithm's cost, not scheduler noise from the other test files running in parallel (a median flaked under load).
+ */
+export function bestMs(fn: () => void, runs = 7, warm = 2): number {
+  for (let k = 0; k < warm; k++) fn()
+  let best = Infinity
+  for (let k = 0; k < runs; k++) { const t = performance.now(); fn(); best = Math.min(best, performance.now() - t) }
+  return best
+}

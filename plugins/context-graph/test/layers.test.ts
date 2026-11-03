@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { applyOps, emptyModel } from '../src/core/solution.ts'
 import { layoutLayers } from '../src/core/layers.ts'
-import { synthGraph } from './helpers.ts'
+import { bestMs, synthGraph } from './helpers.ts'
 import type { SolOp, Vec3 } from '../src/core/types.ts'
 
 // Independent statement of the spec: ring radius per kind band, evidence plane.
@@ -83,7 +83,7 @@ test('v2-09: an empty model still lays out the evidence layer', () => {
   assert.equal(Object.keys(out.evidence).length, Object.keys(g.nodes).length)
 })
 
-test('v2-09: 200 solution + 300 evidence nodes lay out in under 60 ms (median of 5)', () => {
+test('v2-09: 200 solution + 300 evidence nodes lay out in under 60 ms (best of 7)', () => {
   const ops: SolOp[] = [{ op: 'add', kind: 'goal', label: 'Big' }]
   const kinds = ['component', 'decision', 'requirement', 'constraint', 'risk', 'question'] as const
   for (let i = 0; i < 199; i++) ops.push({ op: 'add', kind: kinds[i % kinds.length]!, label: `n${i}`, id: `${kinds[i % kinds.length]}:n${i}` })
@@ -92,14 +92,6 @@ test('v2-09: 200 solution + 300 evidence nodes lay out in under 60 ms (median of
   assert.equal(Object.keys(big.nodes).length, 200)
   const gg = synthGraph(36, 5, 48) // 36 prompts + 36 turns + 180 tools + 48 files = 300
   assert.equal(Object.keys(gg.nodes).length, 300)
-  // two warm-up runs so the JIT is not timed (the median flaked at ~63 ms cold under --test-concurrency=2)
-  for (let k = 0; k < 2; k++) layoutLayers(big, gg, { solution: {}, evidence: {} }, { seed: 1 })
-  const times: number[] = []
-  for (let k = 0; k < 5; k++) {
-    const t = performance.now()
-    layoutLayers(big, gg, { solution: {}, evidence: {} }, { seed: 1 })
-    times.push(performance.now() - t)
-  }
-  times.sort((a, b) => a - b)
-  assert.ok(times[2]! < 60, `median ${times[2]} ms`)
+  const ms = bestMs(() => layoutLayers(big, gg, { solution: {}, evidence: {} }, { seed: 1 }))
+  assert.ok(ms < 60, `best ${ms.toFixed(1)} ms`)
 })
