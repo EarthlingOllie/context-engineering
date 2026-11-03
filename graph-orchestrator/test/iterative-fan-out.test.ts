@@ -25,7 +25,7 @@ test("iterative-fan-out pass: round 1 branches, evaluator passes, reducer merges
   assert.equal(r.result, "2 call sites");
   assert.deepEqual(r.artifacts, ["/s/a.md", "/s/b.md", "/s/merged.md"]);
   assert.equal(r.question, undefined);
-  assert.deepEqual(roles(), ["Worker (round 1 of 2, 1 of 2)", "Worker (round 1 of 2, 2 of 2)", "Evaluator (1 of 2)", "Reducer", "Trace scribe"]);
+  assert.deepEqual(roles(), ["Worker (round 1 of 2, 1 of 2)", "Worker (round 1 of 2, 2 of 2)", "Evaluator (1 of 2)", "Reducer", "Recorder"]);
   assert.deepEqual(labels().slice(0, 3), ["Worker (round 1 of 2, 1 of 2): scan src/a", "Worker (round 1 of 2, 2 of 2): scan src/b", "Evaluator (1 of 2): map trace file access"]);
   assert.ok(calls.every((c) => c.opts.phase === undefined), "agents carry no phase: the workflow is the dispatch");
   assert.match(calls[0]!.prompt, /TASK: scan src\/a/);
@@ -59,7 +59,7 @@ test("iterative-fan-out gaps: failing feedback becomes the next split, numbering
   assert.deepEqual(roles(), [
     "Worker (round 1 of 2, 1 of 2)", "Worker (round 1 of 2, 2 of 2)", "Evaluator (1 of 2)",
     "Worker (round 2 of 2, 1 of 2)", "Worker (round 2 of 2, 2 of 2)", "Evaluator (2 of 2)",
-    "Reducer", "Trace scribe",
+    "Reducer", "Recorder",
   ]);
   assert.match(calls[3]!.prompt, /TASK: cover src\/c\n/);
   assert.match(calls[4]!.prompt, /TASK: cover src\/d\n/);
@@ -80,7 +80,7 @@ test("iterative-fan-out stall: feedback with nothing new ends as exhausted befor
   const r = out.results[0]!;
   assert.equal(r.status, "exhausted");
   assert.equal(r.iterations, 1);
-  assert.deepEqual(roles(), ["Worker (round 1 of 3)", "Evaluator (1 of 3)", "Reducer", "Trace scribe"]);
+  assert.deepEqual(roles(), ["Worker (round 1 of 3)", "Evaluator (1 of 3)", "Reducer", "Recorder"]);
   assert.match(calls[2]!.prompt, /OPEN GAPS:\n.*scan src\/a/);
   assert.equal(r.result, "partial map\nline two\nline three\n-- exhausted after 1 round(s); open gaps: 1; first: scan src/a");
 });
@@ -94,7 +94,7 @@ test("iterative-fan-out cap: max_rounds used up ends as exhausted; the evaluator
   const r = out.results[0]!;
   assert.equal(r.status, "exhausted");
   assert.equal(r.iterations, 2);
-  assert.deepEqual(roles(), ["Worker (round 1 of 2)", "Evaluator (1 of 2)", "Worker (round 2 of 2)", "Evaluator (2 of 2)", "Reducer", "Trace scribe"]);
+  assert.deepEqual(roles(), ["Worker (round 1 of 2)", "Evaluator (1 of 2)", "Worker (round 2 of 2)", "Evaluator (2 of 2)", "Reducer", "Recorder"]);
   assert.equal(r.result, "l1\nl2\nl3\nl4\n-- exhausted after 2 round(s); open gaps: 2; first: cover src/c");
 });
 
@@ -106,7 +106,7 @@ test("iterative-fan-out caps and malformed params: over_budget or failed, no age
     spec({ id: "w1-d4", topology: "iterative-fan-out", params: { split: ["a"] } }),
     ifo("w1-d5", { split: [] }),
   ]);
-  assert.deepEqual(roles().filter((l) => l !== "Trace scribe"), [], "no role agent runs");
+  assert.deepEqual(roles().filter((l) => l !== "Recorder"), [], "no role agent runs");
   assert.deepEqual(out.results.map((r) => r.status), ["over_budget", "over_budget", "over_budget", "failed", "failed"]);
   assert.match(out.results[0]!.result, /cap of 9/);
   assert.match(out.results[1]!.result, /cap of 9/);
@@ -130,12 +130,12 @@ test("iterative-fan-out blocked: round 1 all blocked, evaluator blocked, reducer
   assert.equal(allBlocked.out.results[0]!.status, "blocked");
   assert.equal(allBlocked.out.results[0]!.id, "w1-d1");
   assert.match(allBlocked.out.results[0]!.question ?? "", /where is src\?/);
-  assert.deepEqual(allBlocked.roles(), ["Worker (round 1 of 2)", "Trace scribe"]);
+  assert.deepEqual(allBlocked.roles(), ["Worker (round 1 of 2)", "Recorder"]);
 
   const evBlocked = await wave([ifo("w1-d1", { split: ["scan src/a"] })], { "Evaluator (1 of 2)": { pass: false, feedback: "", blocked: true, question: "which criteria?" } });
   assert.equal(evBlocked.out.results[0]!.status, "blocked");
   assert.match(evBlocked.out.results[0]!.question ?? "", /which criteria\?/);
-  assert.deepEqual(evBlocked.roles(), ["Worker (round 1 of 2)", "Evaluator (1 of 2)", "Trace scribe"]);
+  assert.deepEqual(evBlocked.roles(), ["Worker (round 1 of 2)", "Evaluator (1 of 2)", "Recorder"]);
 
   const redBlocked = await wave([ifo("w1-d1", { split: ["scan src/a"] })], { Reducer: blocked("merge how?") });
   assert.equal(redBlocked.out.results[0]!.status, "blocked");
@@ -151,7 +151,7 @@ test("iterative-fan-out partition instruction: round 1 uses fan-out's partition;
     Partition: { subtasks: ["scan src/a", "scan src/b", "scan src/c"], blocked: false },
     "Evaluator (1 of 2)": fail("1. scan src/b\n2. scan src/c"),
   });
-  assert.deepEqual(roles(), ["Partition", "Worker (round 1 of 2, 1 of 2)", "Worker (round 1 of 2, 2 of 2)", "Evaluator (1 of 2)", "Worker (round 2 of 2)", "Evaluator (2 of 2)", "Reducer", "Trace scribe"]);
+  assert.deepEqual(roles(), ["Partition", "Worker (round 1 of 2, 1 of 2)", "Worker (round 1 of 2, 2 of 2)", "Evaluator (1 of 2)", "Worker (round 2 of 2)", "Evaluator (2 of 2)", "Reducer", "Recorder"]);
   assert.match(calls[4]!.prompt, /TASK: scan src\/c\n/);
   assert.equal(out.results[0]!.status, "done");
   assert.equal(out.results[0]!.iterations, 2);

@@ -18,7 +18,7 @@ test("debate: runs every round with all debaters in parallel, then the judge; th
     [spec({ id: "w1-d1", topology: "debate", roles: { judge: { instructions: "weigh stability" } }, params: { participants: two, rounds: 2 } })],
     { Debater: echo, Judge: verdict },
   );
-  assert.deepEqual(roles(), ["Debater check (round 1 of 2)", "Debater flag (round 1 of 2)", "Debater check (round 2 of 2)", "Debater flag (round 2 of 2)", "Judge", "Trace scribe"]);
+  assert.deepEqual(roles(), ["Debater check (round 1 of 2)", "Debater flag (round 1 of 2)", "Debater check (round 2 of 2)", "Debater flag (round 2 of 2)", "Judge", "Recorder"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
@@ -63,7 +63,7 @@ test("debate: a debater that blocks stops the debate with its question; no later
     [spec({ id: "w1-d1", topology: "debate", roles: { judge: { instructions: "j" } }, params: { participants: two, rounds: 3 } })],
     { Debater: echo, "Debater flag (round 1": { position: "", blocked: true, question: "which repo?" }, Judge: verdict },
   );
-  assert.deepEqual(roles(), ["Debater check (round 1 of 3)", "Debater flag (round 1 of 3)", "Trace scribe"]);
+  assert.deepEqual(roles(), ["Debater check (round 1 of 3)", "Debater flag (round 1 of 3)", "Recorder"]);
   assert.equal(out.results[0]!.status, "blocked");
   assert.equal(out.results[0]!.question, "debater flag: which repo?");
   assert.equal(out.results[0]!.iterations, 1);
@@ -106,7 +106,7 @@ test("debate: over_budget above 6 participants or 4 rounds; malformed params fai
     spec({ id: "w1-d6", topology: "debate", params: { participants: [two[0], { name: "x", stance: " " }], judge: { instructions: "j" } } }),
     spec({ id: "w1-d7", topology: "debate", params: { participants: two, rounds: 0, judge: { instructions: "j" } } }),
   ]);
-  assert.deepEqual(roles().filter((l) => l !== "Trace scribe"), [], "no role agent runs");
+  assert.deepEqual(roles().filter((l) => l !== "Recorder"), [], "no role agent runs");
   assert.deepEqual(out.results.map((r) => r.status), ["over_budget", "over_budget", "failed", "failed", "failed", "failed", "failed"]);
   assert.match(out.results[0]!.result, /cap of 4/);
   assert.match(out.results[1]!.result, /cap of 6/);

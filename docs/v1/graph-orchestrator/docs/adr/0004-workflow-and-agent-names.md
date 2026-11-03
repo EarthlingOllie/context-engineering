@@ -14,9 +14,9 @@ chain:     Link <n> · <Topology>, <role> (n of m): <task>
 ```
 
 - **Workflow name**: written by the orchestrator in the wrapper's `meta.name` (it must be a literal). The topology is title-cased: `Single`, `Generator-evaluator`, `Fan-out`, `Chain`, `Relay`, `Best-of-n`, `Iterative fan-out`, `Panel`, `Debate`.
-- **role**: `Worker`, `Generator`, `Evaluator`, `Partition`, `Reducer`, `Judge`, `Debater`, `Trace scribe`, followed by the name of a debater or panel lens.
+- **role**: `Worker`, `Generator`, `Evaluator`, `Partition`, `Reducer`, `Judge`, `Debater`, `Recorder` (the scribe that writes the trace lines), followed by the name of a debater or panel lens.
 - **(n of m)**: this agent among the instances of its role in the dispatch: a generator-evaluator round, a fan-out branch, a best-of-n attempt, a relay session, a panel lens, or a relay done-check (`check k of ⌈sessions / check_every⌉`). It is left out when only one instance is configured. When a role has a second axis, that axis is named: `Debater pro (round 1 of 2)`, or `Worker (round 2 of 3, 1 of 2)` in an iterative fan-out.
-- **task**: what the agent itself is doing: a branch's own sub-task, otherwise the dispatch's (or chain stage's) task. It is one line, at most 40 characters, ending in `…` when cut. The scribe's task is `<id> trace lines`.
+- **task**: what the agent itself is doing: a branch's own sub-task, otherwise the dispatch's (or chain stage's) task. It is one line, at most 40 characters, ending in `…` when cut. The Recorder's task is always `save the trace`: the workflow's name already says which dispatch.
 - **Chain stages**: a chain's workflow name says only `Chain`, and each stage runs its own topology, so a stage agent's label names its stage, as a link of the chain, and that topology: `Link 2 · Generator-evaluator, Generator (1 of 2): write it up`. Nested stages are dotted (`Link 3.1 · …`). Outside a chain the topology is never repeated in a label.
 
 ## Consequences

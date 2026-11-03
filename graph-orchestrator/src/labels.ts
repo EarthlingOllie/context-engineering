@@ -46,7 +46,7 @@ const ROLE_TITLES: Record<LabelRole, string> = {
   reducer: "Reducer",
   judge: "Judge",
   debater: "Debater",
-  scribe: "Trace scribe",
+  scribe: "Recorder",
 };
 
 const TOPOLOGY_TITLES: Record<string, string> = {
