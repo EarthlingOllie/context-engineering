@@ -94,3 +94,15 @@ test('v2-14 document:true wraps the same fragment in exactly one html/head/body'
   for (const tag of ['<html', '<head', '<body']) assert.equal(html.split(tag).length - 1, 1, tag)
   assert.match(html, /<title>Context Window Graph<\/title>/)
 })
+
+test('v2-19: the page grows in exactly the nodes created after `since` (default: the model promptSeq)', () => {
+  const cgData = (html: string) => JSON.parse(html.match(/<script type="application\/json" id="cg-data">([^]*?)<\/script>/)![1]!) as { since: number; solution: { id: string; c: number }[] }
+  const fresh = (d: ReturnType<typeof cgData>) => d.solution.filter((n) => n.c > d.since).map((n) => n.id).sort()
+  // solution-small.json: promptSeq 12, the two questions are adds 13 and 14
+  const byDefault = cgData(exportSolutionHtml(layeredInputs()))
+  assert.equal(byDefault.since, 12)
+  assert.deepEqual(fresh(byDefault), ['question:do-panes-work-on-the-web', 'question:use-a-worker'])
+  const all = cgData(exportSolutionHtml(layeredInputs(), { since: 0 }))
+  assert.equal(fresh(all).length, all.solution.length)
+  assert.match(exportSolutionHtml(layeredInputs()), /n\.c > D\.since/)
+})

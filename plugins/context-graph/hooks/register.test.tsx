@@ -29,8 +29,10 @@ async function feedTurn($: { session: { append: (e: never) => Promise<unknown> }
 const statusText = async (ui: { find: (q: { key?: string; type?: string; text?: RegExp }) => Promise<{ text?: string } | undefined> }) =>
   (await ui.find({ type: 'Text', text: /nodes · blast/ }))?.text ?? ''
 
-const engine = (on: (...a: never[]) => unknown) => {
-  const o = on as unknown as (ev: string, h: (...a: never[]) => unknown) => void
+/** Default engine stubs; events named in `except` are left for the test to stub itself. */
+const engine = (on: (...a: never[]) => unknown, except: string[] = []) => {
+  const raw = on as unknown as (ev: string, h: (...a: never[]) => unknown) => void
+  const o = (ev: string, h: (...a: never[]) => unknown) => (except.includes(ev) ? undefined : raw(ev, h))
   o('command.register', () => ({ value: { command: 'context-graph' } }))
   o('ui.open', () => ({ value: { isPlaced: true } }))
   o('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
@@ -152,8 +154,9 @@ test('feature 20: /context-graph open | focus | clear | stats | export | reset',
   const st = (await run($ as never, 'stats')).text ?? ''
   expect(st).toContain('prompt: 1')
   expect(st).toContain('file: 1')
-  expect((await run($ as never, 'export /tmp/g.html')).text).toBe('Exported 4 nodes to /tmp/g.html.')
-  expect((await run($ as never, 'export')).text).toBe('Exported 4 nodes to /work/context-graph.html.')
+  // v2 (v2-23): export writes the solution page (an Artifact fragment unless --document) to the export path
+  expect((await run($ as never, 'export /tmp/g.html --document')).text).toBe('Exported 0 solution nodes to /tmp/g.html.')
+  expect((await run($ as never, 'export')).text).toBe('Exported 0 solution nodes to /work/.context-graph/solution.html.')
   expect(writes.length).toBe(2)
   expect(writes[0]!.path).toBe('/tmp/g.html')
   expect(writes[0]!.text.startsWith('<!doctype html>')).toBe(true)
@@ -292,7 +295,8 @@ test('feature 23: session.start with an empty graph rebuilds it from the transcr
   engine(on)
   const reads = bootEnv(on, () => ({ value: FIXTURE }))
   await $.session.start(START)
-  expect(reads).toEqual(['/home/me/.claude/projects/-repo/S1.jsonl'])
+  // v2 (v2-21) also looks for <cwd>/.context-graph/solution.json; the transcript is read once
+  expect(reads.filter((r) => r.endsWith('.jsonl'))).toEqual(['/home/me/.claude/projects/-repo/S1.jsonl'])
   const want = Object.keys(buildGraph(FIXTURE).nodes).length
   expect(want).toBeGreaterThan(4)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
@@ -305,7 +309,7 @@ test('feature 23: a non-empty graph is not rebuilt on start (reload keeps the li
   const reads = bootEnv(on, () => ({ value: FIXTURE }))
   await feedTurn($ as never, 1)
   await $.session.start(START)
-  expect(reads.length).toBe(0)
+  expect(reads.filter((r) => r.endsWith('.jsonl')).length).toBe(0)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await statusText(ui)).toMatch(/^4 nodes/)
   await ui.unmount()
@@ -532,4 +536,200 @@ test('v2-18: import merges inline ops, replaces on mode replace, reads a seed pa
   expect((await run($ as never, 'import seed.json --replace')).text).toBe('Imported 3 ops (1 failed, 1 dangling).')
   expect((await run($ as never, 'import nope.json')).text).toMatch(/^Import failed: read: /)
   expect(await modelText($)).toContain('G')
+})
+
+// ------------------------------------------------------------------ v2: grow-in, Artifact export, persistence, pane, commands (v2-19..v2-23)
+
+/** fs stubs: reads from `files` (else the transcript fixture for *.jsonl, else ENOENT); writes recorded (or rejected). */
+function fsEnv(on: unknown, files: Record<string, string> = {}) {
+  const writes: { path: string; text: string }[] = []
+  const ctl = { fail: false }
+  bootEnv(on, (path) => {
+    if (path in files) return { value: files[path] }
+    if (path.endsWith('.jsonl')) return { value: FIXTURE }
+    throw new Error(`ENOENT: ${path}`)
+  })
+  ;(on as On)('fs.write', (_: unknown, e: { path: string; text: string }) => {
+    if (ctl.fail) throw new Error('EACCES')
+    writes.push(e)
+    return { value: undefined }
+  })
+  return { writes, ctl }
+}
+
+/** The <g class="s"> block of one solution node in an svg source. */
+const solBlock = (source: string, id: string) => source.split('<g class="s"').find((b) => b.includes(`data-id="${id}"`)) ?? ''
+const TURN_DONE = { answer: 'done', durationMs: 1, isAborted: false, turnId: 'x', reason: 'answer' } as never
+
+test('v2-19: prompt.submit marks the prompt start; nodes added after it grow in, earlier ones do not; meta prompts leave it', async ($, on) => {
+  engine(on)
+  fsEnv(on)
+  await $.session.start(START)
+  await author($, { action: 'add', kind: 'goal', label: 'Old goal' })
+  await $.prompt.submit({ text: 'next question', wait: false } as never)
+  await author($, { action: 'add', kind: 'question', label: 'New question' })
+  await $.prompt.submit({ text: 'hidden', isMeta: true, wait: false } as never)
+  await author($, { action: 'add', kind: 'component', label: 'New part' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  const source = await svgSource(ui)
+  expect(solBlock(source, 'question:new-question')).toMatch(/<animateTransform[^>]*type="scale"/)
+  expect(solBlock(source, 'component:new-part')).toMatch(/<animateTransform[^>]*type="scale"/)
+  expect(solBlock(source, 'goal:old-goal')).toContain('data-kind="goal"')
+  expect(solBlock(source, 'goal:old-goal')).not.toContain('<animateTransform')
+  await ui.unmount()
+})
+
+test('v2-20: turn.complete writes solution.html (fragment) and solution.json once per change; export-path retargets; a failed write is recorded', async ($, on) => {
+  engine(on, ['turn.complete'])
+  let turns = 0
+  ;(on as On)('turn.complete', () => {
+    turns++
+    return { text: 'done', usage: { input_tokens: 5, output_tokens: 7 } }
+  })
+  const { writes, ctl } = fsEnv(on)
+  await $.session.start(START)
+  await author($, { action: 'add', kind: 'goal', label: 'Ship the map' })
+  const r1 = await $.turn.complete(TURN_DONE)
+  expect(turns).toBe(1)
+  expect((r1 as { text?: string }).text).toBe('done')
+  expect(writes.map((w) => w.path)).toEqual(['/repo/.context-graph/solution.html', '/repo/.context-graph/solution.json'])
+  expect(writes[0]!.text).not.toContain('<html')
+  expect(writes[0]!.text.startsWith('<title>Context Window Graph</title>')).toBe(true)
+  const seed = JSON.parse(writes[1]!.text) as { format: string; ops: { op: string; kind?: string; label?: string }[] }
+  expect(seed.format).toBe('context-graph/solution@1')
+  expect(seed.ops.some((o) => o.op === 'add' && o.kind === 'goal' && o.label === 'Ship the map')).toBe(true)
+  const ins = JSON.parse((await callTool($ as never, { action: 'inspect' })).result) as { export: { path: string; lastWrittenAt: number | null } }
+  expect(typeof ins.export.lastWrittenAt).toBe('number')
+
+  await $.turn.complete(TURN_DONE)
+  expect(writes.length).toBe(2)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /export: \/repo\/\.context-graph\/solution\.html \(written / }))).toBeDefined()
+  expect((await run($ as never, 'export-path out/x.html')).text).toBe('Export path set to /repo/out/x.html.')
+  await author($, { action: 'add', kind: 'component', label: 'Pane' })
+  await $.turn.complete(TURN_DONE)
+  expect(writes.slice(2).map((w) => w.path)).toEqual(['/repo/out/x.html', '/repo/out/solution.json'])
+
+  ctl.fail = true
+  await author($, { action: 'add', kind: 'risk', label: 'Disk full' })
+  const r2 = await $.turn.complete(TURN_DONE)
+  expect(turns).toBe(4)
+  expect((r2 as { text?: string }).text).toBe('done')
+  const ins2 = JSON.parse((await callTool($ as never, { action: 'inspect' })).result) as { export: { lastError?: string } }
+  expect(String(ins2.export.lastError ?? '').length).toBeGreaterThan(0)
+  expect((await ui.find({ type: 'Text', text: /export: \/repo\/out\/x\.html \(error/ }))).toBeDefined()
+  await ui.unmount()
+})
+
+test('v2-21: a reload keeps the model; an empty model restores from solution.json; a missing or invalid file leaves it empty', async ($, on) => {
+  engine(on, ['session.start'])
+  let starts = 0
+  ;(on as On)('session.start', (_: unknown, e: { cwd: string }) => {
+    starts++
+    return { cwd: e.cwd }
+  })
+  const files: Record<string, string> = {}
+  fsEnv(on, files)
+  await $.session.start(START)
+  expect(starts).toBe(1)
+  expect(await modelText($)).toBe('No solution model yet.')
+
+  files['/repo/.context-graph/solution.json'] = 'not json'
+  await $.session.start(START)
+  expect(starts).toBe(2)
+  expect(await modelText($)).toBe('No solution model yet.')
+
+  files['/repo/.context-graph/solution.json'] = SEED([{ op: 'add', kind: 'goal', label: 'Restored goal' }, { op: 'add', kind: 'question', label: 'Still open?' }])
+  const r = await $.session.start(START)
+  expect(r).toEqual({ cwd: '/repo' })
+  expect(starts).toBe(3)
+  const restored = await modelText($)
+  expect(restored).toContain('Goal: Restored goal (goal:restored-goal)')
+  expect(restored).toContain('[ ] Still open? (question:still-open)')
+
+  files['/repo/.context-graph/solution.json'] = SEED([{ op: 'add', kind: 'goal', label: 'Other goal' }])
+  await author($, { action: 'add', kind: 'component', label: 'Live part' })
+  await $.session.start(START)
+  const kept = await modelText($)
+  expect(kept).toContain('Restored goal')
+  expect(kept).toContain('Live part')
+  expect(kept).not.toContain('Other goal')
+})
+
+test('v2-22: the pane draws the layered graph on every surface; layers cycles; header and alt carry the goal and open questions', async ($, on) => {
+  engine(on)
+  fsEnv(on)
+  await $.session.start(START)
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect((await ui.find({ type: 'Text', text: /No solution model yet/ }))).toBeDefined()
+    if (surface !== 'terminal') expect(await svgSource(ui)).toContain('class="ev')
+    await ui.unmount()
+  }
+  await author($, { action: 'add', kind: 'goal', label: 'Map the work' })
+  await author($, { action: 'add', kind: 'component', label: 'Pane' })
+  await author($, { action: 'add', kind: 'question', label: 'Works on the web?' })
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    if (surface === 'terminal') {
+      expect(await ui.find({ type: 'Raster', key: 'g' })).toBeDefined()
+      expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+    } else {
+      const svg = await ui.find({ type: 'Svg' })
+      expect(String(svg!.props.source)).toContain('data-kind="goal"')
+      expect(String(svg!.props.alt)).toContain('Map the work')
+      expect(String(svg!.props.alt)).toContain('Works on the web?')
+    }
+    expect((await ui.find({ type: 'Text', text: /No solution model yet/ }))).toBeUndefined()
+    expect((await ui.find({ type: 'Text', text: /^GOAL Map the work · 1 component · 0 decisions · 1 open question · health 0 in \/ 0 compacted \/ 3 missing · export: / }))).toBeDefined()
+    expect(await statusText(ui)).toMatch(/nodes · blast/)
+    await ui.unmount()
+  }
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await viewText(ui)).toBe('yaw 30° · pitch 20° · zoom 1.00×')
+  await ui.press({ key: 'layers' })
+  expect(await viewText(ui)).toBe('yaw 30° · pitch 20° · zoom 1.00× · layers solution')
+  expect(await svgSource(ui)).toContain('data-kind="goal"')
+  expect(await svgSource(ui)).not.toContain('class="ev')
+  await ui.press({ key: 'layers' })
+  expect(await viewText(ui)).toBe('yaw 30° · pitch 20° · zoom 1.00× · layers evidence')
+  expect(await svgSource(ui)).not.toContain('data-kind="goal"')
+  expect(await svgSource(ui)).toContain('class="ev')
+  await ui.press({ key: 'layers' })
+  expect(await viewText(ui)).toBe('yaw 30° · pitch 20° · zoom 1.00×')
+  await ui.unmount()
+})
+
+test('v2-23: model outline marks; export writes the solution page (fragment, or --document); export-path; help lists every subcommand', async ($, on) => {
+  engine(on)
+  const { writes } = fsEnv(on)
+  await $.session.start(START)
+  await author($, { action: 'add', kind: 'goal', label: 'G' })
+  await author($, { action: 'add', kind: 'question', label: 'Q open' })
+  await author($, { action: 'add', kind: 'risk', label: 'R' })
+  await author($, { action: 'add', kind: 'decision', label: 'D fix' })
+  await author($, { action: 'add', kind: 'decision', label: 'D old' })
+  await author($, { action: 'resolve', id: 'risk:r', by: 'decision:d-fix' })
+  await author($, { action: 'abandon', id: 'decision:d-old', reason: 'no' })
+  const outline = await modelText($)
+  expect(outline).toContain('Goal: G (goal:g)')
+  expect(outline).toContain('question:\n  [ ] Q open (question:q-open)')
+  expect(outline).toContain('risk:\n  [x] R (risk:r)')
+  expect(outline).toContain('~~D old (decision:d-old)~~')
+
+  const n = writes.length
+  expect((await run($ as never, 'export')).text).toBe('Exported 5 solution nodes to /repo/.context-graph/solution.html.')
+  expect((await run($ as never, 'export /tmp/page.html --document')).text).toBe('Exported 5 solution nodes to /tmp/page.html.')
+  const out = writes.slice(n)
+  expect(out.map((w) => w.path)).toEqual(['/repo/.context-graph/solution.html', '/tmp/page.html'])
+  expect(out[0]!.text).not.toContain('<html')
+  expect(out[0]!.text).toContain('id="cg-data"')
+  expect(out[1]!.text.startsWith('<!doctype html>')).toBe(true)
+
+  expect((await run($ as never, 'export-path /abs/s.html')).text).toBe('Export path set to /abs/s.html.')
+  const ins = JSON.parse((await callTool($ as never, { action: 'inspect' })).result) as { export: { path: string } }
+  expect(ins.export.path).toBe('/abs/s.html')
+  expect((await run($ as never, 'export-path')).text).toMatch(/^Usage: /)
+  expect((await run($ as never, 'bogus')).text).toContain('open | focus | clear | stats | export | export-path | import | model | reset')
 })

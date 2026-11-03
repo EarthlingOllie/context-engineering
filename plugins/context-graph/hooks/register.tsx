@@ -8,15 +8,16 @@ import { applyEvents, buildGraph, emptyGraph } from '../src/core/ingest.ts'
 import { appendToEvents, applyTurnUsage, emptyCursor, enrichTool, matchNodes, messagesToEvents, transcriptPath } from '../src/core/live.ts'
 import { blastRadius } from '../src/core/blast.ts'
 import { layoutLayers } from '../src/core/layers.ts'
-import { applyOps, emptyModel, parseSeed } from '../src/core/solution.ts'
+import { applyOps, emptyModel, parseSeed, toSeed } from '../src/core/solution.ts'
 import { relevance } from '../src/core/relevance.ts'
 import { health } from '../src/core/health.ts'
-import { buildScene } from '../src/core/scene.ts'
-import { renderSvg } from '../src/core/svg.ts'
+import { buildLayeredScene, solutionSummary } from '../src/core/scene.ts'
+import type { LayeredSceneInput } from '../src/core/scene.ts'
+import { renderSvg, summaryLine } from '../src/core/svg.ts'
 import { rasterize, toBase64 } from '../src/core/raster.ts'
-import { exportHtml } from '../src/core/exportHtml.ts'
+import { exportSolutionHtml } from '../src/core/exportHtml.ts'
 import { TOOL_ACTIONS, TOOL_SCHEMA, toolInputToOps } from '../src/core/toolInput.ts'
-import type { BlastRadius, Focus, Graph, GraphEvent, OpResult, Seed, SolOp, SolutionModel, Vec3 } from '../src/core/types.ts'
+import type { BlastRadius, Focus, Graph, GraphEvent, OpResult, Seed, SolOp, SolutionModel } from '../src/core/types.ts'
 import type { ContextGraphExportState as ExportState, ContextGraphPositions as Positions, ContextGraphView as ViewState } from '../types/index.d.ts'
 
 const PLUGIN = 'context-graph'
@@ -33,6 +34,10 @@ export const ORBIT_STEP = 3
 const INSPECT_LIMIT = 15
 const INSPECT_SOLUTION_LIMIT = 40
 export const EXPORT_DIR = '.context-graph'
+export const EMPTY_HINT = 'No solution model yet: Claude adds it with context_graph add'
+export const SUBCOMMANDS = ['open', 'focus', 'clear', 'stats', 'export', 'export-path', 'import', 'model', 'reset'] as const
+export const HELP = 'open | focus <text> | clear | stats | export [path] [--document] | export-path <path> | import <path> [--replace] | model | reset'
+const LAYER_CYCLE = { both: 'solution', solution: 'evidence', evidence: 'both' } as const
 
 export { TOOL_SCHEMA }
 export const TOOL_DESCRIPTION =
@@ -107,15 +112,25 @@ async function svgTheme($: Dollar): Promise<'light' | 'dark'> {
   }
 }
 
+/** Everything one frame needs: the layered scene input plus the raw view and the blast (for the text fallback). */
 async function drawInput($: Dollar) {
-  const [graph, positions, focus, view] = await Promise.all([read($, graphAtom), read($, posAtom), read($, focusAtom), read($, viewAtom)])
+  const [graph, model, positions, focus, view] = await Promise.all([read($, graphAtom), read($, solutionAtom), read($, posAtom), read($, focusAtom), read($, viewAtom)])
   const blast = blastRadius(graph, focus.seeds)
+  const rel = relevance(model, graph, focus, blast)
+  const hl = health(model, graph)
   const shown = view.autoOrbit ? { ...view, yaw: (view.yaw + orbit.deg) % 360 } : view
-  return { graph, positions: positions?.evidence ?? {}, blast, view: shown, focus, rawView: view }
+  const empty = !Object.keys(model.nodes).length
+  const note = focus.note ?? (empty ? EMPTY_HINT : undefined)
+  const scene: LayeredSceneInput = {
+    model, graph, relevance: rel, health: hl, view: shown, layers: view.layers ?? 'both',
+    positions: { solution: positions?.solution ?? {}, evidence: positions?.evidence ?? {} },
+    ...(note ? { note } : {}),
+  }
+  return { scene, rawView: view, focus, blast, empty }
 }
 
-const terminalCells = (input: Parameters<typeof buildScene>[0], cols: number, rows: number) =>
-  toBase64(rasterize(buildScene(input, { w: cols * 2, h: rows * 4 }), cols, rows))
+const terminalCells = (input: LayeredSceneInput, cols: number, rows: number) =>
+  toBase64(rasterize(buildLayeredScene(input, { w: cols * 2, h: rows * 4 }), cols, rows))
 
 function startOrbit($: Dollar): void {
   if (orbit.timer) return
@@ -123,8 +138,8 @@ function startOrbit($: Dollar): void {
     void (async () => {
       orbit.deg = (orbit.deg + ORBIT_STEP) % 360
       if (orbit.term) {
-        const input = await drawInput($)
-        await $.ui.blit({ requestId: PANE, key: 'g', cells: terminalCells(input, orbit.term.cols, orbit.term.rows) })
+        const { scene } = await drawInput($)
+        await $.ui.blit({ requestId: PANE, key: 'g', cells: terminalCells(scene, orbit.term.cols, orbit.term.rows) })
       }
       $.ui.invalidate('ui.render')
     })().catch(() => undefined)
@@ -168,6 +183,49 @@ async function exportPath($: Dollar, st?: ExportState): Promise<string> {
 async function exportInfo($: Dollar) {
   const st = await read($, exportAtom)
   return { path: await exportPath($, st), lastWrittenAt: st.lastWrittenAt, ...(st.lastError ? { lastError: st.lastError } : {}) }
+}
+
+const focusHash = (f: Focus) => `${f.seeds.map((x) => x.id).sort().join(',')}|${f.note ?? ''}`
+const hhmmss = (ms: number) => new Date(ms).toISOString().slice(11, 19)
+const besideJson = (htmlPath: string) => `${htmlPath.slice(0, htmlPath.lastIndexOf('/') + 1)}solution.json`
+
+/** The solution page for the current state (Artifact fragment unless `document`). */
+async function solutionPage($: Dollar, document: boolean): Promise<{ html: string; model: SolutionModel }> {
+  const [g, m, positions, focus] = await Promise.all([read($, graphAtom), read($, solutionAtom), read($, posAtom), read($, focusAtom)])
+  const blast = blastRadius(g, focus.seeds)
+  const input = { model: m, graph: g, positions: { solution: positions?.solution ?? {}, evidence: positions?.evidence ?? {} }, relevance: relevance(m, g, focus, blast), health: health(m, g), blast }
+  return { html: exportSolutionHtml(input, { document, since: m.promptSeq, ...(focus.note ? { note: focus.note } : {}) }), model: m }
+}
+
+/**
+ * turn.complete step (design 5.3): when the model, the focus or the compaction count changed since the last write,
+ * write the Artifact page to the export path and solution.json beside it. Never throws; a failed write is recorded.
+ */
+async function autoExport($: Dollar): Promise<void> {
+  const [m, g, focus, st] = await Promise.all([read($, solutionAtom), read($, graphAtom), read($, focusAtom), read($, exportAtom)])
+  if (!Object.keys(m.nodes).length) return
+  const compactions = Object.values(g.nodes).filter((n) => n.kind === 'compaction').length
+  const key = `${m.seq}:${compactions}:${focusHash(focus)}`
+  if (key === st.lastKey) return
+  const path = await exportPath($, st)
+  try {
+    const { html, model } = await solutionPage($, st.document)
+    await $.fs.write(path, html)
+    await $.fs.write(besideJson(path), toSeed(model))
+    const at = await $.clock.now().catch(() => Date.now())
+    await update($, exportAtom, (cur) => {
+      const { lastError: _drop, ...rest } = cur
+      return { ...rest, lastKey: key, lastWrittenAt: at }
+    })
+  } catch (err) {
+    await update($, exportAtom, (cur) => ({ ...cur, lastKey: null, lastError: err instanceof Error ? err.message : String(err) }))
+  }
+}
+
+/** Restore an empty model from <cwd>/.context-graph/solution.json (design 5.2). Missing or invalid: stays empty. */
+async function restoreModel($: Dollar): Promise<void> {
+  if (Object.keys((await read($, solutionAtom)).nodes).length) return
+  await importOps($, { path: `${EXPORT_DIR}/solution.json` }, true)
 }
 
 const modelSummary = (m: SolutionModel) => {
@@ -332,13 +390,18 @@ export const register: Register = (on) => {
 
   on('prompt.submit', async ($, e, next) => {
     const r = await next(e)
-    if (!e.isMeta && !e.command && !('drop' in r)) await update($, focusAtom, () => ({ seeds: [], question: e.text }))
+    if (!e.isMeta && !e.command && !('drop' in r)) {
+      await update($, focusAtom, () => ({ seeds: [], question: e.text }))
+      // mark the start of this prompt: nodes created after it are "new" and grow in
+      await update($, solutionAtom, (m) => (m.promptSeq === m.seq ? m : { ...m, promptSeq: m.seq }))
+    }
     return r
   }).catch(($, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
     if (e.agentId === undefined && r.usage) await writeGraph($, (g) => applyTurnUsage(g, r.usage))
+    if (e.agentId === undefined) await autoExport($).catch(() => undefined)
     return r
   }).catch(($, e, next) => next(e))
 
@@ -366,18 +429,25 @@ export const register: Register = (on) => {
   // ------------------------------------------------------------------ pane
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
-    const { rawView, ...input } = await drawInput($)
-    const g = input.graph, blast = input.blast
-    const s = stats(g, input.focus)
+    const { scene: input, rawView, focus, blast, empty } = await drawInput($)
+    const g = input.graph, m = input.model
+    const s = stats(g, focus)
     const cols = Math.max(20, Math.min(512, e.props.bodyColumns ?? e.viewport?.columns ?? 80))
     const bodyRows = e.props.scroll?.bodyRows ?? e.viewport?.rows ?? 30
+    const ex = await read($, exportAtom)
+    const header = summaryLine(solutionSummary(m, input.health))
+    const exportState = ex.lastError ? `error: ${ex.lastError}` : ex.lastWrittenAt != null ? `written ${hhmmss(ex.lastWrittenAt)}` : 'not written yet'
+    const statusLine = `${header} · export: ${await exportPath($, ex)} (${exportState})`
+    const goal = m.goalId ? m.nodes[m.goalId] : undefined
+    const open = Object.values(m.nodes).filter((n) => n.status === 'open').sort((a, b) => a.createdSeq - b.createdSeq)
+    const alt = `Context graph: ${header}${open.length ? ` · open: ${open.map((n) => n.label).join('; ')}` : ''}`
 
     let drawing: unknown
     if (e.surface === 'desktop' || e.surface === 'vscode' || e.surface === 'mobile') {
       const { Svg } = $.ui.resolve(e)
       const w = cols * 8, ht = Math.round((w * 3) / 4)
-      const source = renderSvg(buildScene(input, { w, h: ht }), { width: w, height: ht, theme: await svgTheme($) })
-      drawing = <Svg source={source} alt={`Context graph: ${s.line}`} width={w} height={ht} isInteractive />
+      const source = renderSvg(buildLayeredScene(input, { w, h: ht }), { width: w, height: ht, theme: await svgTheme($) })
+      drawing = <Svg source={source} alt={alt} width={w} height={ht} isInteractive />
     } else if (e.surface === 'terminal') {
       const { Raster } = $.ui.resolve(e)
       const rows = Math.max(4, Math.min(bodyRows - 4, 60))
@@ -385,10 +455,15 @@ export const register: Register = (on) => {
       const cells = terminalCells(input, cols, rows)
       drawing = <Raster key="g" columns={cols} rows={rows} cells={cells} />
     } else {
-      const top = Object.entries(blast.weights).sort((a, b) => b[1] - a[1]).slice(0, 10)
+      // text fallback: the goal, open questions and what the current question touches
+      const touched = input.relevance.touched.map((id) => m.nodes[id]?.label ?? g.nodes[id]?.label ?? id)
+      const top = touched.length ? [] : Object.entries(blast.weights).sort((a, b) => b[1] - a[1]).slice(0, 8)
       drawing = (
         <Box flexDirection="column">
-          {top.map(([id, w]) => <Text>{`${w.toFixed(2)} ${g.nodes[id]?.kind ?? ''} ${g.nodes[id]?.label ?? id}`}</Text>)}
+          <Text key="goal">{goal ? `GOAL ${goal.label}` : 'No goal yet'}</Text>
+          {open.map((n) => <Text key={`q-${n.id}`}>{`[ ] ${n.label}`}</Text>)}
+          {touched.map((l, i) => <Text key={`t-${i}`}>{`touched: ${l}`}</Text>)}
+          {top.map(([id, w]) => <Text key={`e-${id}`}>{`${w.toFixed(2)} ${g.nodes[id]?.kind ?? ''} ${g.nodes[id]?.label ?? id}`}</Text>)}
         </Box>
       )
     }
@@ -403,9 +478,12 @@ export const register: Register = (on) => {
       orbit.deg = 0
       await update($, viewAtom, (v) => ({ ...DEFAULT_VIEW, autoOrbit: v.autoOrbit }))
     }
-    const viewLine = `yaw ${Math.round(input.view.yaw)}° · pitch ${Math.round(rawView.pitch)}° · zoom ${rawView.zoom.toFixed(2)}×${rawView.autoOrbit ? ' · orbiting' : ''}`
+    const cycleLayers = () => update($, viewAtom, (v) => ({ ...v, layers: LAYER_CYCLE[v.layers ?? 'both'] }))
+    const layersNote = rawView.layers && rawView.layers !== 'both' ? ` · layers ${rawView.layers}` : ''
+    const viewLine = `yaw ${Math.round(input.view.yaw)}° · pitch ${Math.round(rawView.pitch)}° · zoom ${rawView.zoom.toFixed(2)}×${rawView.autoOrbit ? ' · orbiting' : ''}${layersNote}`
     return (
       <Box flexDirection="column">
+        {empty ? <Text key="hint">{EMPTY_HINT}</Text> : null}
         {drawing as never}
         <Box flexDirection="row">
           <Button key="yaw-" label="◀" onPress={turn(-15, 0)} />
@@ -416,19 +494,22 @@ export const register: Register = (on) => {
           <Button key="zoom-" label="−" onPress={zoom(0.8)} />
           <Button key="orbit" label="⟳" onPress={toggleOrbit} />
           <Button key="refocus" label="◎" onPress={refocus} />
+          <Button key="layers" label="◫" onPress={cycleLayers} />
         </Box>
         <Text key="view">{viewLine}</Text>
-        <Text key="status">{s.line}</Text>
+        <Text key="status">{statusLine}</Text>
+        <Text key="stats">{s.line}</Text>
       </Box>
     )
   })
 
   // ------------------------------------------------------------------ command (registered in session.start)
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: PLUGIN, description: 'Context graph: open | focus <text> | clear | stats | export [path] | import <path> [--replace] | model | reset' })
+    await $.command.register({ name: PLUGIN, description: `Context graph: ${HELP}` })
     await $.tool.register({ name: TOOL, description: TOOL_DESCRIPTION, inputSchema: TOOL_SCHEMA as unknown as Record<string, unknown>, isDeferred: false }).catch(() => undefined)
     if ((await read($, viewAtom)).autoOrbit) startOrbit($)
     await bootstrap($).catch(() => undefined)
+    await restoreModel($).catch(() => undefined)
     // pos-1 (or nothing) stored by an older version is declined: lay out afresh when the graph has nodes
     const [pos, g0] = await Promise.all([read($, posAtom), read($, graphAtom)])
     if (!Object.keys(pos.evidence ?? {}).length && Object.keys(g0.nodes).length) await relayout($).catch(() => undefined)
@@ -461,11 +542,16 @@ export const register: Register = (on) => {
         return { text: `${Object.entries(counts).map(([k, n]) => `${k}: ${n}`).join(', ') || 'empty graph'}\n${stats(g, f).line}` }
       }
       case 'export': {
-        const [positions, f] = await Promise.all([read($, posAtom), read($, focusAtom)])
-        const path = resolvePath(await $.session.cwd(), arg || 'context-graph.html')
-        const html = exportHtml(g, (positions?.evidence ?? {}) as Record<string, Vec3>, blastRadius(g, f.seeds), { title: 'Context graph', ...(f.note ? { note: f.note } : {}) })
+        const parts = rest.filter((x) => x !== '--document')
+        const path = parts.length ? resolvePath((await $.session.cwd().catch(() => '')) || '.', parts.join(' ')) : await exportPath($)
+        const { html, model } = await solutionPage($, rest.includes('--document'))
         await $.fs.write(path, html)
-        return { text: `Exported ${Object.keys(g.nodes).length} nodes to ${path}.` }
+        return { text: `Exported ${Object.keys(model.nodes).length} solution nodes to ${path}.` }
+      }
+      case 'export-path': {
+        if (!arg) return { text: 'Usage: /context-graph export-path <path>' }
+        const st = await update($, exportAtom, (cur) => ({ ...cur, path: arg, lastKey: null }))
+        return { text: `Export path set to ${await exportPath($, st)}.` }
       }
       case 'reset':
         await update($, graphAtom, () => emptyGraph())
@@ -480,10 +566,12 @@ export const register: Register = (on) => {
         if (!r.ok) return { text: `Import failed: ${r.error}` }
         return { text: `Imported ${r.ops} ops (${r.failed.length} failed, ${r.dangling.length} dangling).` }
       }
+      case 'help':
+        return { text: `/context-graph ${HELP}` }
       case 'model':
         return { text: modelOutline(await read($, solutionAtom)) }
       default:
-        return { text: `Unknown subcommand "${sub}". Use open | focus <text> | clear | stats | export [path] | import <path> | model | reset.` }
+        return { text: `Unknown subcommand "${sub}". Use ${SUBCOMMANDS.join(' | ')}.` }
     }
   })
 }
