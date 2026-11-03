@@ -1,9 +1,11 @@
 // Shell behaviour under `claude plugin test`: features 17-22 (pane, live hooks, command, tool, view),
-// 23 (bootstrap on start) and 24 (fail-safe hooks).
+// 23 (bootstrap on start) and 24 (fail-safe hooks); v2-16..v2-23; v3-21..v3-26 (UML design layer).
 import { expect, mock, test } from 'claude-code/testing'
+import { emptyUml } from '../src/core/uml.ts'
 import { buildGraph } from '../src/core/ingest.ts'
 import { TOOL_SCHEMA as CORE_SCHEMA } from '../src/core/toolInput.ts'
-import { TOOL_SCHEMA } from './register.tsx'
+import { DEFAULT_UML_VIEW, EMPTY_SCAN, TOOL_SCHEMA } from './register.tsx'
+import type { ContextGraphScan, ContextGraphUml, ContextGraphUmlView } from '../types/index.d.ts'
 
 const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
 
@@ -732,4 +734,347 @@ test('v2-23: model outline marks; export writes the solution page (fragment, or 
   expect(ins.export.path).toBe('/abs/s.html')
   expect((await run($ as never, 'export-path')).text).toMatch(/^Usage: /)
   expect((await run($ as never, 'bogus')).text).toContain('open | focus | clear | stats | export | export-path | import | model | reset')
+})
+
+// ------------------------------------------------------------------ v3: UML design layer (v3-21..v3-26)
+
+/** A source tree under /repo for $.fs.list / exists / read stubs; `reads` counts reads of tree files. */
+function treeEnv(on: unknown, tree: Record<string, { text: string; mtime: number }>, files: Record<string, string> = {}) {
+  const ctl = { listFails: false, writeFails: false, reads: 0, writes: [] as { path: string; text: string }[], stateSets: {} as Record<string, number>, state: {} as Record<string, unknown> }
+  bootEnv(on, (path) => {
+    if (path in tree) {
+      ctl.reads++
+      return { value: tree[path]!.text }
+    }
+    if (path in files) return { value: files[path] }
+    if (path.endsWith('.jsonl')) return { value: FIXTURE }
+    throw new Error(`ENOENT: ${path}`)
+  })
+  const dirs = () => new Set(Object.keys(tree).flatMap((p) => p.split('/').slice(1, -1).map((_, i, a) => `/${a.slice(0, i + 1).join('/')}`)))
+  ;(on as On)('fs.exists', (_: unknown, e: { path: string }) => ({ value: e.path in tree || dirs().has(e.path) }))
+  ;(on as On)('fs.list', (_: unknown, e: { path: string }) => {
+    if (ctl.listFails) throw new Error('EACCES: list')
+    const base = e.path.replace(/\/$/, '')
+    if (!dirs().has(base)) throw new Error(`ENOENT: ${base}`)
+    const out = new Map<string, { name: string; kind: string; size: number; mtimeMs: number; isLink: boolean }>()
+    for (const [p, f] of Object.entries(tree)) {
+      if (!p.startsWith(`${base}/`)) continue
+      const [name, ...more] = p.slice(base.length + 1).split('/')
+      out.set(name!, more.length ? { name: name!, kind: 'dir', size: 0, mtimeMs: 0, isLink: false } : { name: name!, kind: 'file', size: f.text.length, mtimeMs: f.mtime, isLink: false })
+    }
+    return { value: [...out.values()] }
+  })
+  ;(on as On)('fs.write', (_: unknown, e: { path: string; text: string }) => {
+    if (ctl.writeFails) throw new Error('EROFS')
+    ctl.writes.push(e)
+    return { value: undefined }
+  })
+  ;(on as On)('state.set', (_: unknown, e: { key?: string; value?: unknown }, next: (e: never) => unknown) => {
+    if (e.key) {
+      ctl.stateSets[e.key] = (ctl.stateSets[e.key] ?? 0) + 1
+      const v = e.value as { value?: unknown; shape?: unknown } | undefined
+      ctl.state[e.key] = v && typeof v === 'object' && 'shape' in v && 'value' in v ? v.value : v
+    }
+    return next(e as never)
+  })
+  return ctl
+}
+
+/** The last value the mod wrote to an atom (its default when never written). */
+const uml = (ctl: { state: Record<string, unknown> }) => (ctl.state.uml ?? emptyUml()) as ContextGraphUml
+const scanOf = (ctl: { state: Record<string, unknown> }) => (ctl.state.scan ?? EMPTY_SCAN) as ContextGraphScan
+const viewOf = (ctl: { state: Record<string, unknown> }) => (ctl.state.umlView ?? DEFAULT_UML_VIEW) as ContextGraphUmlView
+
+const TREE = () => ({
+  '/repo/src/core/svg.ts': { text: "import { scene } from './scene.ts'\nexport interface SvgOptions { theme: string }\nexport function renderSvg(s: number): string { return '' }\n", mtime: 1 },
+  '/repo/src/core/scene.ts': { text: 'export const scene = 1\nexport function buildScene(): number { return 1 }\n', mtime: 1 },
+  '/repo/src/core/prng.ts': { text: 'export function rand(): number { return 4 }\n', mtime: 1 },
+})
+
+type UmlReply = { ok: boolean; id?: string; error?: string; change?: string; step: { index: number; decision: string } | null; crossCheck: { flag?: string | null; counts: Record<string, number> }; export: { path: string }; uml?: { cascaded: string[] } }
+const tool = async ($: unknown, input: object) => JSON.parse((await callTool($ as never, input)).result) as UmlReply & Record<string, unknown>
+
+/** Decision D plus components Svg (core/svg.ts, op renderSvg + planned buildMore) and Scene (core/scene.ts), Svg ..> Scene. */
+async function smallDesign($: unknown) {
+  await author($, { action: 'add', kind: 'decision', label: 'D' })
+  await author($, { action: 'add', kind: 'decision', label: 'E' })
+  const a = await tool($, { action: 'uml.add', decision: 'decision:d', kind: 'component', name: 'Svg', code: 'core/svg.ts', operations: ['+renderSvg(s) string', '+buildMore()'] })
+  const b = await tool($, { action: 'uml.add', decision: 'decision:d', kind: 'component', name: 'Scene', code: 'core/scene.ts' })
+  const r = await tool($, { action: 'uml.relate', decision: 'decision:e', kind: 'dependency', from: 'uml:svg', to: 'uml:scene' })
+  return { a, b, r }
+}
+
+test('v3-21: the uml, scan and umlView atoms default to emptyUml(), an unscanned root and the latest-step UML view', async ($, on) => {
+  engine(on)
+  const ctl = treeEnv(on, {})
+  expect(emptyUml()).toEqual({ version: 1, elements: {}, relations: {}, log: [], seq: 0 })
+  expect(EMPTY_SCAN).toEqual({ root: '', files: {}, scannedAt: null, truncated: false, key: '' })
+  expect(DEFAULT_UML_VIEW).toEqual({ mode: 'uml', step: null, unplanned: 'components' })
+  // nothing written yet: the mod reads the defaults (empty UML in UML mode -> the hint; no steps)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /^No UML yet/ })).toBeDefined()
+  await ui.unmount()
+  expect((await run($ as never, 'uml')).text).toBe('No UML yet.')
+  expect(ctl.state).toEqual({})
+  expect((await run($ as never, 'step 3')).text).toBe('Step 0/0 (latest).')
+  expect(viewOf(ctl)).toEqual(DEFAULT_UML_VIEW)
+})
+
+test('v3-22: uml.* round-trips into the uml atom; a missing decision fails; abandon cascades; inspect reports uml; @2 import applies both', async ($, on) => {
+  engine(on)
+  const ctl = treeEnv(on, TREE())
+  await $.session.start(START)
+  await author($, { action: 'add', kind: 'decision', label: 'D' })
+  const x = await tool($, { action: 'uml.add', decision: 'decision:d', kind: 'component', name: 'X', code: 'core/svg.ts' })
+  expect(x.ok).toBe(true)
+  expect(x.id).toBe('uml:x')
+  expect(x.change).toBe('added')
+  expect(x.step).toEqual({ index: 1, decision: 'decision:d' })
+  expect(x.crossCheck.flag).toBe('matching')
+  expect(x.crossCheck.counts.matching).toBe(1)
+  expect(x.export.path).toBe('/repo/.context-graph/solution.html')
+
+  const before = uml(ctl)
+  const missing = await tool($, { action: 'uml.add', decision: 'decision:nope', kind: 'class', name: 'Y' })
+  expect(missing.ok).toBe(false)
+  expect(missing.error).toBe('unknown-decision')
+  expect(uml(ctl)).toEqual(before)
+  const bad = await tool($, { action: 'uml.add', kind: 'class', name: 'Y' })
+  expect(bad.ok).toBe(false)
+  expect(bad.error).toMatch(/^decision/)
+
+  expect((await tool($, { action: 'uml.add', decision: 'decision:d', kind: 'interface', name: 'Port' })).change).toBe('added')
+  const rel = await tool($, { action: 'uml.relate', decision: 'decision:d', kind: 'realization', from: 'uml:x', to: 'uml:port' })
+  expect(rel.ok).toBe(true)
+  expect(rel.change).toBe('added')
+  expect(rel.id).toBe('uml:x|realization|uml:port')
+  expect((await tool($, { action: 'uml.relate', decision: 'decision:d', kind: 'generalization', from: 'uml:x', to: 'uml:port' })).ok).toBe(false)
+  expect(uml(ctl).relations['uml:x|realization|uml:port']!.status).toBe('active')
+  const rm = await tool($, { action: 'uml.remove', decision: 'decision:d', reason: 'not needed', from: 'uml:x', kind: 'realization', to: 'uml:port' })
+  expect(rm.ok).toBe(true)
+  expect(rm.change).toBe('removed')
+  expect(uml(ctl).relations['uml:x|realization|uml:port']!.status).toBe('removed')
+  let u = uml(ctl)
+
+  const ab = await tool($, { action: 'abandon', id: 'decision:d', reason: 'dropped' })
+  expect(ab.ok).toBe(true)
+  expect((ab.model as { abandoned: string[] }).abandoned).toEqual(['decision:d'])
+  expect(ab.uml!.cascaded).toContain('uml:x')
+  u = uml(ctl)
+  expect(u.elements['uml:x']!.status).toBe('removed')
+  expect(u.log.some((e) => e.target === 'uml:x' && e.cascade === true)).toBe(true)
+
+  const ins = JSON.parse((await callTool($ as never, { action: 'inspect' })).result) as { uml: Record<string, unknown>; export: object; goal: unknown }
+  expect(Object.keys(ins.uml).sort()).toEqual(['builtNotPlanned', 'counts', 'decisionsWithoutUml', 'elements', 'latest', 'plannedNotBuilt', 'steps'].sort())
+  expect(ins.uml.elements).toBe(2)
+  expect((ins.uml.latest as { decision: string }).decision).toBe('decision:d')
+  expect(ins.uml.builtNotPlanned).toEqual(['core/prng.ts', 'core/scene.ts'])
+  expect('goal' in ins && 'export' in ins).toBe(true)
+
+  const imp = JSON.parse((await callTool($ as never, { action: 'import', ops: [
+    { op: 'add', kind: 'decision', label: 'F' },
+    { op: 'uml.add', decision: 'decision:f', kind: 'component', name: 'Scene', code: 'core/scene.ts' },
+  ] })).result) as { ok: boolean; applied: number; failed: unknown[]; uml: { changes: number } }
+  expect(imp.applied).toBe(2)
+  expect(imp.failed).toEqual([])
+  expect(imp.uml.changes).toBe(1)
+  expect(uml(ctl).elements['uml:scene']!.decisions).toEqual(['decision:f'])
+
+  const unknown = await callTool($ as never, { action: 'delete' })
+  expect(unknown.result).toBe('Unknown action "delete". Use inspect | focus | clear | add | link | resolve | abandon | import | uml.add | uml.relate | uml.remove | uml.scan.')
+})
+
+test('v3-23: start scans the auto root; turn.complete rescans incrementally and writes scan only on change; uml.scan sets the root; a failing list is recorded', async ($, on) => {
+  engine(on)
+  const tree: Record<string, { text: string; mtime: number }> = { ...TREE(), '/repo/lib/x.ts': { text: 'export const x = 1\n', mtime: 1 } }
+  const ctl = treeEnv(on, tree)
+  await $.session.start(START)
+  let scan = scanOf(ctl)
+  expect(scan.root).toBe('')
+  expect(Object.keys(scan.files).sort()).toEqual(['core/prng.ts', 'core/scene.ts', 'core/svg.ts'])
+  expect(typeof scan.scannedAt).toBe('number')
+  expect(scan.key.length).toBeGreaterThan(0)
+  expect(ctl.reads).toBe(3)
+  const sets = () => ctl.stateSets.scan ?? 0
+  const s0 = sets()
+  expect(s0).toBe(1)
+
+  await $.turn.complete(TURN_DONE)
+  expect(ctl.reads).toBe(3)
+  expect(sets()).toBe(s0)
+
+  tree['/repo/src/core/prng.ts'] = { text: 'export function rand(): number { return 5 }\nexport const seed = 2\n', mtime: 2 }
+  await $.turn.complete(TURN_DONE)
+  expect(ctl.reads).toBe(4)
+  expect(sets()).toBe(s0 + 1)
+  scan = scanOf(ctl)
+  expect(scan.files['core/prng.ts']!.scan.consts.map((c) => c.name)).toEqual(['seed'])
+
+  const r = (await tool($, { action: 'uml.scan', root: 'lib' })) as unknown as Record<string, unknown>
+  expect(Object.keys(r).sort()).toEqual(['builtNotPlanned', 'counts', 'files', 'plannedNotBuilt', 'read', 'removedButBuilt', 'root', 'skipped', 'truncated'].sort())
+  expect(r.root).toBe('/repo/lib')
+  expect(r.files).toBe(1)
+  expect(r.read).toBe(1)
+  expect(r.builtNotPlanned).toEqual(['x.ts'])
+  expect(scanOf(ctl).root).toBe('lib')
+
+  ctl.listFails = true
+  const t = await $.turn.complete(TURN_DONE)
+  expect((t as { text?: string }).text).toBe('done')
+  expect(String(scanOf(ctl).error ?? '')).toMatch(/^list: /)
+})
+
+test('v3-24: turn.complete writes the UML tab and an @2 seed once per change; start restores both models; import @2 counts UML changes', async ($, on) => {
+  engine(on, ['turn.complete'])
+  ;(on as On)('turn.complete', () => ({ text: 'done', usage: { input_tokens: 5, output_tokens: 7 } }))
+  const ctl = treeEnv(on, TREE())
+  await $.session.start(START)
+  await smallDesign($)
+  await $.turn.complete(TURN_DONE)
+  expect(ctl.writes.map((w) => w.path)).toEqual(['/repo/.context-graph/solution.html', '/repo/.context-graph/solution.json'])
+  const html = ctl.writes[0]!.text
+  expect(html.startsWith('<title>Context Window Graph</title>')).toBe(true)
+  const data = JSON.parse(/<script type="application\/json" id="cg-uml">([\s\S]*?)<\/script>/.exec(html)![1]!.replace(/\\u003c/g, '<')) as { steps: { decision: string }[]; counts: Record<string, number> }
+  expect(data.steps.map((s) => s.decision)).toEqual(['decision:d', 'decision:e'])
+  expect(data.counts.matching).toBe(2)
+  const seed = ctl.writes[1]!.text
+  expect(JSON.parse(seed).format).toBe('context-graph/solution@2')
+  await $.turn.complete(TURN_DONE)
+  expect(ctl.writes.length).toBe(2)
+  await tool($, { action: 'uml.add', decision: 'decision:e', kind: 'component', name: 'Prng', code: 'core/prng.ts' })
+  await $.turn.complete(TURN_DONE)
+  expect(ctl.writes.length).toBe(4)
+  ctl.writeFails = true
+  await tool($, { action: 'uml.remove', decision: 'decision:e', id: 'uml:prng', reason: 'r' })
+  const r = await $.turn.complete(TURN_DONE)
+  expect((r as { text?: string }).text).toBe('done')
+  const ins = JSON.parse((await callTool($ as never, { action: 'inspect' })).result) as { export: { lastError?: string } }
+  expect(String(ins.export.lastError ?? '').length).toBeGreaterThan(0)
+})
+
+test('v3-24: an empty start restores both models from an @2 solution.json, an @1 file the solution only; /context-graph import takes @2', async ($, on) => {
+  engine(on)
+  const files: Record<string, string> = {}
+  const ctl = treeEnv(on, TREE(), files)
+  const v2 = JSON.stringify({ format: 'context-graph/solution@2', ops: [
+    { op: 'add', kind: 'decision', label: 'D' },
+    { op: 'uml.add', decision: 'decision:d', kind: 'component', name: 'Svg', code: 'core/svg.ts' },
+    { op: 'uml.add', decision: 'decision:d', kind: 'component', name: 'Scene', code: 'core/scene.ts' },
+  ] })
+  files['/repo/.context-graph/solution.json'] = SEED([{ op: 'add', kind: 'goal', label: 'Only solution' }])
+  await $.session.start(START)
+  expect(await modelText($)).toContain('Only solution')
+  expect(uml(ctl).log.length).toBe(0)
+  expect((await run($ as never, 'reset')).text).toBe('Graph reset.')
+  files['/repo/v2.json'] = v2
+  expect((await run($ as never, 'import v2.json --replace')).text).toBe('Imported 3 ops (0 failed, 0 dangling, 2 UML changes).')
+  expect(Object.keys(uml(ctl).elements).sort()).toEqual(['uml:scene', 'uml:svg'])
+})
+
+test('v3-24: session.start with empty models restores the solution and the UML from an @2 file', async ($, on) => {
+  engine(on)
+  const files: Record<string, string> = {}
+  const ctl = treeEnv(on, TREE(), files)
+  files['/repo/.context-graph/solution.json'] = JSON.stringify({ format: 'context-graph/solution@2', ops: [
+    { op: 'add', kind: 'decision', label: 'D' },
+    { op: 'uml.add', decision: 'decision:d', kind: 'component', name: 'Svg', code: 'core/svg.ts' },
+  ] })
+  await $.session.start(START)
+  expect(await modelText($)).toContain('D (decision:d)')
+  expect(Object.keys(uml(ctl).elements)).toEqual(['uml:svg'])
+})
+
+const umlStatusText = async (ui: { find: (q: { key?: string; type?: string; text?: RegExp }) => Promise<{ text?: string } | undefined> }) =>
+  (await ui.find({ type: 'Text', text: /^Step \d+\/\d+ · / }))?.text ?? ''
+
+test('v3-25: the pane draws the UML on every surface; step buttons, mode toggle and unplanned cycle; status counts; empty hint', async ($, on) => {
+  engine(on)
+  const ctl = treeEnv(on, TREE())
+  await $.session.start(START)
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect(await ui.find({ type: 'Text', text: /^No UML yet/ })).toBeDefined()
+    await ui.unmount()
+  }
+  await smallDesign($)
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect(await ui.find({ type: 'Text', text: /^No UML yet/ })).toBeUndefined()
+    if (surface === 'terminal') {
+      const r = await ui.find({ type: 'Raster', key: 'uml' })
+      expect(r).toBeDefined()
+      expect(Number(r!.props.columns)).toBe(60)
+      expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+    } else {
+      const svg = await ui.find({ type: 'Svg' })
+      expect(String(svg!.props.source)).toContain('class="uml-box"')
+      expect(Number(svg!.props.width)).toBe(480)
+      expect(String(svg!.props.alt)).toMatch(/^UML design: Step 2\/2/)
+    }
+    expect(await umlStatusText(ui)).toMatch(/^Step 2\/2 · E · \+1 ~0 −0 · ✓2 ◌0 \+1 !0 \?0 · export: \/repo\/\.context-graph\/solution\.html \(not written yet\)$/)
+    await ui.unmount()
+  }
+  const sets = () => ctl.stateSets.umlView ?? 0
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(sets()).toBe(0) // render writes no state
+  await ui.press({ key: 'step-' })
+  expect(await umlStatusText(ui)).toMatch(/^Step 1\/2 · D · \+2 ~0 −0 · ✓2 ◌0 \+0 /)
+  await ui.press({ key: 'step-' })
+  expect(await umlStatusText(ui)).toMatch(/^Step 1\/2 /)
+  await ui.press({ key: 'step+' })
+  expect(await umlStatusText(ui)).toMatch(/^Step 2\/2 /)
+  expect(viewOf(ctl).step).toBe(null)
+  await ui.press({ key: 'step-' })
+  await ui.press({ key: 'latest' })
+  expect(viewOf(ctl).step).toBe(null)
+  expect(await ui.find({ type: 'Text', text: /^unplanned: components/ })).toBeDefined()
+  await ui.press({ key: 'unplanned' })
+  expect(await ui.find({ type: 'Text', text: /^unplanned: all/ })).toBeDefined()
+  await ui.press({ key: 'unplanned' })
+  expect(await ui.find({ type: 'Text', text: /^unplanned: none \(\d+ hidden\)/ })).toBeDefined()
+  expect(await svgSource(ui)).not.toContain('prng.ts')
+  await ui.press({ key: 'unplanned' })
+  await ui.press({ key: 'mode' })
+  expect(await viewText(ui)).toBe('yaw 30° · pitch 20° · zoom 1.00×')
+  expect(await svgSource(ui)).toContain('class="ev')
+  expect(await svgSource(ui)).not.toContain('uml-box')
+  await ui.press({ key: 'mode' })
+  expect(await svgSource(ui)).toContain('class="uml-box"')
+  expect(sets()).toBe(10) // one write per press, none from the renders between
+  await ui.unmount()
+})
+
+test('v3-26: /context-graph uml outlines the design; uml-root and scan rescan; step sets the view; help lists the new subcommands', async ($, on) => {
+  engine(on)
+  const ctl = treeEnv(on, { ...TREE(), '/repo/lib/x.ts': { text: 'export const x = 1\n', mtime: 1 } })
+  await $.session.start(START)
+  expect((await run($ as never, 'uml')).text).toBe('No UML yet.')
+  await smallDesign($)
+  const outline = (await run($ as never, 'uml')).text ?? ''
+  expect(outline).toContain('[matching] component Svg (core/svg.ts)')
+  expect(outline).toContain('    +renderSvg(s) string')
+  expect(outline).toContain('    +buildMore() ◌')
+  expect(outline).toContain('relations:\n  [matching] Svg dependency Scene')
+  expect(outline).toContain('built-not-planned: core/prng.ts')
+  expect(outline).toContain('planned-not-built members: uml:svg.buildMore')
+
+  const scan = JSON.parse((await run($ as never, 'scan')).text ?? '{}') as { root: string; files: number }
+  expect(scan).toMatchObject({ root: '/repo/src', files: 3 })
+  const moved = JSON.parse((await run($ as never, 'uml-root lib')).text ?? '{}') as { root: string; files: number; plannedNotBuilt: string[] }
+  expect(moved.root).toBe('/repo/lib')
+  expect(moved.plannedNotBuilt).toEqual(['uml:scene', 'uml:svg'])
+  expect(scanOf(ctl).root).toBe('lib')
+  expect((await run($ as never, 'uml-root')).text).toMatch(/^Usage: /)
+
+  expect((await run($ as never, 'step 1')).text).toBe('Step 1/2.')
+  expect(viewOf(ctl).step).toBe(1)
+  expect((await run($ as never, 'step 0')).text).toBe('Step 1/2.')
+  expect((await run($ as never, 'step 99')).text).toBe('Step 2/2 (latest).')
+  expect(viewOf(ctl).step).toBe(null)
+  await run($ as never, 'step 1')
+  expect((await run($ as never, 'step latest')).text).toBe('Step 2/2 (latest).')
+  expect(viewOf(ctl).step).toBe(null)
+  expect((await run($ as never, 'step two')).text).toBe('Usage: /context-graph step <n|latest>')
+  expect((await run($ as never, 'help')).text).toContain('| uml | uml-root <path> | scan | step <n|latest>')
+  expect((await run($ as never, 'bogus')).text).toContain('reset | uml | uml-root | scan | step')
 })

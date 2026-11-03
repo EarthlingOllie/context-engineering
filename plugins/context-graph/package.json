@@ -1,6 +1,6 @@
 {
   "name": "context-graph",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Claude Code mod: the shape of the solution (goal, components, factors, decisions, open questions) over the live context window as evidence, in 3D (three.js maths), with focus and context health.",
   "private": true,
   "type": "module",

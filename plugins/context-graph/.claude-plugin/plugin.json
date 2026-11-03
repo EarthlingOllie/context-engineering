@@ -1,6 +1,6 @@
 {
   "name": "context-graph",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Draws the solution Claude is building (goal, components, factors, decisions, open questions) over the live context window as evidence, in 3D (three.js maths; SVG on desktop, Raster in the terminal), with focus on the current question and context health; exports an Artifact-ready WebGL page.",
   "author": {
     "name": "earthlingollie"

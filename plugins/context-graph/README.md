@@ -1,7 +1,7 @@
 # context-graph
 
 A Claude Code mod that draws **the shape of the solution** Claude is building, over the live context window as its
-evidence. Version 0.2.0.
+evidence, and **the UML design emerging decision by decision**, cross-checked against the code. Version 0.3.0.
 
 - **Solution layer** (on top): the goal at the centre; components; factors (requirements, constraints, assumptions,
   dependencies, risks); decisions, linked to the factors that drove them; open questions, drawn hollow and dashed
@@ -74,7 +74,7 @@ denies, drops or rewrites a tool call, prompt or row.
 | `stats` | Node counts by kind, and the focus in nodes and tokens out of the window total. |
 | `export [path] [--document]` | Writes the solution page now, to `path` or the export path. |
 | `export-path <path>` | Sets where `turn.complete` writes the page. |
-| `import <path> [--replace]` | Loads a seed file into the model. |
+| `import <path> [--replace]` | Loads a seed file (@1, or @2 with UML) into the models: `Imported n ops (k failed, d dangling, u UML changes).` |
 | `model` | Prints the model as an outline: open `[ ]`, resolved `[x]`, abandoned struck through. |
 | `reset` | Empties the evidence graph. |
 | `help` | Lists the subcommands. |
@@ -89,6 +89,74 @@ denies, drops or rewrites a tool call, prompt or row.
 
 The pane has buttons for yaw (◀ ▶), pitch (▲ ▼), zoom (+ −), auto-orbit (⟳), refocus (◎) and layers (◫), then a view
 line, a status line with the export state, and a stats line. It follows the light or dark theme from `/config`.
+
+## v3: the UML design (main view)
+
+The main view is a UML component + class diagram that grows as decisions are made. Claude records the **intended**
+design; a lightweight scan of the source records the **actual** one; every intended element is flagged against it.
+
+### Tool actions
+
+| Action | Input | Effect |
+| --- | --- | --- |
+| `uml.add` | `decision`, `kind` (`component`/`class`/`interface`), `name`, optional `id`, `stereotype`, `in` (owning component), `code`, `note`, `attributes[]`, `operations[]` | Adds an element, or merges members into it. `in` also adds a composition. |
+| `uml.relate` | `decision`, `kind` (`association`/`dependency`/`realization`/`composition`/`generalization`), `from`, `to`, optional `label` | Adds a relation between two elements. |
+| `uml.remove` | `decision`, `reason`, and `id`, `id` + `member`, or `from` + `kind` + `to` | Removes an element, one member or a relation. It stays drawn, dashed and struck. |
+| `uml.scan` | optional `root` | Rescans the code (and persists the root); replies with the cross-check lists. |
+
+Every UML change cites the decision that causes it (add the decision first: an unknown one fails with
+`unknown-decision`). **Abandoning a decision** removes the UML it introduced, as one "abandoned" step. `inspect` adds
+`uml: { steps, latest, elements, counts, plannedNotBuilt, builtNotPlanned, decisionsWithoutUml }`; `import` takes
+`context-graph/solution@2` seeds (solution and `uml.*` ops) as well as @1.
+
+### Code refs
+
+`code` says where an element lives, relative to the scan root: a module `core/svg.ts`, a type `core/svg.ts#SvgOptions`,
+a folder `core/`, a path outside the root `../vendor/three-math` (matched through the modules that import it), a package
+`npm:three`, or `none` (not checkable). Without `code`, the element is matched by name.
+
+### Flags
+
+| Flag | Mark | Meaning |
+| --- | --- | --- |
+| `matching` | ✓ | In the code as recorded. A missing planned member shows with ◌. |
+| `planned-not-built` | ◌ | Recorded, not in the code (amber, dashed). |
+| `built-not-planned` | + | In the code, never recorded (grey, dotted; latest step only). |
+| `removed-but-built` | ! | Removed or abandoned in the design, still in the code (red). |
+| `unchecked` | ? | Not checkable from the scan root (`none`, or outside the root and imported by nothing). |
+
+### Timeline
+
+Each run of UML changes with the same decision is one **step**. Step *k* shows the design after decision *k* and
+highlights what it changed: added, changed, removed. The pane steps with ◀ ▶, jumps to the latest with ⏭, cycles the
+built-not-planned components (components, all, none) with +, and toggles to the v2 solution graph with ◫ (◧ back).
+Its status line reads `Step k/N · <decision> · +added ~changed −removed · ✓ ◌ + ! ? · export: <path> (written hh:mm:ss)`.
+Desktop, vscode and mobile draw a layered box-and-arrow `Svg`; the terminal draws a `Raster`; other surfaces get text.
+Until Claude records UML the pane shows the solution graph with the hint *No UML yet*.
+
+### The Artifact loop with UML
+
+`turn.complete` writes `solution.html` with two tabs: **UML design** (Mermaid 11.4.1 `classDiagram` from
+`cdn.jsdelivr.net`, re-rendered per step with a slider, ◀ ▶, play, change chips, the cross-check panel and an
+`unplanned` select; a static SVG fallback when Mermaid cannot load) and **3D solution map** (the v2 page). It writes
+`solution.json` as an @2 seed once there is UML (a model without UML keeps the @1 seed). The page is rewritten when the
+solution, the UML, the compaction count, the focus or the scan key changes. Claude republishes it to the same Artifact
+URL; the mod never publishes.
+
+### Scan root
+
+The scan reads TypeScript and JavaScript sources under the root (default `<cwd>/src` when it exists, else `<cwd>`;
+set it with `uml.scan root` or `/context-graph uml-root <path>`), skipping tests, `.d.ts`, dot folders and
+`node_modules`, `dist`, `build`, `coverage`, `vendor` and test folders, within `SCAN_LIMITS` (400 files, 256 KiB per file, 4 MiB, depth 8). It is incremental: session start
+scans once, every turn rescans and rereads only files whose mtime or size changed, and the `scan` state is written
+only when the tree changed. A failing listing is recorded as `scan.error`, never thrown.
+
+| Subcommand | Effect |
+| --- | --- |
+| `uml` | The design at the latest step: `[flag] kind name (code)` with members, relations, then the cross-check lists. |
+| `uml-root <path>` | Sets the scan root and rescans. |
+| `scan` | Rescans now and prints the `uml.scan` summary. |
+| `step <n\|latest>` | Moves the pane to step n (clamped) or the latest step. |
 
 ## Install
 
