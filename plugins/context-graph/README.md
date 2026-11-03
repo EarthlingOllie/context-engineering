@@ -139,10 +139,14 @@ Until Claude records UML the pane shows the solution graph with the hint *No UML
 `turn.complete` writes `solution.html` with two tabs: **UML design** (Mermaid 11.4.1 `classDiagram` from
 `cdn.jsdelivr.net`, re-rendered per step with a slider, ◀ ▶, play, change chips, the cross-check panel and an
 `unplanned` select; a static SVG fallback when Mermaid cannot load) and **3D solution map** (the v2 page). The
-diagram is drawn at natural size in a scrollable box: each step opens zoomed (never below 12 px names) and scrolled to
-what it changed, with everything else faded; − + fit and changes buttons re-zoom. Above 12 elements only the changed
+diagram is drawn at natural size in a scrollable box: each step opens zoomed (never below 11.5 px names) and scrolled to
+what it changed and what the cross-check flags, with everything else faded and changed relations (and their labels)
+highlighted. When the full diagram cannot frame all of that at a readable size, the step opens on a focused view: the
+changed elements, the flagged ones and up to 8 of their neighbours (names only above 6), left-to-right or top-to-bottom,
+whichever frames more; "full diagram" switches back. Anything still outside the view gets an edge marker that scrolls to
+it, as do the cross-check panel's entries. − + fit and changes buttons re-zoom. Above 12 elements only the changed
 elements list their members (planned-not-built ones always show, and titles carry ◌ + ! badges); "all members" shows
-them all. A legend under the buttons counts the flags of the diagram on screen. It writes
+them all. A legend under the buttons counts the step's flags; ◌ counts planned members too, as the header does. It writes
 `solution.json` as an @2 seed once there is UML (a model without UML keeps the @1 seed). The page is rewritten when the
 solution, the UML, the compaction count, the focus or the scan key changes. Claude republishes it to the same Artifact
 URL; the mod never publishes.

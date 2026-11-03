@@ -196,7 +196,7 @@ import type { Relevance } from './relevance.ts'
 import type { SolutionModel } from './types.ts'
 import type { UmlPageData } from './diagram.ts'
 import { layoutUml, renderUmlSvg, UML_COLORS } from './umlPane.ts'
-import { frameView } from './frame.ts'
+import { frameView, offView } from './frame.ts'
 
 export const EXPORT_TITLE = 'Context Window Graph'
 
@@ -733,7 +733,7 @@ function umlSection(page: UmlPageData | undefined, tab: 'uml' | '3d'): { html: s
   const html = `<div id="cg-counts"></div>
 <div id="cg-controls"><button type="button" id="cg-prev" aria-label="previous decision">◀</button><input type="range" id="cg-step" min="1" max="${n}" value="${n}" step="1" aria-label="decision step"><button type="button" id="cg-next" aria-label="next decision">▶</button><button type="button" id="cg-play" aria-label="play">⏵</button><span id="cg-caption"></span></div>
 <div id="cg-chips"></div>
-<div id="cg-main"><div id="cg-diagram-wrap"><div id="cg-view"><button type="button" id="cg-zoom-out" aria-label="zoom out">−</button><span id="cg-zoom">100%</span><button type="button" id="cg-zoom-in" aria-label="zoom in">+</button><button type="button" id="cg-fit" title="the whole diagram">fit</button><button type="button" id="cg-frame" title="frame what this step changed">changes</button><label class="cg-members"><input type="checkbox" id="cg-members"> all members</label><span id="cg-legend-uml"></span></div><div id="cg-diagram"><div id="uml"></div><div id="cg-note"></div></div></div>
+<div id="cg-main"><div id="cg-diagram-wrap"><div id="cg-view"><button type="button" id="cg-zoom-out" aria-label="zoom out">−</button><span id="cg-zoom">100%</span><button type="button" id="cg-zoom-in" aria-label="zoom in">+</button><button type="button" id="cg-fit" title="the whole diagram">fit</button><button type="button" id="cg-frame" title="frame what this step changed">changes</button><button type="button" id="cg-scope" title="switch between the focused view and the full diagram">full diagram</button><label class="cg-members"><input type="checkbox" id="cg-members"> all members</label><span id="cg-legend-uml"></span></div><div id="cg-note"></div><div id="cg-stage"><div id="cg-diagram"><div id="uml"></div></div><div id="cg-off"></div></div></div>
 <aside id="cg-side"><div id="cg-decision"></div><label class="cg-unplanned">built, not planned: <select id="cg-unplanned"><option value="components">components</option><option value="all">all</option><option value="none">none</option></select></label><div id="cg-check"></div></aside></div>`
   return {
     html,
@@ -773,13 +773,18 @@ const UML_CSS = `
 #cg-legend-uml span{white-space:nowrap}#cg-legend-uml b{font-weight:700;margin-right:3px}
 #cg-legend-uml .k{display:inline-block;width:14px;height:9px;border:2px solid var(--accent);border-radius:2px;margin-right:4px;vertical-align:middle}
 #cg-legend-uml .k.ch{border-style:dashed}#cg-legend-uml .k.rm{border-color:var(--f-stale)}
-#cg-diagram{min-width:0;max-width:100%;height:max(320px,calc(100vh - 230px));overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg);overscroll-behavior:contain}
+#cg-diagram{min-width:0;max-width:100%;height:max(320px,calc(100vh - 250px));overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg);overscroll-behavior:contain}
 #uml{padding:8px;width:max-content;min-width:calc(100% - 16px)}#uml svg{display:block}#uml svg.cg-static,#uml > svg[viewBox]:not([id]){max-width:100%}
 #uml.cg-focus g[data-cg-id]:not(.cg-hot){opacity:.38}
 #uml.cg-focus g[data-cg-id]:not(.cg-hot)[data-cg-badge]{opacity:.8}
-#uml.cg-focus .edgePaths path:not(.cg-hot){opacity:.3}#uml.cg-focus .edgeLabels,#uml.cg-focus .edgeTerminals{opacity:.45}
-#uml .edgePaths path.cg-hot{stroke:var(--accent) !important;stroke-width:2.5px !important}
-#cg-note{color:var(--muted);padding:0 8px 6px}#cg-note:empty{display:none}
+#uml.cg-focus .edgePaths path:not(.cg-hot){opacity:.3}#uml.cg-focus .edgeLabel:not(.cg-hot-label),#uml.cg-focus .edgeTerminals{opacity:.45}
+#uml .edgePaths path.cg-hot{stroke:var(--accent) !important;stroke-width:2.5px !important;opacity:1}
+#uml .edgeLabel.cg-hot-label{opacity:1}#uml .edgeLabel.cg-hot-label *{color:var(--fg) !important;fill:var(--fg) !important;font-weight:700;opacity:1 !important}#uml .edgeLabel.cg-hot-label .labelBkg{background:var(--bg) !important;outline:1.5px solid var(--accent);border-radius:3px}
+#cg-note{color:var(--muted);padding:0 2px 4px}#cg-note:empty{display:none}#cg-note button{font:inherit;color:var(--fg);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
+#cg-stage{position:relative}
+#cg-off{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:8px}
+#cg-off button{position:absolute;pointer-events:auto;font:600 12px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--bg);background:var(--accent);border:0;border-radius:10px;padding:3px 8px;cursor:pointer;white-space:nowrap;max-width:46%;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+#cg-off button.flag{background:var(--f-planned)}#cg-off button.flag.built{background:var(--f-built)}
 #cg-side{flex:1 1 240px;min-width:0;max-width:100%;overflow-wrap:anywhere}
 #cg-side h3{font-size:12px;margin:10px 0 4px}#cg-side ul{margin:0;padding-left:16px}
 #cg-side li button{font:inherit;color:var(--fg);background:none;border:0;padding:0;cursor:pointer;text-align:left;text-decoration:underline dotted}
@@ -802,7 +807,7 @@ const UML_CSS = `
 `
 
 /** frame.ts frameView, as plain JS for the page (types are stripped from the running source) */
-const FRAME_VIEW = String(frameView)
+const FRAME_VIEW = String(frameView) + '\nconst offView = ' + String(offView)
 
 // Browser-side module for the UML tab. MERMAID_URL is prepended by exportSolutionHtml ('' = no UML).
 const UML_CLIENT = String.raw`
@@ -851,7 +856,14 @@ if (N) {
   // header counts (latest step, vs the code as scanned)
   {
     const h = $('cg-counts')
-    for (const f of FLAGS) { const s = el('span', SYM[f] + ' ' + (U.counts[f] || 0), 'f'); s.title = TITLE[f]; h.appendChild(s) }
+    const pm = U.counts.plannedMembers || 0
+    h.appendChild(el('span', 'latest:', 'scan')); h.lastChild.style.marginRight = '6px'
+    for (const f of FLAGS) {
+      const extra = f === 'planned-not-built' ? pm : 0
+      const s = el('span', SYM[f] + ' ' + ((U.counts[f] || 0) + extra), 'f')
+      s.title = TITLE[f] + (extra ? ': ' + (U.counts[f] || 0) + ' elements, ' + extra + ' member' + (extra > 1 ? 's' : '') : '')
+      h.appendChild(s)
+    }
     if (U.scan) {
       const at = U.scan.at ? new Date(U.scan.at).toTimeString().slice(0, 8) : 'not yet'
       h.appendChild(el('span', 'vs code scanned ' + at + ' (' + U.scan.root + ')' + (U.scan.truncated ? ' · truncated' : ''), 'scan'))
@@ -868,6 +880,7 @@ if (N) {
   function chrome() {
     const s = U.steps[step - 1], v = variant()
     probe.step = step
+    $('cg-scope').disabled = !v.focused
     $('cg-step').value = String(step)
     $('cg-prev').disabled = step <= 1
     $('cg-next').disabled = step >= N
@@ -893,7 +906,7 @@ if (N) {
       const ul = el('ul')
       for (const id of by[f]) {
         const li = el('li'), b = el('button', id.startsWith('code:') ? id.slice(5) : nameOf(id)), owner = v.names[id] ? id : id.slice(0, id.lastIndexOf('.'))
-        b.type = 'button'; b.addEventListener('click', () => pulse(owner)); li.appendChild(b); ul.appendChild(li)
+        b.type = 'button'; b.addEventListener('click', () => reveal(owner)); li.appendChild(b); ul.appendChild(li)
       }
       check.appendChild(ul)
     }
@@ -912,7 +925,10 @@ if (N) {
   }
 
   // --- the view: natural-size Mermaid, zoomed and scrolled inside #cg-diagram ---------------------
+  // scope: 'auto' draws the full diagram and falls back to the focused one (changes, flags, neighbours) when the full one
+  // cannot frame them all at a readable zoom; 'full' / 'focused' are the reader's choice for the step.
   const PAD = 8
+  let scope = 'auto', cur = null
   function setZoom(z, keep) {
     const box = $('cg-diagram'), svg = $('uml').querySelector('svg')
     if (!svg || !natW) return
@@ -922,64 +938,115 @@ if (N) {
     $('cg-zoom').textContent = Math.round(zoom * 100) + '%'
     probe.zoom = zoom
     if (keep) { box.scrollLeft = cx * zoom + PAD - box.clientWidth / 2; box.scrollTop = cy * zoom + PAD - box.clientHeight / 2 }
+    marks()
   }
-  const gOf = (v, id) => v.names[id] ? $('uml').querySelector('g[id^="classId-' + v.names[id] + '-"]') : null
+  const gOf = (c, id) => c && c.names[id] ? $('uml').querySelector('g[id^="classId-' + c.names[id] + '-"]') : null
   /** an element's box in natural-size diagram coordinates */
   function boxOf(g) {
     const svg = $('uml').querySelector('svg'), o = svg.getBoundingClientRect(), r = g.getBoundingClientRect(), k = o.width / natW || 1
     return { x: (r.left - o.left) / k, y: (r.top - o.top) / k, w: r.width / k, h: r.height / k }
   }
-  function frame(v, whole) {
+  /** what the default view accounts for: the step's changes, then its flagged elements */
+  const targets = (c) => c ? [...(c.focus || []), ...(c.flagged || [])].filter((id) => gOf(c, id)) : []
+  function frame(c, whole) {
     const box = $('cg-diagram')
-    if (!natW) return
-    const gs = whole ? [] : (v.focus || []).map((id) => gOf(v, id)).filter(Boolean)
+    if (!natW) return { framed: 0, of: 0 }
+    const ids = whole ? [] : targets(c)
     const view = { w: box.clientWidth - 2 * PAD, h: box.clientHeight - 2 * PAD }
-    const f = frameView(gs.map(boxOf), { w: natW, h: natH }, view, whole ? { minZoom: 0.05, maxZoom: 1, pad: 0 } : { minZoom, maxZoom: 1.25, pad: 24 })
+    const fv = (list) => frameView(list.map((id) => boxOf(gOf(c, id))), { w: natW, h: natH }, view, whole ? { minZoom: 0.05, maxZoom: 1, pad: 0 } : { minZoom, maxZoom: 1.25, pad: 24 })
+    let f = fv(ids)
+    // the changes come before the flags: frame only the changes when the flags would push some of them out
+    const nf = whole ? 0 : (c.focus || []).filter((id) => gOf(c, id)).length
+    if (nf < ids.length && f.which.filter((i) => i < nf).length < nf) {
+      const g = fv(ids.slice(0, nf))
+      if (g.framed > f.which.filter((i) => i < nf).length) f = { ...g, framed: g.framed }
+    }
     setZoom(f.zoom, false)
     probe.framed = f.framed
-    if (!whole) {
-      $('cg-frame').textContent = 'changes' + (f.framed < gs.length ? ' ' + f.framed + '/' + gs.length : '')
-      $('cg-frame').title = f.framed < gs.length ? f.framed + ' of the ' + gs.length + ' changed elements fit at a readable size: scroll, or fit for all' : 'frame what this step changed'
-    }
     box.scrollLeft = f.left; box.scrollTop = f.top
+    marks()
+    return { framed: f.framed, of: ids.length }
   }
-  /** focus elements and changed relations stay bright; everything else fades while the step changed something */
-  function hot(v) {
-    const root = $('uml'), focus = v.focus || [], s = U.steps[step - 1]
-    for (const id of focus) gOf(v, id)?.classList.add('cg-hot')
+  /** an edge marker for every change or flag outside the scrolled view; a click scrolls to it */
+  function marks() {
+    const off = $('cg-off'); off.replaceChildren()
+    const box = $('cg-diagram')
+    if (!natW || !cur) { probe.off = []; return }
+    const ids = targets(cur), hotSet = new Set(cur.focus || [])
+    const ms = offView(ids.map((id) => boxOf(gOf(cur, id))), zoom, { left: box.scrollLeft - PAD, top: box.scrollTop - PAD }, { w: box.clientWidth, h: box.clientHeight })
+    probe.off = ms.map((m) => ids[m.index])
+    const used = { left: [], right: [], top: [], bottom: [] }
+    const ARROW = { left: '← ', right: '→ ', top: '↑ ', bottom: '↓ ' }
+    for (const m of ms.sort((a, b) => a.at - b.at)) {
+      const id = ids[m.index], mk = cur.marks[cur.names[id]] || {}
+      const b = el('button', ARROW[m.side] + nameOf(id) + (hotSet.has(id) ? '' : ' ' + (mk.flag === 'built-not-planned' ? '+' : '◌')), hotSet.has(id) ? '' : 'flag' + (mk.flag === 'built-not-planned' ? ' built' : ''))
+      b.type = 'button'; b.title = (hotSet.has(id) ? 'changed this step' : 'cross-check flag') + ': scroll to ' + nameOf(id)
+      b.addEventListener('click', () => reveal(id))
+      // stack markers on one edge so they never overlap
+      const vertical = m.side === 'left' || m.side === 'right', step = vertical ? 24 : 150
+      let at = m.at - (vertical ? 10 : 60)
+      for (const u of used[m.side]) if (Math.abs(u - at) < step) at = u + step
+      used[m.side].push(at)
+      const lim = (vertical ? box.clientHeight - 22 : box.clientWidth - 120)
+      at = Math.max(2, Math.min(lim, at))
+      b.style[vertical ? 'top' : 'left'] = at + 'px'
+      b.style[m.side] = '4px'
+      off.appendChild(b)
+    }
+  }
+  /** scroll an element of the drawn diagram into the middle of the view and pulse it (switching to the full diagram when the focused one lacks it) */
+  function reveal(id) {
+    if (cur && !gOf(cur, id) && cur !== variant()) { scope = 'full'; pending = id; render(); return }
+    const g = gOf(cur, id), box = $('cg-diagram')
+    if (!g || !natW) return pulse(id)
+    const b = boxOf(g)
+    if (zoom < minZoom) setZoom(minZoom, false)
+    box.scrollLeft = (b.x + b.w / 2) * zoom + PAD - box.clientWidth / 2
+    box.scrollTop = (b.y + b.h / 2) * zoom + PAD - box.clientHeight / 2
+    marks(); pulse(id)
+  }
+  let pending = null
+  /** focus elements and changed relations (with their labels) stay bright; everything else fades while the step changed something */
+  function hot(c) {
+    const root = $('uml'), focus = c.focus || [], s = U.steps[step - 1]
+    for (const id of focus) gOf(c, id)?.classList.add('cg-hot')
+    // Mermaid draws one label per edge, in the order of the edge paths
+    const paths = [...root.querySelectorAll('.edgePaths path')], labels = [...root.querySelectorAll('.edgeLabels > .edgeLabel, .edgeLabels > g > .edgeLabel')]
     for (const k of CHANGES) for (const t of s.changes[k]) {
       if (!t.includes('|')) continue
-      const [a, , b] = t.split('|'), na = v.names[a], nb = v.names[b]
+      const [a, , b] = t.split('|'), na = c.names[a], nb = c.names[b]
       if (!na || !nb) continue
       const re = new RegExp('^id_' + na + '_' + nb + '_\\d+$')
-      for (const p of root.querySelectorAll('.edgePaths path')) if (re.test(p.id)) p.classList.add('cg-hot')
+      paths.forEach((p, i) => { if (!re.test(p.id)) return; p.classList.add('cg-hot'); if (labels.length === paths.length) labels[i].classList.add('cg-hot-label') })
     }
-    for (const [id, name] of Object.entries(v.names)) {
-      const m = v.marks[name], g = gOf(v, id)
-      if (g && ((m && m.flag && m.flag !== 'matching' && m.flag !== 'unchecked') || (v.pending && v.pending[id]))) g.setAttribute('data-cg-badge', '')
+    for (const [id, name] of Object.entries(c.names)) {
+      const m = c.marks[name], g = gOf(c, id)
+      if (g && ((m && m.flag && m.flag !== 'matching' && m.flag !== 'unchecked') || (c.pending && c.pending[id]))) g.setAttribute('data-cg-badge', '')
     }
-    root.classList.toggle('cg-focus', focus.length > 0 && focus.length < Object.keys(v.names).length)
+    root.classList.toggle('cg-focus', focus.length > 0 && focus.length < Object.keys(c.names).length)
   }
-  /** flag counts for the diagram on screen (✓ ◌ + ! ?), the planned members, and the change keys */
+  /** flag counts for the step's whole diagram (✓ ◌ + ! ?, ◌ counting planned members as the header does) and the change keys */
   function legend(v) {
     const L = $('cg-legend-uml'); L.replaceChildren()
     const COLOR = { matching: '--f-match', 'planned-not-built': '--f-planned', 'built-not-planned': '--f-built', 'removed-but-built': '--f-stale', unchecked: '--muted' }
     const members = Object.values(v.pending || {}).reduce((n, a) => n + a.length, 0)
+    const n0 = zero(FLAGS)
+    for (const name of Object.values(v.names)) { const m = v.marks[name]; if (m && m.flag in n0) n0[m.flag]++ }
     for (const f of FLAGS) {
-      const n = probe.flags[f] + (f === 'planned-not-built' ? members : 0)
+      const n = n0[f] + (f === 'planned-not-built' ? members : 0)
       const sp = el('span'), b = el('b', SYM[f] + ' ' + n); b.style.color = 'var(' + COLOR[f] + ')'
-      sp.appendChild(b); sp.appendChild(document.createTextNode(TITLE[f] + (f === 'planned-not-built' && members ? ' (' + members + ' member' + (members > 1 ? 's' : '') + ')' : '')))
+      sp.appendChild(b); sp.appendChild(document.createTextNode(TITLE[f] + (f === 'planned-not-built' && members ? ' (' + n0[f] + ' elements, ' + members + ' member' + (members > 1 ? 's' : '') + ')' : '')))
       sp.title = TITLE[f]; L.appendChild(sp)
     }
     for (const [k, c] of [['added', ''], ['changed', ' ch'], ['removed', ' rm']]) { const sp = el('span'); sp.appendChild(el('i', undefined, 'k' + c)); sp.appendChild(document.createTextNode(k)); L.appendChild(sp) }
   }
 
-  function mark(v) {
+  function mark(c) {
     const root = $('uml')
-    for (const [id, name] of Object.entries(v.names)) {
+    for (const [id, name] of Object.entries(c.names)) {
       const g = root.querySelector('g[id^="classId-' + name + '-"]')
       if (!g) continue
-      const m = v.marks[name] || { flag: null, status: 'active', change: null }
+      const m = c.marks[name] || { flag: null, status: 'active', change: null }
       g.setAttribute('data-cg-id', id)
       g.setAttribute('data-cg-flag', m.flag || 'none')
       g.setAttribute('data-cg-status', m.status)
@@ -993,7 +1060,7 @@ if (N) {
     $('uml').innerHTML = U.static[theme()] || U.static.light
     $('cg-note').textContent = 'Mermaid could not load: static diagram (latest step)'
     countDom('data-flag', 'data-change', 'g.uml-box')
-    natW = 0; $('uml').classList.remove('cg-focus'); $('cg-zoom').textContent = ''
+    natW = 0; cur = null; marks(); $('uml').classList.remove('cg-focus'); $('cg-zoom').textContent = ''
     legend(variant())
   }
 
@@ -1002,48 +1069,83 @@ if (N) {
     return mermaidP
   }
 
+  /** draws one Mermaid text at natural size; false when a newer render took over */
+  async function draw(c, text, my) {
+    const mermaid = await loadMermaid()
+    if (my !== seq) return false
+    const dark = theme() === 'dark'
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base', darkMode: dark, themeVariables: {
+      darkMode: dark, background: css('--bg'), primaryColor: css('--node'), mainBkg: css('--node'), primaryTextColor: css('--fg'),
+      classText: css('--fg'), textColor: css('--fg'), primaryBorderColor: css('--line'), nodeBorder: css('--line'), lineColor: css('--line'),
+      secondaryColor: css('--node'), tertiaryColor: css('--bg'), fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '13px' } , class: { useMaxWidth: false, hideEmptyMembersBox: true, nodeSpacing: 24, rankSpacing: 36 } })
+    const id = 'cg-uml-' + (++renders)
+    let out
+    try { out = await mermaid.render(id, text) } finally { document.getElementById('d' + id)?.remove() }
+    if (my !== seq) return false
+    $('uml').innerHTML = out.svg
+    // natural size (useMaxWidth off); the view zooms it and #cg-diagram scrolls
+    const svgEl = $('uml').querySelector('svg')
+    cur = c
+    if (svgEl) {
+      const vb = svgEl.viewBox && svgEl.viewBox.baseVal, r = svgEl.getBoundingClientRect()
+      natW = (vb && vb.width) || r.width; natH = (vb && vb.height) || r.height
+      svgEl.removeAttribute('width'); svgEl.removeAttribute('height'); svgEl.style.maxWidth = 'none'
+      zoom = 1; setZoom(1, false)
+      const t = svgEl.querySelector('g[id^="classId-"] .label-group span, g[id^="classId-"] .label-group text')
+      const fs = t ? parseFloat(getComputedStyle(t).fontSize) : 0
+      minZoom = fs > 0 ? Math.min(1, 11.5 / fs) : 0.9
+    }
+    mark(c)
+    hot(c)
+    return true
+  }
+
   async function render() {
     chrome()
     const my = ++seq, v = variant()
     probe.rendered = false
     if (probe.fallback) { fallback(probe.error); return }
     try {
-      const mermaid = await loadMermaid()
-      if (my !== seq) return
-      const dark = theme() === 'dark'
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base', darkMode: dark, themeVariables: {
-        darkMode: dark, background: css('--bg'), primaryColor: css('--node'), mainBkg: css('--node'), primaryTextColor: css('--fg'),
-        classText: css('--fg'), textColor: css('--fg'), primaryBorderColor: css('--line'), nodeBorder: css('--line'), lineColor: css('--line'),
-        secondaryColor: css('--node'), tertiaryColor: css('--bg'), fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '13px' } , class: { useMaxWidth: false, hideEmptyMembersBox: true, nodeSpacing: 24, rankSpacing: 36 } })
-      const id = 'cg-uml-' + (++renders)
-      let out
-      try { out = await mermaid.render(id, textOf(v)) } finally { document.getElementById('d' + id)?.remove() }
-      if (my !== seq) return
-      $('uml').innerHTML = out.svg
-      // natural size (useMaxWidth off); the view zooms it and #cg-diagram scrolls
-      const svgEl = $('uml').querySelector('svg')
-      if (svgEl) {
-        const vb = svgEl.viewBox && svgEl.viewBox.baseVal, r = svgEl.getBoundingClientRect()
-        natW = (vb && vb.width) || r.width; natH = (vb && vb.height) || r.height
-        svgEl.removeAttribute('width'); svgEl.removeAttribute('height'); svgEl.style.maxWidth = 'none'
-        zoom = 1; setZoom(1, false)
-        const t = svgEl.querySelector('g[id^="classId-"] .label-group span, g[id^="classId-"] .label-group text')
-        const fs = t ? parseFloat(getComputedStyle(t).fontSize) : 0
-        minZoom = fs > 0 ? Math.min(1, 12 / fs) : 0.92
+      // the focused view tries left-to-right, then top-to-bottom, and keeps the one that frames more
+      const shown = async (c, text) => {
+        if (!(await draw(c, text, my))) return null
+        let f = frame(c, false)
+        if (c === v || f.framed >= f.of || !text.includes('direction LR')) return f
+        const f0 = f
+        if (!(await draw(c, text.replace('direction LR', 'direction TB'), my))) return null
+        f = frame(c, false)
+        if (f.framed >= f0.framed) return f
+        if (!(await draw(c, text, my))) return null
+        return frame(c, false)
       }
-      $('cg-note').textContent = ''
-      mark(v)
-      hot(v)
+      let c = scope === 'focused' && v.focused ? v.focused : v
+      let f = await shown(c, c === v ? textOf(v) : c.mermaid)
+      if (!f) return
+      // the full diagram cannot frame every change and flag at a readable size: show the focused one
+      if (scope === 'auto' && v.focused && f.framed < f.of) {
+        c = v.focused
+        if (!(f = await shown(c, c.mermaid))) return
+      }
+      probe.view = c === v ? 'full' : 'focused'
+      const total = Object.keys(v.names).length
+      $('cg-scope').textContent = c === v ? 'focused view' : 'full diagram (' + total + ')'
+      $('cg-scope').disabled = !v.focused
+      const note = $('cg-note'); note.replaceChildren()
+      if (c !== v) {
+        note.appendChild(document.createTextNode('Focused: this step\'s ' + (c.focus || []).length + ' changed, ' + (c.flagged || []).length + ' flagged and their neighbours (' + Object.keys(c.names).length + ' of ' + total + ' elements). '))
+        const b = el('button', 'Show the full diagram'); b.type = 'button'; b.addEventListener('click', () => { scope = 'full'; render() }); note.appendChild(b)
+      } else if (f.framed < f.of) note.textContent = f.framed + ' of ' + f.of + ' changes and flags fit at a readable size: the markers at the edges point to the rest.'
+      $('cg-frame').textContent = 'changes'
       legend(v)
-      frame(v, false)
       probe.rendered = true
       delete probe.error
+      if (pending) { const id = pending; pending = null; reveal(id) }
     } catch (e) {
       if (my === seq) fallback(e)
     }
   }
 
-  const go = (k) => { const n = Math.max(1, Math.min(N, k)); if (n !== step) { step = n; render() } }
+  const go = (k) => { const n = Math.max(1, Math.min(N, k)); if (n !== step) { step = n; scope = 'auto'; render() } }
   $('cg-step').addEventListener('input', (e) => go(Number(e.target.value)))
   $('cg-prev').addEventListener('click', () => go(step - 1))
   $('cg-next').addEventListener('click', () => go(step + 1))
@@ -1051,8 +1153,11 @@ if (N) {
   $('cg-members').addEventListener('change', (e) => { allMembers = e.target.checked; render() })
   $('cg-zoom-in').addEventListener('click', () => setZoom(zoom * 1.25, true))
   $('cg-zoom-out').addEventListener('click', () => setZoom(zoom / 1.25, true))
-  $('cg-fit').addEventListener('click', () => frame(variant(), true))
-  $('cg-frame').addEventListener('click', () => frame(variant(), false))
+  $('cg-fit').addEventListener('click', () => frame(cur, true))
+  $('cg-frame').addEventListener('click', () => frame(cur, false))
+  $('cg-scope').addEventListener('click', () => { scope = probe.view === 'focused' ? 'full' : 'focused'; render() })
+  { let raf = 0; $('cg-diagram').addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; marks() }) }, { passive: true }) }
+  addEventListener('resize', () => marks())
   const stop = () => { clearInterval(timer); timer = null; $('cg-play').textContent = '⏵' }
   $('cg-play').addEventListener('click', () => {
     if (timer) return stop()

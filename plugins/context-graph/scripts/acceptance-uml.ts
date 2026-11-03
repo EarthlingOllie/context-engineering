@@ -178,7 +178,9 @@ const umlJson = html.match(/<script type="application\/json" id="cg-uml">([^]*?)
 check(!umlJson.includes('</') && JSON.parse(umlJson || '{"steps":[]}').steps.length === N, '(6) html cg-uml block')
 
 // ---------------------------------------------------------------- (7) browser
-const elementCount = (v: UmlVariant) => Object.keys(v.names).length
+const elementCount = (v: Pick<UmlVariant, 'names'>) => Object.keys(v.names).length
+/** the variant the page drew: the full one, or its focused view */
+const drawn = (v: UmlVariant, view: string) => (view === 'focused' && v.focused ? v.focused : v)
 const variantAt = (k: number) => (k === N ? page.latest.components : page.steps[k - 1]!)
 const fragment = (mermaidUrl: string) => exportSolutionHtml(exportInput, {
   since: sol.seq, ...(threeDir ? { threeUrl: '/three/' } : {}), mermaidUrl,
@@ -218,11 +220,12 @@ const viewShot = async (p: Page, path: string) => {
   await p.screenshot({ path })
 }
 /** the default view: title size of the framed elements (px on screen), the primary one fully inside #cg-diagram, the legend */
-const viewOf = (primary: string) => `(() => {
+const viewOf = (primary: string, ids: string[]) => `(() => {
   const box = document.getElementById('cg-diagram').getBoundingClientRect(), svg = document.querySelector('#uml svg')
   const k = svg.getBoundingClientRect().width / (svg.viewBox.baseVal.width || svg.getBoundingClientRect().width)
   const title = (g) => g.querySelector('.label-group span, .label-group text') || g
   const hot = [...document.querySelectorAll('#uml g.cg-hot')]
+  const u = window.__cg.uml, targets = ${JSON.stringify(ids)}.map((n) => document.querySelector('#uml g[id^="classId-' + n + '-"]')).filter(Boolean)
   const px = hot.map((g) => parseFloat(getComputedStyle(title(g)).fontSize) * k)
   // fully inside, or (when larger than the box) its top-left corner inside and its width/height filling the box
   const inside = (g) => { const r = g.getBoundingClientRect()
@@ -234,16 +237,27 @@ const viewOf = (primary: string) => `(() => {
   const rr = pg ? pg.getBoundingClientRect() : null
   return { rects: rr ? [rr.left, rr.top, rr.right, rr.bottom, box.left, box.top, box.right, box.bottom].map(Math.round).join(',') : '', hot: hot.length, minPx: px.length ? Math.min(...px) : 0, zoom: window.__cg.uml.zoom, primary: pg ? inside(pg) : false,
     seen: hot.filter(meets).length, faded: document.getElementById('uml').classList.contains('cg-focus'),
+    targets: targets.length, inView: targets.filter(meets).length, off: (u.off || []).length, view: u.view,
+    hotEdges: document.querySelectorAll('#uml .edgePaths path.cg-hot').length, hotLabels: [...document.querySelectorAll('#uml .edgeLabel.cg-hot-label')].filter((l) => l.textContent.trim()).length,
+    labelOpacity: [...document.querySelectorAll('#uml .edgeLabel.cg-hot-label')].map((l) => getComputedStyle(l).opacity).join(','),
+    header: document.getElementById('cg-counts').textContent,
     legend: document.getElementById('cg-legend-uml').textContent }
 })()`
-const checkView = async (p: Page, k: number, v: UmlVariant, where: string) => {
+const checkView = async (p: Page, k: number, full: UmlVariant, where: string) => {
+  const v = drawn(full, String(await p.evaluate('window.__cg.uml.view')))
   if (!v.focus.length) return
-  const r = await p.evaluate(viewOf(v.names[v.focus[0]!]!))
+  const ids = [...v.focus, ...v.flagged].map((id) => v.names[id]!)
+  const r = await p.evaluate(viewOf(v.names[v.focus[0]!]!, ids))
   check(r.hot === v.focus.length, `(7) ${where} step ${k}: ${r.hot} framed elements, focus ${v.focus.length}`)
+  // every change and flag is in the view, or has an edge marker pointing to it
+  check(r.targets === ids.length && r.inView + r.off >= ids.length, `(7) ${where} step ${k}: ${r.inView} of ${ids.length} changes/flags in view, ${r.off} edge markers`)
+  check(r.hotLabels === 0 || r.labelOpacity.split(',').every((o: string) => o === '1'), `(7) ${where} step ${k}: highlighted edge labels faded (${r.labelOpacity})`)
+  const hp = /◌ (\d+)/.exec(r.header)?.[1], lp = /◌ (\d+)/.exec(r.legend)?.[1]
+  if (k === N) check(hp === lp, `(7) ${where} step ${k}: header ◌ ${hp} != legend ◌ ${lp}`)
   check(r.minPx >= 11, `(7) ${where} step ${k}: framed titles ${r.minPx.toFixed(1)} px (< 11) at zoom ${r.zoom}`)
   check(r.primary, `(7) ${where} step ${k}: first changed element not fully in view (${r.rects})`)
   check(/◌ \d/.test(r.legend) && /\+ \d/.test(r.legend), `(7) ${where} step ${k}: legend ${r.legend}`)
-  viewNotes.push(`${where} ${k}: ${r.minPx.toFixed(1)}px z${Number(r.zoom).toFixed(2)} ${r.seen}/${r.hot} seen${r.faded ? ' faded' : ''}`)
+  viewNotes.push(`${where} ${k}: ${r.view} ${r.minPx.toFixed(1)}px z${Number(r.zoom).toFixed(2)} changes ${r.seen}/${r.hot} in view; changes+flags ${r.inView}/${ids.length} in view, ${r.off} markers; hot edges ${r.hotEdges}, labels ${r.hotLabels}${r.faded ? ' faded' : ''}`)
 }
 const viewNotes: string[] = []
 const nodeAttr = (name: string, attr: string) => `(document.querySelector('#uml g[id^="classId-${name}-"]') || { getAttribute: () => 'missing' }).getAttribute('${attr}')`
@@ -259,15 +273,15 @@ try {
       await p.evaluate(`(() => { const r = document.getElementById('cg-step'); r.value = '${k}'; r.dispatchEvent(new Event('input')) })()`)
       await atStep(p, k)
       const u = await p.evaluate('window.__cg.uml')
-      const v = variantAt(k)
-      check(u.nodes === elementCount(v), `(7) step ${k} (input): nodes ${u.nodes} != ${elementCount(v)}`)
+      const full = variantAt(k), v = drawn(full, u.view)
+      check(u.nodes === elementCount(v), `(7) step ${k} (input, ${u.view}): nodes ${u.nodes} != ${elementCount(v)}`)
       const marks = await p.evaluate(`[...document.querySelectorAll('#uml g[id^="classId-"]')].map((g) => [g.id, g.dataset.cgId, g.dataset.cgFlag, g.dataset.cgStatus, g.dataset.cgChange])`) as string[][]
       const bad = marks.filter(([, id, f, s, c]) => { const m = id ? v.marks[v.names[id]!] : undefined; return !m || (m.flag ?? 'none') !== f || m.status !== s || (m.change ?? 'none') !== c })
       check(bad.length === 0, `(7) step ${k}: marks differ on ${bad.map((b) => b[0]).join(',')}`)
       const strikes = await p.evaluate(`[...document.querySelectorAll('#uml g[data-cg-status="abandoned"] .label-group, #uml g[data-cg-status="removed"] .label-group')].map((g) => getComputedStyle(g.querySelector('*') || g).textDecorationLine)`) as string[]
       check(strikes.every((s) => s.includes('line-through')), `(7) step ${k}: removed titles not struck (${strikes.join(',')})`)
       const stepPng = k === 1 ? 'step-start.png' : k === Math.ceil(N / 2) ? 'step-middle.png' : k === N ? 'step-end.png' : ''
-      await checkView(p, k, v, 'desktop')
+      await checkView(p, k, full, 'desktop')
       await viewShot(p, out(stepPng || `steps/view-${String(k).padStart(2, '0')}.png`))
       if (k === 2) {
         check((await p.evaluate(nodeAttr(v.names[W]!, 'data-cg-status'))) === 'abandoned', '(7) step 2 PaneWebGLRenderer abandoned')
@@ -281,9 +295,15 @@ try {
       }
     }
     // the slider buttons
-    for (let k = N - 1; k >= N - 3; k--) { await p.click('#cg-prev'); await atStep(p, k); check((await p.evaluate('window.__cg.uml.nodes')) === elementCount(variantAt(k)), `(7) ◀ to step ${k}`) }
+    const drawnCount = async (k: number) => elementCount(drawn(variantAt(k), String(await p.evaluate('window.__cg.uml.view'))))
+    for (let k = N - 1; k >= N - 3; k--) { await p.click('#cg-prev'); await atStep(p, k); check((await p.evaluate('window.__cg.uml.nodes')) === await drawnCount(k), `(7) ◀ to step ${k}`) }
     check((await p.evaluate(`document.getElementById('cg-unplanned').disabled`)) === true, '(7) unplanned select disabled before the latest step')
-    for (let k = N - 2; k <= N; k++) { await p.click('#cg-next'); await atStep(p, k); check((await p.evaluate('window.__cg.uml.nodes')) === elementCount(variantAt(k)), `(7) ▶ to step ${k}`) }
+    for (let k = N - 2; k <= N; k++) { await p.click('#cg-next'); await atStep(p, k); check((await p.evaluate('window.__cg.uml.nodes')) === await drawnCount(k), `(7) ▶ to step ${k}`) }
+    // the full diagram on request (the latest step's default may be the focused view)
+    if ((await p.evaluate('window.__cg.uml.view')) === 'focused') {
+      await p.click('#cg-scope')
+      await p.waitForFunction(`window.__cg.uml.rendered && window.__cg.uml.view === 'full'`, null, { timeout: 15000 })
+    }
     check((await p.evaluate(`document.getElementById('cg-unplanned').disabled`)) === false, '(7) unplanned select enabled at the latest step')
     const u = await p.evaluate('window.__cg.uml')
     for (const f of UML_FLAGS) check(u.flags[f] === page.counts[f], `(7) latest flags.${f} ${u.flags[f]} != counts ${page.counts[f]}`)
@@ -295,6 +315,10 @@ try {
     viewNotes.push(`fit: zoom ${Number(await p.evaluate('window.__cg.uml.zoom')).toFixed(2)}, natural ${await p.evaluate(`(() => { const b = document.querySelector('#uml svg').viewBox.baseVal; return Math.round(b.width) + 'x' + Math.round(b.height) })()`)}`)
     await viewShot(p, out('uml-fit.png'))
     await p.click('#cg-frame'); await p.waitForTimeout(100)
+    // the side list's planned member scrolls its element into the view
+    await p.evaluate(`[...document.querySelectorAll('#cg-check li button')].find((b) => b.textContent.includes('matchSolution')).click()`)
+    await p.waitForTimeout(200)
+    check(Boolean(await p.evaluate(`(() => { const g = document.querySelector('#uml g[data-cg-id="uml:live-ingest"]'), b = document.getElementById('cg-diagram').getBoundingClientRect(); if (!g) return false; const r = g.getBoundingClientRect(); return r.right > b.left && r.left < b.right && r.bottom > b.top && r.top < b.bottom })()`)), '(7) side list matchSolution scrolls LiveIngest into view')
     // unplanned 'none' hides the built-not-planned components
     const n0 = u.nodes, hidden = elementCount(page.latest.components) - elementCount(page.latest.none)
     await p.selectOption('#cg-unplanned', 'none')

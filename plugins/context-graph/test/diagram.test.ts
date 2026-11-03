@@ -240,3 +240,63 @@ test('v3-12r: above 12 elements the default text collapses unchanged members; me
   const small = umlPageData(fixture().uml, fixture().sol, null)
   for (const s of small.steps) assert.equal(s.mermaidAll, undefined)
 })
+
+test('v3-12r: a step that changed part of a diagram carries a focused view: changes, flags, then 1-hop neighbours', () => {
+  const { sol, uml } = big()
+  const extra = applyDesignOps({ sol, uml }, [
+    { op: 'add', kind: 'decision', label: 'Near' },
+    { op: 'uml.relate', decision: 'decision:near', kind: 'dependency', from: 'uml:fresh', to: 'uml:c5', label: 'reads' },
+    { op: 'add', kind: 'decision', label: 'Touch' },
+    { op: 'uml.add', decision: 'decision:touch', kind: 'class', name: 'Fresh', operations: ['+again()'] },
+  ]).state
+  const p = umlPageData(uml, sol, null)
+  // everything changed at step 1: the full diagram is the focus
+  assert.equal(p.steps[0]!.focused, undefined)
+  const s2 = p.steps[1]!.focused!
+  assert.deepEqual(Object.keys(s2.names), ['uml:c3', 'uml:c9'])
+  assert.deepEqual(s2.focus, ['uml:c3', 'uml:c9'])
+  assert.match(s2.mermaid, /E_c3 \.\.> E_c9/)
+  assert.ok(!s2.mermaid.includes('E_c1'), s2.mermaid)
+  // the 1-hop neighbours of a changed element come along (faded, members collapsed)
+  const q = umlPageData(extra.uml, extra.sol, null)
+  assert.deepEqual(Object.keys(q.steps[4]!.focused!.names), ['uml:c5', 'uml:fresh'])
+  const near = q.steps[5]!.focused!
+  assert.deepEqual(near.focus, ['uml:fresh'])
+  assert.deepEqual(Object.keys(near.names), ['uml:fresh', 'uml:c5'])
+  assert.match(near.mermaid, /E_fresh \.\.> E_c5 : reads/)
+  assert.ok(near.mermaid.includes('+again()') && !near.mermaid.includes('+op5()'), near.mermaid)
+  const fresh = umlPageData(extra.uml, extra.sol, null).steps[2]!.focused!
+  assert.deepEqual(Object.keys(fresh.names), ['uml:fresh'])
+  assert.ok(fresh.mermaid.includes('+fresh()'))
+  // marks are keyed by the focused view's own names
+  assert.equal(near.marks[near.names['uml:c5']!]!.change, null)
+})
+
+test('v3-12r: the focused view brings in the cross-check flags (planned members, built-not-planned components)', () => {
+  const { sol, uml } = fixture()
+  const p = umlPageData(uml, sol, actual(), { scannedAt: 5 })
+  const v = p.latest.components
+  assert.ok(v.focused, 'the latest step changed part of the diagram')
+  const ids = Object.keys(v.focused!.names)
+  for (const id of v.focus) assert.ok(ids.includes(id), `focus ${id}`)
+  assert.ok(ids.includes('uml:renderer'), 'Renderer has a planned-not-built member')
+  assert.ok(ids.some((id) => id.startsWith('code:')), 'built-not-planned components')
+  // planned-not-built elements, the element with a planned member, the built-not-planned modules (diagram order)
+  assert.deepEqual(v.flagged, ['uml:renderer', 'uml:base-shape', 'uml:circle', 'uml:drawable', 'code:util/helper.ts', 'code:util/prng.ts'].filter((id) => !v.focus.includes(id)))
+  for (const id of v.flagged) assert.ok(ids.includes(id), `flagged ${id}`)
+  assert.deepEqual(v.focused!.pending, { 'uml:renderer': ['MAX'] })
+})
+
+test('v3-12r: a focused view of more than FOCUS_OPEN elements draws names only (planned members still show)', () => {
+  const ops: DesignOp[] = [{ op: 'add', kind: 'decision', label: 'Base' }]
+  for (let i = 0; i < 14; i++) ops.push({ op: 'uml.add', decision: 'decision:base', kind: 'component', name: `C${i}`, operations: [`+op${i}()`] })
+  ops.push({ op: 'add', kind: 'decision', label: 'Many' })
+  for (let i = 0; i < 7; i++) ops.push({ op: 'uml.add', decision: 'decision:many', kind: 'class', name: `M${i}`, operations: [`+m${i}()`] })
+  const { sol, uml } = design(ops)
+  const many = umlPageData(uml, sol, null).steps[1]!
+  assert.equal(Object.keys(many.focused!.names).length, 7)
+  assert.ok(!many.focused!.mermaid.includes('+m0()'), many.focused!.mermaid)
+  assert.ok(many.mermaid.includes('+m0()'), 'the full diagram keeps the changed members')
+  const few = umlPageData(big().uml, big().sol, null).steps[2]!
+  assert.ok(few.focused!.mermaid.includes('+fresh()'))
+})

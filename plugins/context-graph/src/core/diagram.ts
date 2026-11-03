@@ -49,7 +49,17 @@ export interface UmlVariant {
   focus: string[]
   /** every member of every element, when `mermaid` collapses the unchanged ones (diagrams above COLLAPSE_ABOVE elements) */
   mermaidAll?: string
+  /** element ids with a cross-check flag to show (◌ + ! or planned members) that are not in focus; the view frames them after the focus */
+  flagged: string[]
+  /** a diagram of just the focus, the flagged elements and (up to FOCUS_MAX) the focus's 1-hop neighbours, with unchanged
+   *  members collapsed; absent when that would be the whole diagram. The page shows it when the full one cannot frame them. */
+  focused?: FocusedVariant
 }
+export interface FocusedVariant { mermaid: string; names: Record<string, string>; marks: Record<string, UmlMark>; pending?: Record<string, string[]>; focus: string[]; flagged: string[] }
+/** the focused view takes 1-hop neighbours of the focus only while it has at most this many elements */
+export const FOCUS_MAX = 8
+/** a focused view of more elements than this draws their names only (planned-not-built members still show) */
+export const FOCUS_OPEN = 6
 /** above this many elements the default text lists members only for the elements the step changed */
 export const COLLAPSE_ABOVE = 12
 /** member lines on the page stay on one line (Mermaid wraps from about 38 characters and then overlaps the next line) */
@@ -230,23 +240,58 @@ export function buildDiagram(input: DiagramInput): Diagram {
 /** the member's name, as uml.ts derives it */
 const memberName = (text: string): string => MEMBER_NAME_RE.exec(text)?.[1] ?? text
 
+const SHOWN_FLAGS: ReadonlySet<UmlFlag | null> = new Set<UmlFlag | null>(['planned-not-built', 'built-not-planned', 'removed-but-built'])
+
+function marksOf(d: Diagram, names: Record<string, string>): { marks: Record<string, UmlMark>; pending?: Record<string, string[]> } {
+  const marks: Record<string, UmlMark> = {}
+  const pending: Record<string, string[]> = {}
+  for (const e of d.elements) {
+    const name = names[e.id]
+    if (!name) continue
+    marks[name] = { flag: e.flag, status: e.status, change: e.change }
+    const ms = e.members.filter((m) => m.flag === 'planned-not-built').map((m) => memberName(m.text))
+    if (ms.length) pending[e.id] = ms
+  }
+  return Object.keys(pending).length ? { marks, pending } : { marks }
+}
+
+/** the ids the focused view keeps: focus, flagged, then 1-hop neighbours of the focus (diagram order) while <= FOCUS_MAX */
+function focusedIds(d: Diagram, focus: string[], flagged: string[]): string[] {
+  const keep = [...focus, ...flagged]
+  const inSet = new Set(keep)
+  const near = new Set<string>()
+  const f = new Set(focus)
+  for (const r of d.relations) {
+    if (f.has(r.from) && !inSet.has(r.to)) near.add(r.to)
+    if (f.has(r.to) && !inSet.has(r.from)) near.add(r.from)
+  }
+  for (const e of d.elements) if (near.has(e.id) && keep.length < FOCUS_MAX) keep.push(e.id)
+  return keep
+}
+
 function variant(d: Diagram): UmlVariant {
   const collapse = d.elements.length > COLLAPSE_ABOVE
   const out = toMermaid(d, { badges: true, members: collapse ? 'changed' : 'all', memberChars: MEMBER_CHARS })
-  const marks: Record<string, UmlMark> = {}
-  for (const e of d.elements) {
-    const name = out.names[e.id]
-    if (name) marks[name] = { flag: e.flag, status: e.status, change: e.change }
-  }
-  const v: UmlVariant = { mermaid: out.text, names: out.names, marks, focus: focusOf(d) }
+  const focus = focusOf(d)
+  const shown = out.names
+  const inFocus = new Set(focus)
+  const flaggedEl = (e: DiagramElement) => e.status === 'active' && (SHOWN_FLAGS.has(e.flag) || e.members.some((m) => !m.removed && m.flag === 'planned-not-built'))
+  const flagged = d.elements.filter((e) => shown[e.id] && !inFocus.has(e.id) && flaggedEl(e)).map((e) => e.id)
+  const v: UmlVariant = { mermaid: out.text, names: out.names, ...marksOf(d, out.names), focus, flagged }
   if (collapse) v.mermaidAll = toMermaid(d, { badges: true, memberChars: MEMBER_CHARS }).text
-  const pending: Record<string, string[]> = {}
-  for (const e of d.elements) {
-    if (!out.names[e.id]) continue
-    const names = e.members.filter((m) => m.flag === 'planned-not-built').map((m) => memberName(m.text))
-    if (names.length) pending[e.id] = names
+  const ids = focus.length ? focusedIds(d, focus, flagged).filter((id) => shown[id]) : []
+  if (ids.length && ids.length < Object.keys(shown).length) {
+    const keep = new Set(ids)
+    const order = new Map(ids.map((id, i) => [id, i]))
+    const sub: Diagram = {
+      ...d,
+      elements: d.elements.filter((e) => keep.has(e.id)).sort((a, b) => order.get(a.id)! - order.get(b.id)!)
+        .map((e) => (ids.length > FOCUS_OPEN ? { ...e, stereotype: undefined, members: e.members.filter((m) => !m.removed && m.flag === 'planned-not-built') } as DiagramElement : e)),
+      relations: d.relations.filter((r) => keep.has(r.from) && keep.has(r.to)),
+    }
+    const fo = toMermaid(sub, { badges: true, members: 'changed', memberChars: MEMBER_CHARS })
+    v.focused = { mermaid: fo.text, names: fo.names, ...marksOf(sub, fo.names), focus, flagged }
   }
-  if (Object.keys(pending).length) v.pending = pending
   return v
 }
 
