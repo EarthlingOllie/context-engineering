@@ -54,6 +54,12 @@ export interface UmlVariant {
   /** a diagram of just the focus, the flagged elements and (up to FOCUS_MAX) the focus's 1-hop neighbours, with unchanged
    *  members collapsed; absent when that would be the whole diagram. The page shows it when the full one cannot frame them. */
   focused?: FocusedVariant
+  /** `focused` without the neighbours (only the focus and the flagged elements): the view falls back to it when the
+   * neighbours push changes out of a readable frame. Present only when `focused` has neighbours. */
+  tight?: FocusedVariant
+  /** just the focus, without the flagged elements (they stay in the legend and the side list): the last fallback when the
+   * flags push changes out of a readable frame. Present only when the step has flags. */
+  bare?: FocusedVariant
 }
 export interface FocusedVariant { mermaid: string; names: Record<string, string>; marks: Record<string, UmlMark>; pending?: Record<string, string[]>; focus: string[]; flagged: string[] }
 /** the focused view takes 1-hop neighbours of the focus only while it has at most this many elements */
@@ -280,17 +286,24 @@ function variant(d: Diagram): UmlVariant {
   const v: UmlVariant = { mermaid: out.text, names: out.names, ...marksOf(d, out.names), focus, flagged }
   if (collapse) v.mermaidAll = toMermaid(d, { badges: true, memberChars: MEMBER_CHARS }).text
   const ids = focus.length ? focusedIds(d, focus, flagged).filter((id) => shown[id]) : []
-  if (ids.length && ids.length < Object.keys(shown).length) {
+  const sub = (ids: string[], flags = flagged): FocusedVariant => {
     const keep = new Set(ids)
     const order = new Map(ids.map((id, i) => [id, i]))
-    const sub: Diagram = {
+    const s: Diagram = {
       ...d,
       elements: d.elements.filter((e) => keep.has(e.id)).sort((a, b) => order.get(a.id)! - order.get(b.id)!)
         .map((e) => (ids.length > FOCUS_OPEN ? { ...e, stereotype: undefined, members: e.members.filter((m) => !m.removed && m.flag === 'planned-not-built') } as DiagramElement : e)),
       relations: d.relations.filter((r) => keep.has(r.from) && keep.has(r.to)),
     }
-    const fo = toMermaid(sub, { badges: true, members: 'changed', memberChars: MEMBER_CHARS })
-    v.focused = { mermaid: fo.text, names: fo.names, ...marksOf(sub, fo.names), focus, flagged }
+    const fo = toMermaid(s, { badges: true, members: 'changed', memberChars: MEMBER_CHARS })
+    return { mermaid: fo.text, names: fo.names, ...marksOf(s, fo.names), focus, flagged: flags }
+  }
+  if (ids.length && ids.length < Object.keys(shown).length) {
+    v.focused = sub(ids)
+    const core = [...focus, ...flagged].filter((id) => shown[id])
+    if (core.length < ids.length) v.tight = sub(core)
+    const bare = focus.filter((id) => shown[id])
+    if (flagged.length && bare.length) v.bare = sub(bare, [])
   }
   return v
 }

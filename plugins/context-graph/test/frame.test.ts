@@ -68,7 +68,9 @@ test('offView: boxes outside the scrolled view get an edge marker on the side th
   assert.equal(m[0]!.at, 325 - 50) // the box's middle, in view coordinates
   assert.equal(m[1]!.at, 350 - 50)
   assert.equal(m[2]!.at, 0) // clamped to the edge
-  // the zoom scales natural coordinates; a partly visible box counts as in view
-  assert.deepEqual(offView([{ x: 900, y: 100, w: 200, h: 50 }], 1, { left: 0, top: 0 }, { w: 1000, h: 600 }), [])
+  // the zoom scales natural coordinates; a partly clipped box is not in view: it is marked on the side it is cut
+  assert.deepEqual(offView([{ x: 900, y: 100, w: 200, h: 50 }], 1, { left: 0, top: 0 }, { w: 1000, h: 600 }).map((x) => x.side), ['right'])
+  assert.deepEqual(offView([{ x: 100, y: 580, w: 200, h: 50 }], 1, { left: 0, top: 0 }, { w: 1000, h: 600 }).map((x) => x.side), ['bottom'])
+  assert.deepEqual(offView([{ x: 0, y: 0, w: 1000, h: 600 }], 1, { left: 0, top: 0 }, { w: 1000, h: 600 }), [])
   assert.deepEqual(offView([{ x: 900, y: 100, w: 200, h: 50 }], 0.5, { left: 0, top: 0 }, { w: 400, h: 600 }).map((x) => x.side), ['right'])
 })

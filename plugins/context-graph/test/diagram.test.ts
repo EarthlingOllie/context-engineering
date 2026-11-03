@@ -287,6 +287,46 @@ test('v3-12r: the focused view brings in the cross-check flags (planned members,
   assert.deepEqual(v.focused!.pending, { 'uml:renderer': ['MAX'] })
 })
 
+test('v3-19r: a focused view with neighbours also carries a tight view of just the changes and flags', () => {
+  const { sol, uml } = big()
+  const extra = applyDesignOps({ sol, uml }, [
+    { op: 'add', kind: 'decision', label: 'Near' },
+    { op: 'uml.relate', decision: 'decision:near', kind: 'dependency', from: 'uml:fresh', to: 'uml:c5', label: 'reads' },
+    { op: 'add', kind: 'decision', label: 'Touch' },
+    { op: 'uml.add', decision: 'decision:touch', kind: 'class', name: 'Fresh', operations: ['+again()'] },
+  ]).state
+  const q = umlPageData(extra.uml, extra.sol, null)
+  // step 6 changed Fresh only; its neighbour C5 is in the focused view, not in the tight one
+  const near = q.steps[5]!.focused!
+  assert.deepEqual(Object.keys(near.names), ['uml:fresh', 'uml:c5'])
+  const tight = q.steps[5]!.tight!
+  assert.deepEqual(Object.keys(tight.names), ['uml:fresh'])
+  assert.deepEqual(tight.focus, ['uml:fresh'])
+  assert.ok(tight.mermaid.includes('+again()') && !tight.mermaid.includes('E_c5'), tight.mermaid)
+  // a focused view without neighbours needs no tight one
+  assert.equal(q.steps[1]!.tight, undefined)
+})
+
+test('v3-19r: the tight view keeps the flagged elements after the changes', () => {
+  const { sol, uml } = fixture()
+  const v = umlPageData(uml, sol, actual(), { scannedAt: 5 }).latest.components
+  if (!v.tight) return assert.equal(Object.keys(v.focused!.names).length, v.focus.length + v.flagged.length)
+  assert.deepEqual(Object.keys(v.tight.names).sort(), [...v.focus, ...v.flagged].sort())
+  assert.deepEqual(v.tight.pending, { 'uml:renderer': ['MAX'] })
+})
+
+test('v3-19r: a step with flags also carries a bare view of just its changes (the flags stay in the legend)', () => {
+  const { sol, uml } = fixture()
+  const v = umlPageData(uml, sol, actual(), { scannedAt: 5 }).latest.components
+  assert.ok(v.flagged.length && v.bare)
+  assert.deepEqual(Object.keys(v.bare!.names), v.focus)
+  assert.deepEqual(v.bare!.focus, v.focus)
+  assert.deepEqual(v.bare!.flagged, [])
+  // no flags: no bare view
+  const q = umlPageData(big().uml, big().sol, null)
+  assert.ok(q.steps.every((s) => s.bare === undefined))
+})
+
 test('v3-12r: a focused view of more than FOCUS_OPEN elements draws names only (planned members still show)', () => {
   const ops: DesignOp[] = [{ op: 'add', kind: 'decision', label: 'Base' }]
   for (let i = 0; i < 14; i++) ops.push({ op: 'uml.add', decision: 'decision:base', kind: 'component', name: `C${i}`, operations: [`+op${i}()`] })

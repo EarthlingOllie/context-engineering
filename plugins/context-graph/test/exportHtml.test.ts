@@ -230,6 +230,9 @@ test('v3-18r: the UML tab has zoom, fit, frame, members and legend controls and 
   assert.match(html, /useMaxWidth: false/)
   // the off-view edge markers and the focused/full switch
   for (const id of ['cg-scope', 'cg-off']) assert.match(html, new RegExp(`id="${id}"`), id)
+  // the off-view row sits above the scroll box, never over the diagram's nodes
+  assert.match(html, /<div id="cg-off"[^>]*><\/div><div id="cg-diagram">/)
+  assert.doesNotMatch(html, /#cg-off\{[^}]*position:absolute/)
   const o = html.match(/const offView = (function[^]*?\n\})/)
   assert.ok(o, 'offView inlined')
   const ov = new Function(`return ${o[1]}`)()

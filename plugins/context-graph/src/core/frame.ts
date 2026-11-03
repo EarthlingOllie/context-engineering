@@ -45,7 +45,7 @@ export function frameView(boxes: FrameBox[], content: FrameSize, view: FrameSize
 
 export interface OffMark { index: number; side: 'left' | 'right' | 'top' | 'bottom'; /** px along that edge, in view coordinates, clamped to it */ at: number }
 /**
- * The boxes (natural-size coordinates) that do not meet the view scrolled to `scroll` at `zoom`, each with the edge of the
+ * The boxes (natural-size coordinates) that are not wholly inside the view scrolled to `scroll` at `zoom`, each with the edge of the
  * view nearest the way to it: left/right when it lies beyond them, else top/bottom. Pure; the page inlines its source.
  */
 export function offView(boxes: FrameBox[], zoom: number, scroll: { left: number; top: number }, view: FrameSize): OffMark[] {
@@ -54,10 +54,10 @@ export function offView(boxes: FrameBox[], zoom: number, scroll: { left: number;
     const x0 = b.x * zoom - scroll.left, x1 = (b.x + b.w) * zoom - scroll.left
     const y0 = b.y * zoom - scroll.top, y1 = (b.y + b.h) * zoom - scroll.top
     const midX = Math.max(0, Math.min(view.w, (x0 + x1) / 2)), midY = Math.max(0, Math.min(view.h, (y0 + y1) / 2))
-    if (x1 <= 0) out.push({ index, side: 'left', at: midY })
-    else if (x0 >= view.w) out.push({ index, side: 'right', at: midY })
-    else if (y1 <= 0) out.push({ index, side: 'top', at: midX })
-    else if (y0 >= view.h) out.push({ index, side: 'bottom', at: midX })
+    // partly clipped counts as out of view: marked on the side it is cut (the side it lies furthest beyond)
+    const over = { left: -x0, right: x1 - view.w, top: -y0, bottom: y1 - view.h }
+    const side = (Object.keys(over) as OffMark['side'][]).reduce((a, b) => (over[b] > over[a] ? b : a))
+    if (over[side] > 0.5) out.push({ index, side, at: side === 'left' || side === 'right' ? midY : midX })
   })
   return out
 }
