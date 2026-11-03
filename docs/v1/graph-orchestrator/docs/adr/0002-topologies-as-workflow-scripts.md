@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (one run per wave superseded by ADR-0003)
 ---
 # Topologies are functions in a single Claude Code Workflow script
 
