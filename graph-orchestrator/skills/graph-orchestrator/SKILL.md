@@ -95,7 +95,7 @@ Workflow({
 })
 ```
 
-The script is a two-line wrapper: its `meta` names the workflow after the dispatch, and it hands `args` to the plugin's dispatch script. Write it exactly as above with the title, id, topology and plugin root substituted; `meta` must stay a plain literal. Never paste `dispatch.js` itself. `<Topology>` in the name is one of `Single`, `Generator-evaluator`, `Fan-out`, `Chain`, `Relay`, `Best-of-n`, `Iterative fan-out`, `Panel`, `Debate`: `name: 'Generator-evaluator: Add the HTTP retry policy'`. The agents inside are labelled by role only (`Generator (1 of 3): …`), except a chain's, which name their stage and its topology (`Stage 2 · Single, Worker: …`).
+The script is a two-line wrapper: its `meta` names the workflow after the dispatch, and it hands `args` to the plugin's dispatch script. Write it exactly as above with the title, id, topology and plugin root substituted; `meta` must stay a plain literal. Never paste `dispatch.js` itself. `<Topology>` in the name is one of `Single`, `Generator-evaluator`, `Fan-out`, `Chain`, `Relay`, `Best-of-n`, `Iterative fan-out`, `Panel`, `Debate`: `name: 'Generator-evaluator: Add the HTTP retry policy'`. The agents inside are labelled by role only (`Generator (1 of 3): …`), except a chain's, which name their link (stage) and its topology (`Link 2 · Single, Worker: …`).
 
 Then say one line, `Wave <n> dispatched: <title>; <title>.`, and wait. Each workflow notifies you when it finishes; integrate once every workflow of the wave has reported. Never poll a running workflow or ask how it is going.
 

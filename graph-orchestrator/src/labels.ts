@@ -10,8 +10,8 @@
  * role and is left out when only one is configured. A role with a second axis
  * (a debater's rounds, an iterative fan-out's rounds) names that axis:
  * "Debater pro (round 1 of 2)", "Worker (round 2 of 3, 1 of 2)". A chain's
- * stages each run their own topology, so a stage agent also names its stage
- * and that topology: "Stage 2 · Generator-evaluator, Generator (1 of 2): …".
+ * stages each run their own topology, so a stage agent also names its link of
+ * the chain and that topology: "Link 2 · Generator-evaluator, Generator (1 of 2): …".
  * The task is the agent's own (a branch's sub-task, else the dispatch's or
  * stage's), one line, at most 40 characters.
  */
@@ -96,7 +96,7 @@ function position(parts: AgentLabelParts): string {
 
 export function agentLabel(parts: AgentLabelParts): string {
   const stage = stageOf(parts.id);
-  const topology = stage ? [`Stage ${stage}`, parts.topology ? topologyTitle(parts.topology) : ""].filter(Boolean).join(" · ") : "";
+  const topology = stage ? [`Link ${stage}`, parts.topology ? topologyTitle(parts.topology) : ""].filter(Boolean).join(" · ") : "";
   const role = ROLE_TITLES[parts.role] + (parts.name ? ` ${parts.name}` : "");
   const pos = position(parts);
   const excerpt = taskExcerpt(parts.task);

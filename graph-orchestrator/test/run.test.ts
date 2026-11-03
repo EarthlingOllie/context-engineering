@@ -219,11 +219,11 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
       }),
     ],
     {
-      "Stage 1 · Single, Worker": { result: "/scratch/t/research.md\nthree findings", artifacts: ["/scratch/t/research.md"], blocked: false },
+      "Link 1 · Single, Worker": { result: "/scratch/t/research.md\nthree findings", artifacts: ["/scratch/t/research.md"], blocked: false },
       Generator: { result: "/scratch/t/writeup.md", artifacts: ["/scratch/t/writeup.md"], blocked: false },
     },
   );
-  assert.deepEqual(labels(), ["Stage 1 · Single, Worker: research", "Stage 2 · Generator-evaluator, Generator (1 of 2): write it up", "Stage 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Trace scribe: w3-d1 trace lines"]);
+  assert.deepEqual(labels(), ["Link 1 · Single, Worker: research", "Link 2 · Generator-evaluator, Generator (1 of 2): write it up", "Link 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Trace scribe: w3-d1 trace lines"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
@@ -242,9 +242,9 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
 test("chain: stops at the first stage that is not done and carries its status and question", async () => {
   const { out, labels, roles } = await wave(
     [spec({ id: "w1-d1", topology: "chain", params: { stages: [{ topology: "single", task: "a" }, { topology: "single", task: "b" }] } })],
-    { "Stage 1 · Single, Worker": { result: "", artifacts: [], blocked: true, question: "Which region?" } },
+    { "Link 1 · Single, Worker": { result: "", artifacts: [], blocked: true, question: "Which region?" } },
   );
-  assert.deepEqual(labels(), ["Stage 1 · Single, Worker: a", "Trace scribe: w1-d1 trace lines"]);
+  assert.deepEqual(labels(), ["Link 1 · Single, Worker: a", "Trace scribe: w1-d1 trace lines"]);
   const r = out.results[0]!;
   assert.equal(r.status, "blocked");
   assert.equal(r.question, "Which region?");

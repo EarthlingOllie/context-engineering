@@ -12,12 +12,12 @@ export type Script = Record<string, unknown | ((call: Call) => unknown)>;
 
 /**
  * A label without its task: "Worker (2 of 3)" for "Worker (2 of 3): part b".
- * A chain stage's label also loses its stage and topology: "Worker" for
- * "Stage 2 · Single, Worker: x".
+ * A chain stage's label also loses its link and topology: "Worker" for
+ * "Link 2 · Single, Worker: x".
  */
 export function roleOf(label: string | undefined): string {
   let l = label ?? "";
-  if (l.startsWith("Stage ") && l.includes(", ")) l = l.slice(l.indexOf(", ") + 2);
+  if (l.startsWith("Link ") && l.includes(", ")) l = l.slice(l.indexOf(", ") + 2);
   const colon = l.indexOf(": ");
   return colon === -1 ? l : l.slice(0, colon);
 }

@@ -53,7 +53,7 @@ function position(parts) {
 }
 function agentLabel(parts) {
   const stage = stageOf(parts.id);
-  const topology = stage ? [`Stage ${stage}`, parts.topology ? topologyTitle(parts.topology) : ""].filter(Boolean).join(" \xB7 ") : "";
+  const topology = stage ? [`Link ${stage}`, parts.topology ? topologyTitle(parts.topology) : ""].filter(Boolean).join(" \xB7 ") : "";
   const role = ROLE_TITLES[parts.role] + (parts.name ? ` ${parts.name}` : "");
   const pos = position(parts);
   const excerpt = taskExcerpt(parts.task);

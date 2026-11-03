@@ -32,12 +32,12 @@ test("agent labels: a second axis is named: rounds beside an index or a name", (
   assert.equal(agentLabel({ topology: "debate", role: "debater", name: "pro", round: 1, rounds: 1, task: "t" }), "Debater pro: t");
 });
 
-test("agent labels: a chain stage agent names its stage and that stage's topology, nested stages dotted", () => {
+test("agent labels: a chain stage agent names its link and that stage's topology, nested links dotted", () => {
   assert.equal(stageOf("w1-d2"), "");
   assert.equal(stageOf("w1-d2-s3"), "3");
   assert.equal(stageOf("w1-d2-s3-s1"), "3.1");
-  assert.equal(agentLabel({ topology: "single", id: "w1-d2-s1", role: "worker", task: "t" }), "Stage 1 · Single, Worker: t");
-  assert.equal(agentLabel({ topology: "generator-evaluator", id: "w1-d2-s2", role: "generator", round: 1, rounds: 2, task: "t" }), "Stage 2 · Generator-evaluator, Generator (1 of 2): t");
+  assert.equal(agentLabel({ topology: "single", id: "w1-d2-s1", role: "worker", task: "t" }), "Link 1 · Single, Worker: t");
+  assert.equal(agentLabel({ topology: "generator-evaluator", id: "w1-d2-s2", role: "generator", round: 1, rounds: 2, task: "t" }), "Link 2 · Generator-evaluator, Generator (1 of 2): t");
 });
 
 test("agent labels: topology titles; the scribe; no task, no colon", () => {
