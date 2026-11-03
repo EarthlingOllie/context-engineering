@@ -5,6 +5,8 @@ import { escapeXml } from './svg.ts'
 import type { BlastRadius, Graph, Vec3 } from './types.ts'
 
 export const THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.170.0/'
+/** mermaid 11.4.1 ESM bundle (v3 design.md 4.8) */
+export const MERMAID_URL = 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs'
 
 export interface ExportOptions { title: string; threeUrl?: string; note?: string }
 

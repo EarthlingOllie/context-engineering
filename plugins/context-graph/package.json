@@ -15,6 +15,7 @@
     "check": "npm run typecheck && npm test && npm run test:mod && npm run validate",
     "vendor": "node scripts/vendor-three.mjs",
     "install-dev": "node scripts/install-dev.mjs",
-    "acceptance": "node scripts/acceptance-session.ts"
+    "acceptance": "node scripts/acceptance-session.ts",
+    "mermaid-check": "node scripts/mermaid-check.ts"
   }
 }
