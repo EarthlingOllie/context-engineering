@@ -214,7 +214,7 @@ const browser = await chromium.launch({ proxy, args: ['--use-angle=swiftshader',
 type Page = { evaluate(s: string): Promise<any>; setViewportSize(v: { width: number; height: number }): Promise<void>; waitForFunction(s: string, a?: unknown, o?: object): Promise<unknown>; click(s: string): Promise<void>; selectOption(s: string, v: string): Promise<unknown>; screenshot(o: object): Promise<unknown>; goto(u: string, o?: object): Promise<unknown>; waitForTimeout(ms: number): Promise<void>; on(e: string, f: (x: any) => void): void }
 const errorsOf = (p: Page) => { const e: string[] = []; p.on('console', (m) => { if (m.type() === 'error') e.push(m.text()) }); p.on('pageerror', (x) => e.push(String(x))); return e }
 const atStep = async (p: Page, k: number) => p.waitForFunction(`window.__cg.uml.step === ${k} && window.__cg.uml.rendered`, null, { timeout: 15000 })
-/** step-*.png: the default view as shown at 1280x900 (natural-size Mermaid, framed on the step's changes) */
+/** step-*.png: the default view as shown at 1280x800 (natural-size Mermaid, framed on the step's changes) */
 const viewShot = async (p: Page, path: string) => {
   await p.evaluate(`document.getElementById('cg-panel-uml').scrollTop = 0`)
   await p.screenshot({ path })
@@ -249,7 +249,10 @@ const checkView = async (p: Page, k: number, full: UmlVariant, where: string) =>
   const r = await p.evaluate(viewOf(v.names[v.focus[0]!]!, ids))
   check(r.hot === v.focus.length, `(7) ${where} step ${k}: ${r.hot} framed elements, focus ${v.focus.length}`)
   // every change wholly inside the view (a partly clipped box is not framed)
-  check(r.seen === r.hot, `(7) ${where} step ${k}: ${r.seen} of ${r.hot} changes wholly in view`)
+  // desktop: every change wholly inside the view. phone (390px): a change that cannot fit at >= 11px may instead have an
+  // 'outside the view' chip that scrolls to it — still framed first, the rest one tap away
+  if (where === 'phone') check(r.seen >= 1 && r.seen + r.off >= r.hot, `(7) ${where} step ${k}: ${r.seen} of ${r.hot} changes in view, ${r.off} chips`)
+  else check(r.seen === r.hot, `(7) ${where} step ${k}: ${r.seen} of ${r.hot} changes wholly in view`)
   // every change and flag is in the view, or has an edge marker pointing to it
   check(r.targets === ids.length && r.inView + r.off >= ids.length, `(7) ${where} step ${k}: ${r.inView} of ${ids.length} changes/flags in view, ${r.off} edge markers`)
   check(r.hotLabels === 0 || r.labelOpacity.split(',').every((o: string) => o === '1'), `(7) ${where} step ${k}: highlighted edge labels faded (${r.labelOpacity})`)
@@ -263,7 +266,7 @@ const checkView = async (p: Page, k: number, full: UmlVariant, where: string) =>
 const viewNotes: string[] = []
 const nodeAttr = (name: string, attr: string) => `(document.querySelector('#uml g[id^="classId-${name}-"]') || { getAttribute: () => 'missing' }).getAttribute('${attr}')`
 try {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: 'light' })
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' })
   const p: Page = await ctx.newPage()
   const errors = errorsOf(p)
   try {
@@ -355,7 +358,12 @@ try {
     await p2.waitForFunction('window.__cg.uml.rendered', null, { timeout: 30000 })
     const sw = await p2.evaluate('document.scrollingElement.scrollWidth')
     check(sw <= 390, `(7) 390 px: scrollWidth ${sw}`)
-    await checkView(p2, N, variantAt(N), 'phone')
+    for (let k = 1; k <= N; k++) {
+      await p2.evaluate(`(() => { const r = document.getElementById('cg-step'); r.value = '${k}'; r.dispatchEvent(new Event('input')) })()`)
+      await atStep(p2, k)
+      await checkView(p2, k, variantAt(k), 'phone')
+      await viewShot(p2, out(`steps/phone-${String(k).padStart(2, '0')}.png`))
+    }
     await p2.screenshot({ path: out('phone.png') })
     await p2.goto(url + '/bad', { waitUntil: 'networkidle' })
     await p2.waitForFunction('window.__cg.uml.fallback', null, { timeout: 30000 })

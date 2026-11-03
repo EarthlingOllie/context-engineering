@@ -1149,8 +1149,8 @@ if (N) {
       zoom = 1; setZoom(1, false)
       const t = svgEl.querySelector('g[id^="classId-"] .label-group span, g[id^="classId-"] .label-group text')
       const fs = t ? parseFloat(getComputedStyle(t).fontSize) : 0
-      // names at 11.5 px, 11 px on a narrow (phone) box
-      minZoom = fs > 0 ? Math.min(1, (narrow() ? 11.05 : 11.5) / fs) : 0.9
+      // names at 11 px or more (a hair over, for rounding)
+      minZoom = fs > 0 ? Math.min(1, 11.05 / fs) : 0.9
     }
     mark(c)
     hot(c)
@@ -1173,7 +1173,8 @@ if (N) {
         for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] > kb[i]
         return false
       }
-      const nameOfView = (c) => (c === v ? 'full' : c === v.tight ? 'tight' : c === v.bare ? 'bare' : c === bareNL ? 'bare' : 'focused')
+      // the names-only view reports the view it was cut from (same elements)
+      const nameOfView = (c) => (c === bareNL ? nameOfView(nlFrom) : c === v ? 'full' : c === v.tight ? 'tight' : c === v.bare ? 'bare' : 'focused')
       const shown = async (c, text) => {
         const one = async (t) => {
           if (!(await draw(c, t, my))) return null
@@ -1198,8 +1199,10 @@ if (N) {
       // auto: the full diagram, else the focused one, else the tight one (no neighbours), else the bare one (the changes
       // only; the flags stay in the legend and the side list): the first that frames everything at a readable size, or the
       // one that frames most
-      // a narrow (phone) box also tries the bare view with names only: no edge labels, no members but planned ones (◌)
-      const bareNL = narrow() && v.bare ? { ...v.bare, mermaid: v.bare.mermaid.replace(/^(  [EB]_\w+ \S+ [EB]_\w+) : .*$/gm, '$1').replace(/^    (?!<<).*[^◌]$\n/gm, '') } : null
+      // a box also tries the bare view with names only: no edge labels, no members but planned ones (◌)
+      // (a desktop box tries it too, last, when nothing else frames every change)
+      const nlFrom = v.bare || v.tight || v.focused
+      const bareNL = nlFrom ? { ...nlFrom, mermaid: nlFrom.mermaid.replace(/^(  [EB]_\w+ \S+ [EB]_\w+) : .*$/gm, '$1').replace(/^    (?!<<).*[^◌]$\n/gm, '') } : null
       const cands = (scope === 'full' ? [v] : scope === 'focused' ? [v.focused, v.tight, v.bare, bareNL] : [v, v.focused, v.tight, v.bare, bareNL]).filter(Boolean)
       let c = null, f = null, best = null
       for (const k of cands) {
