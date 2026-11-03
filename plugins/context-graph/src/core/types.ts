@@ -95,3 +95,4 @@ export interface Focus {
 
 // v2 solution layer
 export * from './solution-types.ts'
+export * from './uml-types.ts'

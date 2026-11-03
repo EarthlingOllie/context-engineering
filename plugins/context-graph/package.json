@@ -6,7 +6,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "test": "node --test \"test/**/*.test.ts\"",
+    "test": "node --test --test-concurrency=2 \"test/**/*.test.ts\"",
     "test:mod": "node scripts/test-mod.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.mod.json",
     "types": "node scripts/types.mjs",
