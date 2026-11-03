@@ -219,3 +219,13 @@ test('v3-18: without uml the v2 page is unchanged apart from the tab bar and an 
   // the 3D module is the v2 solution client
   assert.ok(modules(v2).some((s) => s.includes("document.getElementById('cg-data')")))
 })
+
+test('v3-18r: the UML tab has zoom, fit, frame, members and legend controls and a runnable frameView', () => {
+  const html = exportSolutionHtml(withUml())
+  for (const id of ['cg-zoom-in', 'cg-zoom-out', 'cg-fit', 'cg-frame', 'cg-members', 'cg-legend-uml', 'cg-diagram']) assert.match(html, new RegExp(`id="${id}"`), id)
+  const m = html.match(/const frameView = (function[^]*?\n\})/)
+  assert.ok(m, 'frameView inlined')
+  const fv = new Function(`return ${m[1]}`)()
+  assert.deepEqual(fv([{ x: 0, y: 0, w: 10, h: 10 }], { w: 100, h: 100 }, { w: 100, h: 100 }, { minZoom: 1, maxZoom: 1, pad: 0 }), { zoom: 1, left: 0, top: 0, framed: 1 })
+  assert.match(html, /useMaxWidth: false/)
+})

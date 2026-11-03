@@ -204,3 +204,39 @@ test('v3-12: a variant lists the planned-not-built members of its matched elemen
   // without a scan nothing is checked, so nothing is pending
   assert.equal(umlPageData(uml, sol, null).latest.components.pending, undefined)
 })
+
+// readability (v3 fix): frame the step's changes; large diagrams collapse unchanged members by default
+const big = () => {
+  const ops: DesignOp[] = [{ op: 'add', kind: 'decision', label: 'Base' }]
+  for (let i = 0; i < 14; i++) ops.push({ op: 'uml.add', decision: 'decision:base', kind: 'component', name: `C${i}`, operations: [`+op${i}()`] })
+  ops.push({ op: 'add', kind: 'decision', label: 'Wire' })
+  ops.push({ op: 'uml.relate', decision: 'decision:wire', kind: 'dependency', from: 'uml:c3', to: 'uml:c9' })
+  ops.push({ op: 'add', kind: 'decision', label: 'Grow' })
+  ops.push({ op: 'uml.add', decision: 'decision:grow', kind: 'class', name: 'Fresh', operations: ['+fresh()'] })
+  ops.push({ op: 'add', kind: 'decision', label: 'Use' })
+  ops.push({ op: 'uml.add', decision: 'decision:use', kind: 'class', name: 'User' })
+  ops.push({ op: 'uml.relate', decision: 'decision:use', kind: 'dependency', from: 'uml:c1', to: 'uml:user' })
+  return design(ops)
+}
+
+test('v3-12r: a step focuses the elements it changed and the ends of the relations it changed', () => {
+  const { sol, uml } = big()
+  const p = umlPageData(uml, sol, null)
+  assert.deepEqual(p.steps[1]!.focus, ['uml:c3', 'uml:c9'])
+  assert.deepEqual(p.steps[2]!.focus, ['uml:fresh'])
+  // the changed element comes first (the view centres it when not everything fits), then the other relation ends
+  assert.deepEqual(p.steps[3]!.focus, ['uml:user', 'uml:c1'])
+  assert.equal(p.steps[0]!.focus.length, 14)
+})
+
+test('v3-12r: above 12 elements the default text collapses unchanged members; mermaidAll keeps every member', () => {
+  const { sol, uml } = big()
+  const p = umlPageData(uml, sol, null)
+  const s3 = p.steps[2]!
+  assert.ok(s3.mermaid.includes('+fresh()') && !s3.mermaid.includes('+op1()'), s3.mermaid)
+  assert.ok(s3.mermaidAll!.includes('+fresh()') && s3.mermaidAll!.includes('+op1()'))
+  assert.ok(!p.latest.components.mermaid.includes('+fresh()'), 'the latest step collapses Fresh again')
+  // small diagrams show every member and need no second text
+  const small = umlPageData(fixture().uml, fixture().sol, null)
+  for (const s of small.steps) assert.equal(s.mermaidAll, undefined)
+})

@@ -6,7 +6,24 @@ import type { Diagram, DiagramElement, DiagramRelation } from './diagram.ts'
 import type { UmlRelKind } from './uml-types.ts'
 
 export interface MermaidOut { text: string; /** element id -> Mermaid class name */ names: Record<string, string> }
-export interface MermaidOptions { direction?: 'LR' | 'TB'; maxMembers?: number; maxChars?: number }
+export interface MermaidOptions {
+  direction?: 'LR' | 'TB'; maxMembers?: number; maxChars?: number
+  /** 'changed': only elements the step changed list their members (planned-not-built ones always show). Default 'all'. */
+  members?: 'all' | 'changed'
+  /** suffix titles with the cross-check flag (◌ + !) or the number of planned-not-built members (◌n). Default false. */
+  badges?: boolean
+  /** longer member lines are cut to this many characters, ending ' …' (Mermaid overlaps the lines it wraps). Default none. */
+  memberChars?: number
+}
+const BADGE: Partial<Record<NonNullable<DiagramElement['flag']>, string>> = { 'planned-not-built': '◌', 'built-not-planned': '+', 'removed-but-built': '!' }
+
+/** the title badge: the element's flag symbol, else ◌n for n planned-not-built members ('' for none) */
+export function badgeOf(e: DiagramElement): string {
+  const b = e.flag ? BADGE[e.flag] : undefined
+  if (b) return b
+  const n = e.members.filter((m) => !m.removed && m.flag === 'planned-not-built').length
+  return n ? `◌${n}` : ''
+}
 
 const ARROW: Record<UmlRelKind, string> = {
   association: '-->', dependency: '..>', realization: '..|>', composition: '*--', generalization: '--|>',
@@ -86,7 +103,8 @@ function emit(d: Diagram, o: Required<MermaidOptions>, level: number): MermaidOu
   const shown = level >= 2 ? d.elements.filter((e) => e.source !== 'actual') : d.elements
   for (const e of shown) names[e.id] = mermaidName(e.id, taken)
   for (const e of shown) {
-    lines.push(`  class ${names[e.id]}["${displayName(e.name)}"] {`)
+    const badge = o.badges ? badgeOf(e) : ''
+    lines.push(`  class ${names[e.id]}["${displayName(e.name)}${badge ? ' ' + badge : ''}"] {`)
     const ann = annotation(e)
     if (ann) lines.push(`    <<${ann}>>`)
     if (level < 1) {
@@ -94,8 +112,14 @@ function emit(d: Diagram, o: Required<MermaidOptions>, level: number): MermaidOu
         const st = sanitizeMember(e.stereotype)
         if (st) lines.push(`    «${st}»`)
       }
-      const members = e.members.filter((m) => !m.removed).map((m) => {
-        const t = sanitizeMember(m.text)
+      const open = o.members === 'all' || e.change !== null
+      const members = e.members.filter((m) => !m.removed && (open || m.flag === 'planned-not-built')).map((m) => {
+        let t = sanitizeMember(m.text)
+        if (t.length > o.memberChars) {
+          const cut = t.slice(0, Math.max(1, o.memberChars - 2)).trimEnd()
+          // an open parameter list is closed, or Mermaid reads the operation as an attribute
+          t = (cut.split('(').length > cut.split(')').length) ? `${cut}…)` : `${cut} …`
+        }
         return t ? (m.flag === 'planned-not-built' ? `${t} ◌` : t) : ''
       }).filter(Boolean)
       for (const t of members.slice(0, o.maxMembers)) lines.push(`    ${t}`)
@@ -139,6 +163,9 @@ export function toMermaid(d: Diagram, opts: MermaidOptions = {}): MermaidOut {
     direction: opts.direction === 'TB' ? 'TB' : 'LR',
     maxMembers: Math.max(0, Math.floor(opts.maxMembers ?? 10)),
     maxChars: Math.max(0, Math.floor(opts.maxChars ?? 60000)),
+    members: opts.members === 'changed' ? 'changed' : 'all',
+    badges: opts.badges === true,
+    memberChars: Math.max(4, Math.floor(opts.memberChars ?? Infinity)),
   }
   let out = emit(d, o, 0)
   for (let level = 1; level <= 3 && out.text.length > o.maxChars; level++) out = emit(d, o, level)

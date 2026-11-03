@@ -212,22 +212,40 @@ const browser = await chromium.launch({ proxy, args: ['--use-angle=swiftshader',
 type Page = { evaluate(s: string): Promise<any>; setViewportSize(v: { width: number; height: number }): Promise<void>; waitForFunction(s: string, a?: unknown, o?: object): Promise<unknown>; click(s: string): Promise<void>; selectOption(s: string, v: string): Promise<unknown>; screenshot(o: object): Promise<unknown>; goto(u: string, o?: object): Promise<unknown>; waitForTimeout(ms: number): Promise<void>; on(e: string, f: (x: any) => void): void }
 const errorsOf = (p: Page) => { const e: string[] = []; p.on('console', (m) => { if (m.type() === 'error') e.push(m.text()) }); p.on('pageerror', (x) => e.push(String(x))); return e }
 const atStep = async (p: Page, k: number) => p.waitForFunction(`window.__cg.uml.step === ${k} && window.__cg.uml.rendered`, null, { timeout: 15000 })
-/** step-*.png: the whole diagram fitted to the page width (the page itself scrolls it inside #cg-diagram) */
-const fullDiagramShot = async (p: Page, path: string) => {
-  const h = await p.evaluate(`(() => {
-    const s = document.createElement('style'); s.id = 'cg-shot'
-    s.textContent = '#cg-main{display:block !important} #cg-diagram{max-height:none !important;overflow:visible !important} #cg-side{margin-top:12px}'
-    document.head.appendChild(s)
-    const svg = document.querySelector('#uml svg'); if (svg) { svg.dataset.w = svg.style.width; svg.style.width = (document.getElementById('cg-diagram').clientWidth - 18) + 'px' }
-    const side = document.getElementById('cg-side').getBoundingClientRect(), dia = document.getElementById('cg-diagram').getBoundingClientRect()
-    return Math.ceil(Math.max(side.bottom, dia.bottom) + window.scrollY + 16)
-  })()`)
-  await p.setViewportSize({ width: 1280, height: Math.min(4000, Math.max(900, h)) })
-  await p.waitForTimeout(150)
+/** step-*.png: the default view as shown at 1280x900 (natural-size Mermaid, framed on the step's changes) */
+const viewShot = async (p: Page, path: string) => {
+  await p.evaluate(`document.getElementById('cg-panel-uml').scrollTop = 0`)
   await p.screenshot({ path })
-  await p.setViewportSize({ width: 1280, height: 900 })
-  await p.evaluate(`(() => { document.getElementById('cg-shot').remove(); const svg = document.querySelector('#uml svg'); if (svg) svg.style.width = svg.dataset.w })()`)
 }
+/** the default view: title size of the framed elements (px on screen), the primary one fully inside #cg-diagram, the legend */
+const viewOf = (primary: string) => `(() => {
+  const box = document.getElementById('cg-diagram').getBoundingClientRect(), svg = document.querySelector('#uml svg')
+  const k = svg.getBoundingClientRect().width / (svg.viewBox.baseVal.width || svg.getBoundingClientRect().width)
+  const title = (g) => g.querySelector('.label-group span, .label-group text') || g
+  const hot = [...document.querySelectorAll('#uml g.cg-hot')]
+  const px = hot.map((g) => parseFloat(getComputedStyle(title(g)).fontSize) * k)
+  // fully inside, or (when larger than the box) its top-left corner inside and its width/height filling the box
+  const inside = (g) => { const r = g.getBoundingClientRect()
+    const x = r.width > box.width ? r.left >= box.left - 1 && r.left < box.left + 40 : r.left >= box.left - 1 && r.right <= box.right + 1
+    const y = r.height > box.height ? r.top >= box.top - 1 && r.top < box.top + 40 : r.top >= box.top - 1 && r.bottom <= box.bottom + 1
+    return x && y }
+  const meets = (g) => { const r = g.getBoundingClientRect(); return r.right > box.left && r.left < box.right && r.bottom > box.top && r.top < box.bottom }
+  const pg = document.querySelector('#uml g[id^="classId-${primary}-"]')
+  const rr = pg ? pg.getBoundingClientRect() : null
+  return { rects: rr ? [rr.left, rr.top, rr.right, rr.bottom, box.left, box.top, box.right, box.bottom].map(Math.round).join(',') : '', hot: hot.length, minPx: px.length ? Math.min(...px) : 0, zoom: window.__cg.uml.zoom, primary: pg ? inside(pg) : false,
+    seen: hot.filter(meets).length, faded: document.getElementById('uml').classList.contains('cg-focus'),
+    legend: document.getElementById('cg-legend-uml').textContent }
+})()`
+const checkView = async (p: Page, k: number, v: UmlVariant, where: string) => {
+  if (!v.focus.length) return
+  const r = await p.evaluate(viewOf(v.names[v.focus[0]!]!))
+  check(r.hot === v.focus.length, `(7) ${where} step ${k}: ${r.hot} framed elements, focus ${v.focus.length}`)
+  check(r.minPx >= 11, `(7) ${where} step ${k}: framed titles ${r.minPx.toFixed(1)} px (< 11) at zoom ${r.zoom}`)
+  check(r.primary, `(7) ${where} step ${k}: first changed element not fully in view (${r.rects})`)
+  check(/◌ \d/.test(r.legend) && /\+ \d/.test(r.legend), `(7) ${where} step ${k}: legend ${r.legend}`)
+  viewNotes.push(`${where} ${k}: ${r.minPx.toFixed(1)}px z${Number(r.zoom).toFixed(2)} ${r.seen}/${r.hot} seen${r.faded ? ' faded' : ''}`)
+}
+const viewNotes: string[] = []
 const nodeAttr = (name: string, attr: string) => `(document.querySelector('#uml g[id^="classId-${name}-"]') || { getAttribute: () => 'missing' }).getAttribute('${attr}')`
 try {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: 'light' })
@@ -249,7 +267,8 @@ try {
       const strikes = await p.evaluate(`[...document.querySelectorAll('#uml g[data-cg-status="abandoned"] .label-group, #uml g[data-cg-status="removed"] .label-group')].map((g) => getComputedStyle(g.querySelector('*') || g).textDecorationLine)`) as string[]
       check(strikes.every((s) => s.includes('line-through')), `(7) step ${k}: removed titles not struck (${strikes.join(',')})`)
       const stepPng = k === 1 ? 'step-start.png' : k === Math.ceil(N / 2) ? 'step-middle.png' : k === N ? 'step-end.png' : ''
-      if (stepPng) await fullDiagramShot(p, out(stepPng))
+      await checkView(p, k, v, 'desktop')
+      await viewShot(p, out(stepPng || `steps/view-${String(k).padStart(2, '0')}.png`))
       if (k === 2) {
         check((await p.evaluate(nodeAttr(v.names[W]!, 'data-cg-status'))) === 'abandoned', '(7) step 2 PaneWebGLRenderer abandoned')
         const td = await p.evaluate(`(() => { const g = document.querySelector('#uml g[id^="classId-${v.names[W]}-"] .label-group'); return g ? getComputedStyle(g.querySelector('*') || g).textDecorationLine : 'missing' })()`)
@@ -271,6 +290,11 @@ try {
     const panel = String(await p.evaluate(`document.getElementById('cg-check').textContent`))
     for (const s of ['matchSolution', 'core/prng.ts', 'core/tokens.ts']) check(panel.includes(s), `(7) cross-check panel lacks ${s}`)
     await p.screenshot({ path: out('uml.png'), fullPage: true })
+    // the fit button shows the whole latest diagram; changes re-frames
+    await p.click('#cg-fit'); await p.waitForTimeout(100)
+    viewNotes.push(`fit: zoom ${Number(await p.evaluate('window.__cg.uml.zoom')).toFixed(2)}, natural ${await p.evaluate(`(() => { const b = document.querySelector('#uml svg').viewBox.baseVal; return Math.round(b.width) + 'x' + Math.round(b.height) })()`)}`)
+    await viewShot(p, out('uml-fit.png'))
+    await p.click('#cg-frame'); await p.waitForTimeout(100)
     // unplanned 'none' hides the built-not-planned components
     const n0 = u.nodes, hidden = elementCount(page.latest.components) - elementCount(page.latest.none)
     await p.selectOption('#cg-unplanned', 'none')
@@ -306,6 +330,7 @@ try {
     await p2.waitForFunction('window.__cg.uml.rendered', null, { timeout: 30000 })
     const sw = await p2.evaluate('document.scrollingElement.scrollWidth')
     check(sw <= 390, `(7) 390 px: scrollWidth ${sw}`)
+    await checkView(p2, N, variantAt(N), 'phone')
     await p2.screenshot({ path: out('phone.png') })
     await p2.goto(url + '/bad', { waitUntil: 'networkidle' })
     await p2.waitForFunction('window.__cg.uml.fallback', null, { timeout: 30000 })
@@ -327,5 +352,6 @@ try {
 } finally { await browser.close(); server.close() }
 for (const f of ['uml.png', 'uml-dark.png', 'uml-step2.png', '3d.png', 'step-start.png', 'step-middle.png', 'step-end.png', 'pane.png']) check(existsSync(out(f)), `(7) ${f} written`)
 
+writeFileSync(out('view.log'), viewNotes.join('\n') + '\n')
 if (fails.length) { console.error(`acceptance:uml failed (${fails.length}):\n` + fails.join('\n')); process.exit(1) }
 console.log(`ok: ${N} steps, ${Object.keys(uml.elements).length} UML elements, ${Object.keys(sol.nodes).length} solution nodes; latest counts ${JSON.stringify(Object.fromEntries(UML_FLAGS.map((f) => [f, page.counts[f]])))}; ${notes.join('; ')}; outputs in ${outDir}`)

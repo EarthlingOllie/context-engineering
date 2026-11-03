@@ -155,3 +155,50 @@ test('v3-13: deterministic, and maxChars drops members, then unplanned elements,
 test('v3-13: an empty diagram is a valid header only', () => {
   assert.deepEqual(toMermaid(diagram([])), { text: 'classDiagram\n  direction LR\n', names: {} })
 })
+
+// readability (v3 fix): a large diagram collapses the members of the elements the step did not change
+test('v3-13r: members "changed" keeps the members of changed elements only', () => {
+  const d = diagram([
+    E('uml:a', 'A', { change: 'added', members: [op('+fresh()')] }),
+    E('uml:b', 'B', { members: [op('+old()'), op('+older()')] }),
+  ])
+  const out = toMermaid(d, { members: 'changed' })
+  assert.ok(out.text.includes('  class E_a["A"] {\n    +fresh()\n  }'), out.text)
+  assert.ok(out.text.includes('  class E_b["B"] {\n  }'), out.text)
+  assert.ok(toMermaid(d).text.includes('+old()'), 'default stays "all"')
+})
+
+test('v3-13r: a collapsed element still lists its planned-not-built members', () => {
+  const out = toMermaid(diagram([E('uml:live', 'LiveIngest', { flag: 'matching', members: [op('+append()', { flag: 'matching' }), op('+matchSolution()', { flag: 'planned-not-built' })] })]), { members: 'changed' })
+  assert.ok(out.text.includes('  class E_live["LiveIngest"] {\n    +matchSolution() ◌\n  }'), out.text)
+})
+
+test('v3-13r: badges put the cross-check flag and the planned member count in the title', () => {
+  const d = diagram([
+    E('uml:live', 'LiveIngest', { flag: 'matching', members: [op('+a()', { flag: 'planned-not-built' }), op('+b()', { flag: 'planned-not-built' })] }),
+    E('uml:p', 'Planned', { flag: 'planned-not-built' }),
+    E('code:core/prng.ts', 'prng.ts', { flag: 'built-not-planned', source: 'actual' }),
+    E('uml:s', 'Stale', { flag: 'removed-but-built', status: 'removed' }),
+    E('uml:ok', 'Ok', { flag: 'matching' }),
+    E('uml:u', 'Unchecked', { flag: 'unchecked' }),
+  ])
+  const out = toMermaid(d, { badges: true }).text
+  for (const t of ['["LiveIngest ◌2"]', '["Planned ◌"]', '["prng.ts +"]', '["Stale !"]', '["Ok"]', '["Unchecked"]']) assert.ok(out.includes(t), t)
+  assert.ok(toMermaid(d).text.includes('["LiveIngest"]'), 'no badges by default')
+})
+
+test('v3-13r: memberChars shortens long member lines with an ellipsis (Mermaid overlaps wrapped members)', () => {
+  const long = '+rasterUml(layout, cols, rows, theme) : Uint32Array'
+  const d = diagram([E('uml:a', 'A', { members: [op(long), op('+short()')] })])
+  const out = toMermaid(d, { memberChars: 40 }).text
+  assert.ok(out.includes('    +rasterUml(layout, cols, rows, theme) …\n'), out)
+  assert.ok(out.includes('    +short()\n'))
+  assert.ok(toMermaid(d).text.includes(long), 'no limit by default')
+})
+
+test('v3-13r: a shortened operation keeps its closing parenthesis, so Mermaid still draws it as an operation', () => {
+  const out = toMermaid(diagram([E('uml:a', 'A', { members: [op('+rasterUml(layout, cols, rows, theme) : Uint32Array')] })]), { memberChars: 30 }).text
+  assert.ok(out.includes('    +rasterUml(layout, cols, row…)\n'), out)
+  const ret = toMermaid(diagram([E('uml:a', 'A', { members: [op('+f(a) : VeryLongReturnTypeName')] })]), { memberChars: 16 }).text
+  assert.ok(ret.includes('    +f(a) : VeryLo …\n'), ret)
+})

@@ -138,7 +138,11 @@ Until Claude records UML the pane shows the solution graph with the hint *No UML
 
 `turn.complete` writes `solution.html` with two tabs: **UML design** (Mermaid 11.4.1 `classDiagram` from
 `cdn.jsdelivr.net`, re-rendered per step with a slider, ◀ ▶, play, change chips, the cross-check panel and an
-`unplanned` select; a static SVG fallback when Mermaid cannot load) and **3D solution map** (the v2 page). It writes
+`unplanned` select; a static SVG fallback when Mermaid cannot load) and **3D solution map** (the v2 page). The
+diagram is drawn at natural size in a scrollable box: each step opens zoomed (never below 12 px names) and scrolled to
+what it changed, with everything else faded; − + fit and changes buttons re-zoom. Above 12 elements only the changed
+elements list their members (planned-not-built ones always show, and titles carry ◌ + ! badges); "all members" shows
+them all. A legend under the buttons counts the flags of the diagram on screen. It writes
 `solution.json` as an @2 seed once there is UML (a model without UML keeps the @1 seed). The page is rewritten when the
 solution, the UML, the compaction count, the focus or the scan key changes. Claude republishes it to the same Artifact
 URL; the mod never publishes.

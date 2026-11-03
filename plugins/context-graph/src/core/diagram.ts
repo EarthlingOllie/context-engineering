@@ -45,6 +45,22 @@ export interface UmlVariant {
   mermaid: string; names: Record<string, string>; marks: Record<string, UmlMark>
   /** element id -> names of its planned-not-built members (absent when there are none) */
   pending?: Record<string, string[]>
+  /** element ids the default view frames: the changed elements, then the ends of the changed relations */
+  focus: string[]
+  /** every member of every element, when `mermaid` collapses the unchanged ones (diagrams above COLLAPSE_ABOVE elements) */
+  mermaidAll?: string
+}
+/** above this many elements the default text lists members only for the elements the step changed */
+export const COLLAPSE_ABOVE = 12
+/** member lines on the page stay on one line (Mermaid wraps from about 38 characters and then overlaps the next line) */
+const MEMBER_CHARS = 36
+
+/** the elements a step's view frames: changed elements first, then the ends of changed relations (diagram order) */
+export function focusOf(d: Diagram): string[] {
+  const ends = new Set<string>()
+  for (const r of d.relations) if (r.change) { ends.add(r.from); ends.add(r.to) }
+  const changed = d.elements.filter((e) => e.change).map((e) => e.id)
+  return [...changed, ...d.elements.filter((e) => !e.change && ends.has(e.id)).map((e) => e.id)]
 }
 export interface UmlPageStep extends UmlVariant {
   index: number; decision: string; label: string; abandoned: boolean; detail?: string; drivenBy: string[]
@@ -215,13 +231,15 @@ export function buildDiagram(input: DiagramInput): Diagram {
 const memberName = (text: string): string => MEMBER_NAME_RE.exec(text)?.[1] ?? text
 
 function variant(d: Diagram): UmlVariant {
-  const out = toMermaid(d)
+  const collapse = d.elements.length > COLLAPSE_ABOVE
+  const out = toMermaid(d, { badges: true, members: collapse ? 'changed' : 'all', memberChars: MEMBER_CHARS })
   const marks: Record<string, UmlMark> = {}
   for (const e of d.elements) {
     const name = out.names[e.id]
     if (name) marks[name] = { flag: e.flag, status: e.status, change: e.change }
   }
-  const v: UmlVariant = { mermaid: out.text, names: out.names, marks }
+  const v: UmlVariant = { mermaid: out.text, names: out.names, marks, focus: focusOf(d) }
+  if (collapse) v.mermaidAll = toMermaid(d, { badges: true, memberChars: MEMBER_CHARS }).text
   const pending: Record<string, string[]> = {}
   for (const e of d.elements) {
     if (!out.names[e.id]) continue

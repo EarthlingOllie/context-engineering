@@ -196,6 +196,7 @@ import type { Relevance } from './relevance.ts'
 import type { SolutionModel } from './types.ts'
 import type { UmlPageData } from './diagram.ts'
 import { layoutUml, renderUmlSvg, UML_COLORS } from './umlPane.ts'
+import { frameView } from './frame.ts'
 
 export const EXPORT_TITLE = 'Context Window Graph'
 
@@ -287,7 +288,8 @@ ${uml.html}
 </div>
 <script type="application/json" id="cg-data">${json}</script>
 <script type="application/json" id="cg-uml">${umlJson}</script>
-<script type="module">const MERMAID_URL = ${JSON.stringify(mermaidUrl).replace(/</g, '\\u003c')}${UML_CLIENT}</script>
+<script type="module">const MERMAID_URL = ${JSON.stringify(mermaidUrl).replace(/</g, '\\u003c')}
+const frameView = ${FRAME_VIEW}${UML_CLIENT}</script>
 <script type="module">${SOLUTION_CLIENT}</script>
 `
   if (!opts.document) return head + body
@@ -731,7 +733,7 @@ function umlSection(page: UmlPageData | undefined, tab: 'uml' | '3d'): { html: s
   const html = `<div id="cg-counts"></div>
 <div id="cg-controls"><button type="button" id="cg-prev" aria-label="previous decision">◀</button><input type="range" id="cg-step" min="1" max="${n}" value="${n}" step="1" aria-label="decision step"><button type="button" id="cg-next" aria-label="next decision">▶</button><button type="button" id="cg-play" aria-label="play">⏵</button><span id="cg-caption"></span></div>
 <div id="cg-chips"></div>
-<div id="cg-main"><div id="cg-diagram"><div id="uml"></div><div id="cg-note"></div></div>
+<div id="cg-main"><div id="cg-diagram-wrap"><div id="cg-view"><button type="button" id="cg-zoom-out" aria-label="zoom out">−</button><span id="cg-zoom">100%</span><button type="button" id="cg-zoom-in" aria-label="zoom in">+</button><button type="button" id="cg-fit" title="the whole diagram">fit</button><button type="button" id="cg-frame" title="frame what this step changed">changes</button><label class="cg-members"><input type="checkbox" id="cg-members"> all members</label><span id="cg-legend-uml"></span></div><div id="cg-diagram"><div id="uml"></div><div id="cg-note"></div></div></div>
 <aside id="cg-side"><div id="cg-decision"></div><label class="cg-unplanned">built, not planned: <select id="cg-unplanned"><option value="components">components</option><option value="all">all</option><option value="none">none</option></select></label><div id="cg-check"></div></aside></div>`
   return {
     html,
@@ -758,12 +760,25 @@ const UML_CSS = `
 #cg-controls button,#cg-side select{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer}
 #cg-step{flex:1 1 160px;min-width:0;accent-color:var(--accent)}
 #cg-caption{flex:1 1 100%;color:var(--muted);overflow-wrap:anywhere}
-#cg-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+#cg-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;max-height:46px;overflow:auto}
 .cg-chip{border:1px solid var(--border);border-radius:10px;padding:1px 8px;max-width:100%;overflow-wrap:anywhere}
 .cg-chip.added{border-color:var(--accent)}.cg-chip.changed{border-color:var(--accent);border-style:dashed}.cg-chip.removed{border-color:var(--f-stale);text-decoration:line-through}
 #cg-main{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
-#cg-diagram{flex:3 1 480px;min-width:0;max-width:100%;max-height:max(320px,calc(100vh - 190px));overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
-#uml{min-height:200px;padding:8px}#uml svg{display:block;height:auto}#uml svg.cg-static,#uml > svg[viewBox]:not([id]){max-width:100%}
+#cg-diagram-wrap{flex:3 1 480px;min-width:0;max-width:100%}
+#cg-view{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-bottom:4px}
+#cg-view button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:2px 9px;cursor:pointer;min-width:28px}
+#cg-zoom{min-width:4ch;text-align:center;color:var(--muted)}
+.cg-members{color:var(--muted);white-space:nowrap}.cg-members input{vertical-align:middle;margin:0 2px 0 4px}
+#cg-legend-uml{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px}
+#cg-legend-uml span{white-space:nowrap}#cg-legend-uml b{font-weight:700;margin-right:3px}
+#cg-legend-uml .k{display:inline-block;width:14px;height:9px;border:2px solid var(--accent);border-radius:2px;margin-right:4px;vertical-align:middle}
+#cg-legend-uml .k.ch{border-style:dashed}#cg-legend-uml .k.rm{border-color:var(--f-stale)}
+#cg-diagram{min-width:0;max-width:100%;height:max(320px,calc(100vh - 230px));overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg);overscroll-behavior:contain}
+#uml{padding:8px;width:max-content;min-width:calc(100% - 16px)}#uml svg{display:block}#uml svg.cg-static,#uml > svg[viewBox]:not([id]){max-width:100%}
+#uml.cg-focus g[data-cg-id]:not(.cg-hot){opacity:.38}
+#uml.cg-focus g[data-cg-id]:not(.cg-hot)[data-cg-badge]{opacity:.8}
+#uml.cg-focus .edgePaths path:not(.cg-hot){opacity:.3}#uml.cg-focus .edgeLabels,#uml.cg-focus .edgeTerminals{opacity:.45}
+#uml .edgePaths path.cg-hot{stroke:var(--accent) !important;stroke-width:2.5px !important}
 #cg-note{color:var(--muted);padding:0 8px 6px}#cg-note:empty{display:none}
 #cg-side{flex:1 1 240px;min-width:0;max-width:100%;overflow-wrap:anywhere}
 #cg-side h3{font-size:12px;margin:10px 0 4px}#cg-side ul{margin:0;padding-left:16px}
@@ -783,8 +798,11 @@ const UML_CSS = `
 #uml g[data-cg-change="removed"] .label-container path,#uml g[data-cg-change="removed"] .label-container rect{stroke:var(--f-stale) !important;stroke-width:3px !important}
 #uml g.cg-pulse{animation:cg-pulse .6s ease-in-out 3}
 @keyframes cg-pulse{50%{opacity:.25}}
-@media (max-width:600px){#cg-diagram{flex-basis:100%}}
+@media (max-width:600px){#cg-diagram-wrap{flex-basis:100%}#cg-diagram{height:max(300px,calc(100vh - 300px))}}
 `
+
+/** frame.ts frameView, as plain JS for the page (types are stripped from the running source) */
+const FRAME_VIEW = String(frameView)
 
 // Browser-side module for the UML tab. MERMAID_URL is prepended by exportSolutionHtml ('' = no UML).
 const UML_CLIENT = String.raw`
@@ -818,7 +836,9 @@ if (N) {
   const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim()
   const theme = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
   let step = N, unplanned = 'components', timer = null, seq = 0, renders = 0, mermaidP = null
+  let zoom = 1, natW = 0, natH = 0, allMembers = false, minZoom = 0.92
   const variant = () => (step === N ? U.latest[unplanned] : U.steps[step - 1])
+  const textOf = (v) => (allMembers && v.mermaidAll) || v.mermaid
   const nameOf = (id) => {
     if (U.info[id]) return U.info[id]
     if (id.includes('|')) { const [a, k, b] = id.split('|'); return nameOf(a) + ' ' + k + ' ' + nameOf(b) }
@@ -852,6 +872,8 @@ if (N) {
     $('cg-prev').disabled = step <= 1
     $('cg-next').disabled = step >= N
     $('cg-unplanned').disabled = step !== N
+    $('cg-members').disabled = !v.mermaidAll
+    $('cg-members').checked = allMembers && Boolean(v.mermaidAll)
     $('cg-caption').textContent = 'Step ' + step + ' of ' + N + ' · ' + s.label
     const chips = $('cg-chips'); chips.replaceChildren()
     for (const k of CHANGES) for (const t of s.changes[k]) chips.appendChild(el('span', k + ': ' + nameOf(t), 'cg-chip ' + k))
@@ -889,6 +911,69 @@ if (N) {
     probe.nodes = nodes.length
   }
 
+  // --- the view: natural-size Mermaid, zoomed and scrolled inside #cg-diagram ---------------------
+  const PAD = 8
+  function setZoom(z, keep) {
+    const box = $('cg-diagram'), svg = $('uml').querySelector('svg')
+    if (!svg || !natW) return
+    const cx = (box.scrollLeft + box.clientWidth / 2 - PAD) / zoom, cy = (box.scrollTop + box.clientHeight / 2 - PAD) / zoom
+    zoom = Math.max(0.05, Math.min(3, z))
+    svg.style.width = (natW * zoom).toFixed(1) + 'px'; svg.style.height = (natH * zoom).toFixed(1) + 'px'
+    $('cg-zoom').textContent = Math.round(zoom * 100) + '%'
+    probe.zoom = zoom
+    if (keep) { box.scrollLeft = cx * zoom + PAD - box.clientWidth / 2; box.scrollTop = cy * zoom + PAD - box.clientHeight / 2 }
+  }
+  const gOf = (v, id) => v.names[id] ? $('uml').querySelector('g[id^="classId-' + v.names[id] + '-"]') : null
+  /** an element's box in natural-size diagram coordinates */
+  function boxOf(g) {
+    const svg = $('uml').querySelector('svg'), o = svg.getBoundingClientRect(), r = g.getBoundingClientRect(), k = o.width / natW || 1
+    return { x: (r.left - o.left) / k, y: (r.top - o.top) / k, w: r.width / k, h: r.height / k }
+  }
+  function frame(v, whole) {
+    const box = $('cg-diagram')
+    if (!natW) return
+    const gs = whole ? [] : (v.focus || []).map((id) => gOf(v, id)).filter(Boolean)
+    const view = { w: box.clientWidth - 2 * PAD, h: box.clientHeight - 2 * PAD }
+    const f = frameView(gs.map(boxOf), { w: natW, h: natH }, view, whole ? { minZoom: 0.05, maxZoom: 1, pad: 0 } : { minZoom, maxZoom: 1.25, pad: 24 })
+    setZoom(f.zoom, false)
+    probe.framed = f.framed
+    if (!whole) {
+      $('cg-frame').textContent = 'changes' + (f.framed < gs.length ? ' ' + f.framed + '/' + gs.length : '')
+      $('cg-frame').title = f.framed < gs.length ? f.framed + ' of the ' + gs.length + ' changed elements fit at a readable size: scroll, or fit for all' : 'frame what this step changed'
+    }
+    box.scrollLeft = f.left; box.scrollTop = f.top
+  }
+  /** focus elements and changed relations stay bright; everything else fades while the step changed something */
+  function hot(v) {
+    const root = $('uml'), focus = v.focus || [], s = U.steps[step - 1]
+    for (const id of focus) gOf(v, id)?.classList.add('cg-hot')
+    for (const k of CHANGES) for (const t of s.changes[k]) {
+      if (!t.includes('|')) continue
+      const [a, , b] = t.split('|'), na = v.names[a], nb = v.names[b]
+      if (!na || !nb) continue
+      const re = new RegExp('^id_' + na + '_' + nb + '_\\d+$')
+      for (const p of root.querySelectorAll('.edgePaths path')) if (re.test(p.id)) p.classList.add('cg-hot')
+    }
+    for (const [id, name] of Object.entries(v.names)) {
+      const m = v.marks[name], g = gOf(v, id)
+      if (g && ((m && m.flag && m.flag !== 'matching' && m.flag !== 'unchecked') || (v.pending && v.pending[id]))) g.setAttribute('data-cg-badge', '')
+    }
+    root.classList.toggle('cg-focus', focus.length > 0 && focus.length < Object.keys(v.names).length)
+  }
+  /** flag counts for the diagram on screen (✓ ◌ + ! ?), the planned members, and the change keys */
+  function legend(v) {
+    const L = $('cg-legend-uml'); L.replaceChildren()
+    const COLOR = { matching: '--f-match', 'planned-not-built': '--f-planned', 'built-not-planned': '--f-built', 'removed-but-built': '--f-stale', unchecked: '--muted' }
+    const members = Object.values(v.pending || {}).reduce((n, a) => n + a.length, 0)
+    for (const f of FLAGS) {
+      const n = probe.flags[f] + (f === 'planned-not-built' ? members : 0)
+      const sp = el('span'), b = el('b', SYM[f] + ' ' + n); b.style.color = 'var(' + COLOR[f] + ')'
+      sp.appendChild(b); sp.appendChild(document.createTextNode(TITLE[f] + (f === 'planned-not-built' && members ? ' (' + members + ' member' + (members > 1 ? 's' : '') + ')' : '')))
+      sp.title = TITLE[f]; L.appendChild(sp)
+    }
+    for (const [k, c] of [['added', ''], ['changed', ' ch'], ['removed', ' rm']]) { const sp = el('span'); sp.appendChild(el('i', undefined, 'k' + c)); sp.appendChild(document.createTextNode(k)); L.appendChild(sp) }
+  }
+
   function mark(v) {
     const root = $('uml')
     for (const [id, name] of Object.entries(v.names)) {
@@ -908,6 +993,8 @@ if (N) {
     $('uml').innerHTML = U.static[theme()] || U.static.light
     $('cg-note').textContent = 'Mermaid could not load: static diagram (latest step)'
     countDom('data-flag', 'data-change', 'g.uml-box')
+    natW = 0; $('uml').classList.remove('cg-focus'); $('cg-zoom').textContent = ''
+    legend(variant())
   }
 
   function loadMermaid() {
@@ -927,21 +1014,28 @@ if (N) {
       mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base', darkMode: dark, themeVariables: {
         darkMode: dark, background: css('--bg'), primaryColor: css('--node'), mainBkg: css('--node'), primaryTextColor: css('--fg'),
         classText: css('--fg'), textColor: css('--fg'), primaryBorderColor: css('--line'), nodeBorder: css('--line'), lineColor: css('--line'),
-        secondaryColor: css('--node'), tertiaryColor: css('--bg'), fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '13px' } })
+        secondaryColor: css('--node'), tertiaryColor: css('--bg'), fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '13px' } , class: { useMaxWidth: false, hideEmptyMembersBox: true, nodeSpacing: 24, rankSpacing: 36 } })
       const id = 'cg-uml-' + (++renders)
       let out
-      try { out = await mermaid.render(id, v.mermaid) } finally { document.getElementById('d' + id)?.remove() }
+      try { out = await mermaid.render(id, textOf(v)) } finally { document.getElementById('d' + id)?.remove() }
       if (my !== seq) return
       $('uml').innerHTML = out.svg
-      // fit the width, but never below 60 % of Mermaid's natural size: #cg-diagram scrolls rather than shrink the text
+      // natural size (useMaxWidth off); the view zooms it and #cg-diagram scrolls
       const svgEl = $('uml').querySelector('svg')
-      if (svgEl && svgEl.style.maxWidth) {
-        const natural = parseFloat(svgEl.style.maxWidth) || 0, fit = $('cg-diagram').clientWidth - 18
-        svgEl.style.width = Math.round(Math.min(natural, Math.max(fit, natural * 0.6))) + 'px'
-        svgEl.style.maxWidth = 'none'; svgEl.removeAttribute('width')
+      if (svgEl) {
+        const vb = svgEl.viewBox && svgEl.viewBox.baseVal, r = svgEl.getBoundingClientRect()
+        natW = (vb && vb.width) || r.width; natH = (vb && vb.height) || r.height
+        svgEl.removeAttribute('width'); svgEl.removeAttribute('height'); svgEl.style.maxWidth = 'none'
+        zoom = 1; setZoom(1, false)
+        const t = svgEl.querySelector('g[id^="classId-"] .label-group span, g[id^="classId-"] .label-group text')
+        const fs = t ? parseFloat(getComputedStyle(t).fontSize) : 0
+        minZoom = fs > 0 ? Math.min(1, 12 / fs) : 0.92
       }
       $('cg-note').textContent = ''
       mark(v)
+      hot(v)
+      legend(v)
+      frame(v, false)
       probe.rendered = true
       delete probe.error
     } catch (e) {
@@ -954,6 +1048,11 @@ if (N) {
   $('cg-prev').addEventListener('click', () => go(step - 1))
   $('cg-next').addEventListener('click', () => go(step + 1))
   $('cg-unplanned').addEventListener('change', (e) => { unplanned = e.target.value; render() })
+  $('cg-members').addEventListener('change', (e) => { allMembers = e.target.checked; render() })
+  $('cg-zoom-in').addEventListener('click', () => setZoom(zoom * 1.25, true))
+  $('cg-zoom-out').addEventListener('click', () => setZoom(zoom / 1.25, true))
+  $('cg-fit').addEventListener('click', () => frame(variant(), true))
+  $('cg-frame').addEventListener('click', () => frame(variant(), false))
   const stop = () => { clearInterval(timer); timer = null; $('cg-play').textContent = '⏵' }
   $('cg-play').addEventListener('click', () => {
     if (timer) return stop()
