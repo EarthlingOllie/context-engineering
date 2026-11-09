@@ -1,0 +1,5 @@
+inspect-ai==0.3.288
+gepa==0.1.4
+tqdm
+# inspect-ai 0.3.288 imports acp.helpers, which agent-client-protocol 1.0 removed
+agent-client-protocol<1

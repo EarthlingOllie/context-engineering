@@ -1,0 +1,8 @@
+{
+  "candidates_tried": 4,
+  "val_seed": 0.07500000000000001,
+  "val_best": 1.0,
+  "holdout_seed": 0.025,
+  "holdout_best": 0.925,
+  "skill_run_cost_usd": 2.66
+}
