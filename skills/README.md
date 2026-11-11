@@ -8,7 +8,6 @@ A skills-only plugin: standalone skills that are not part of a larger plugin lik
 .claude-plugin/plugin.json             the manifest (no version on purpose, see below)
 skills/<skill-name>/SKILL.md           one folder per skill, auto-discovered
 skills/<skill-name>/<anything else>    supporting files the skill references
-skills/.gitkeep                        keeps the folder in git while it is empty; delete it once a skill exists
 ```
 
 Skills are namespaced by the plugin, so `skills/my-skill/SKILL.md` is invoked as `/skills:my-skill` (and Claude can also pick it up from its `description`).
