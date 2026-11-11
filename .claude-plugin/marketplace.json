@@ -17,9 +17,9 @@
       ]
     },
     {
-      "name": "ollie-skills",
-      "source": "./ollie-skills",
-      "description": "Ollie's standalone skills (lead-orchestrator, ...). Add a folder under skills/ and it ships on the next push.",
+      "name": "skills",
+      "source": "./skills",
+      "description": "Ollie's standalone skills. Add a folder under skills/ and it ships on the next push.",
       "category": "productivity",
       "keywords": [
         "skills"

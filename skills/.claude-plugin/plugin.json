@@ -1,5 +1,5 @@
 {
-  "name": "ollie-skills",
+  "name": "skills",
   "description": "Ollie's standalone Claude Code skills. Every folder under skills/ with a SKILL.md is picked up automatically.",
   "author": { "name": "Ollie Bullen" },
   "repository": "https://github.com/earthlingollie/context-engineering",

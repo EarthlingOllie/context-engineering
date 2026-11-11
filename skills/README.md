@@ -1,4 +1,4 @@
-# ollie-skills
+# skills
 
 A skills-only plugin: standalone skills that are not part of a larger plugin like `graph-orchestrator`. It ships through the same `earthlingollie` marketplace, so anyone who has the marketplace gets these skills and their updates the same way they get the plugins.
 
@@ -8,9 +8,10 @@ A skills-only plugin: standalone skills that are not part of a larger plugin lik
 .claude-plugin/plugin.json             the manifest (no version on purpose, see below)
 skills/<skill-name>/SKILL.md           one folder per skill, auto-discovered
 skills/<skill-name>/<anything else>    supporting files the skill references
+skills/.gitkeep                        keeps the folder in git while it is empty; delete it once a skill exists
 ```
 
-Skills are namespaced by the plugin, so `skills/lead-orchestrator/SKILL.md` is invoked as `/ollie-skills:lead-orchestrator` (and Claude can also pick it up from its `description`).
+Skills are namespaced by the plugin, so `skills/my-skill/SKILL.md` is invoked as `/skills:my-skill` (and Claude can also pick it up from its `description`).
 
 ## Add a skill
 
@@ -25,5 +26,5 @@ Skills are namespaced by the plugin, so `skills/lead-orchestrator/SKILL.md` is i
 
 ```
 claude plugin marketplace add earthlingollie/context-engineering
-claude plugin install ollie-skills@earthlingollie
+claude plugin install skills@earthlingollie
 ```
