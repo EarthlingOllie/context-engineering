@@ -161,4 +161,3 @@ It reads every dispatch's trace file in order, prints the Mermaid diagram and sa
 - A single-file, single-step change: dispatching costs more than doing it.
 - A short session that will end long before context does.
 - You are yourself a subagent or a wave role: do your task; do not re-delegate.
-- You want the lightweight in-session option: the `lead-orchestrator` skill still exists and is unchanged; it dispatches `Agent` calls one at a time with no topologies and no trace.

@@ -22,7 +22,7 @@ The built files are committed, so the plugin installs with no build step.
 ## Install
 
 ```
-claude plugin marketplace add earthlingollie/context-management
+claude plugin marketplace add earthlingollie/context-engineering
 claude plugin install graph-orchestrator@earthlingollie
 ```
 
