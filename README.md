@@ -1,4 +1,4 @@
-# context-management
+# context-engineering
 
 Experiments in keeping an agent's context window for judgment rather than evidence.
 
