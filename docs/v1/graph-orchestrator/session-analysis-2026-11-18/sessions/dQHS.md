@@ -1,0 +1,34 @@
+# dQHS: Graph orchestrator LangGraph integration design
+
+Session `session_016jSC3dQHSBWgBjcRQnqFBy` (repo context-engineering, CLI session 8fd73c09). Read-only: 10 `list_events` pages (kinds system/result/user/assistant/other, plus the newest system/result page), saved as `raw/dQHS-sr-p1.txt` and `raw/dQHS-p2..p10.txt`. They cover every event from the first (2026-11-14 10:58:55, page `f692d4e4..a182c56a`, has_more=None) to the newest (2026-11-15 22:05:56). Parsed with `bin/digest.py`; the condensed timeline is `dQHS-compact.txt`.
+
+## Metrics
+
+| metric | value | evidence |
+|---|---|---|
+| task | "What would it take to create a new version of the graph orchestrator that integrates with the langgraph typescript package? ... walk through the design tree ... changes, their benefits and tradeoffs. /graph-orchestrator" | human msg `0e8b3549-c8ed-4ac2-830e-94d91c256c29` |
+| mode | autonomous (picked from AskUserQuestion, "Autonomous (Recommended)") | ask `002665f1-...`, answer `0e8dfaf5-bcec-4bc5-b06a-61d3c403f4fb` |
+| waves | 5 (of 16 budget) | final result `3fa8d614-b502-4f2e-bf34-ec28a116436a` (session.mmd) |
+| dispatches | 8 run to completion, plus 2 launches that failed (wave 1 first attempt) | NOTIFs below |
+| topology mix | fan-out 3 (w1-d1, w1-d2, w2-d3), generator-evaluator 1 (w2-d1), debate 1 (w2-d2), chain 3 (w3-d1 single→gen-eval→panel, w4-d1 single→gen-eval→panel, w5-d1 gen-eval→panel→single) | START events `bd0493ec`, `dfcbf0bf`, `42811a62`, `8981d4b2`, `00778685`, `1b5e08c4`, `5db24437`, `8c46a269` |
+| per-dispatch status | 7 done; 1 blocked (w2-d1, the harness refused the generator's Write of `FINDINGS.md`); 2 failed (the first w1-d1/w1-d2 launches, scriptPath) | session.mmd in `3fa8d614`; failed NOTIFs `e2959a35-cf47-4faa-a4a3-a81c9371ac9c`, `8dd75d70-538a-4277-9789-b81842fe91c8` |
+| agents (from task-notification workflow_progress) | 57 total, scribe/Grapher included: w1-d1 5, w1-d2 5, w2-d1 2, w2-d2 8, w2-d3 6, w3-d1 10, w4-d1 10, w5-d1 11 | NOTIFs `fdfbe85e`, `d2c6f688`, `b56b5843`, `5da61aa7`, `f1c84dc8`, `86df41fa`, `3c2be601`, `05ed0978` |
+| subagent_tokens | 5,370,252 (585,114 + 544,883 + 185,968 + 648,499 + 695,139 + 876,061 + 928,785 + 905,803) | same NOTIFs, `usage.total_tokens` |
+| workflow duration_ms | sum 2,849,574 ms (about 47.5 min of workflow time in 40 min wall clock, because wave 1 and wave 2 ran in parallel). Longest: w4-d1 524,823 ms, w2-d3 508,395 ms, w1-d2 507,615 ms | same NOTIFs, `usage.duration_ms` |
+| wall clock | 11:00:09 → 11:41:08 UTC on 2026-11-14, 41 min | `0e8b3549` → `3fa8d614` |
+| cost | $29.24 cumulative; opus-5-5 $29.237, haiku $0.0001; 38.9M cache-read tokens | `3fa8d614` modelUsage |
+| human interventions | 1 real one, the mode question at start. The trace also draws `human_2` "blocked on w2-d1", but in autonomous mode the orchestrator decided that itself and did not ask | `0e8dfaf5`; assistant `028beaf0-d2aa-438b-8fe3-617360db45b7` |
+| compaction | none (no compaction events; main-loop cache read per single-iteration turn stayed at 110k-126k) | results `d7504700` (110,207), `dc594484` (123,449), `92b7e914` (125,706) |
+| scribe | the "Grapher: logging current dispatch" agent ran and finished `done` in all 8 successful dispatches (6.7-12.4 s each). No null or failed scribe was seen | ag rows under each NOTIF |
+| final outcome | design note `design/langgraph-design.md` passed a 3-lens panel; it recommends a dual engine (Workflow default, LangGraph added), a 46-line shim spike, resume-test results, migration phases 0-5 and 4 open decisions | `3fa8d614` |
+| user acceptance | no reply. After the final result the only event is a `turn_handoff_available` system event on 11-15 22:05. Neither accepted nor corrected | `3dfd851a-04cb-4e69-a34b-5c297bdfb4b1` |
+
+## Observations
+
+1. **scriptPath failure, then the copy workaround (cost about 30 s and $0.19).** The first wave sent `workflow({scriptPath: '/root/.claude/plugins/synced/.../graph-orchestrator/workflows/dispatch.js'})` per SKILL.md. Both dispatches failed in under 30 ms with "scriptPath must be ... A session that cannot call Read cannot load any scriptPath. Pass the whole script inline through Workflow's `script` input instead" (`e2959a35`, `8dd75d70`, task_updated `165e54e3`, `5671c163`). Before those failures arrived, the orchestrator had already announced "Wave 1 dispatched" and ended its turn (`08081332`, result `8cb9dc07`). The next turn ran `mkdir -p .../scratchpad/plugin && cp .../dispatch.js` (Bash `cb97dcb4`) and relaunched both dispatches from `scratchpad/plugin/dispatch.js` (`a79909db`, `913c0b7c`; START `bd0493ec`, `dfcbf0bf`). Every later dispatch used the copy. The final result reports it under process notes (`3fa8d614`).
+2. **Orchestrator discipline was clean.** Over the whole session the main loop made 1 Skill, 1 Read (catalog.md, which SKILL.md allows), 1 AskUserQuestion, 5 Writes (all to state.md), 10 Workflow calls and 1 Bash (the cp workaround). It made no Grep, no Edit and no reads of worker output. Each wave went out as parallel Workflow calls in one message: wave 2's three calls `313323e6`, `43e39336`, `72dd5455`. No polling: between dispatches it ended its turn and woke on notifications, with one-line interim results (`d7504700`, `dc594484`, `92b7e914`).
+3. **Same-wave dependsOn: none.** Each wave's dispatches depend only on earlier waves (session.mmd edges in `3fa8d614`: w1→w2, w2→w3, w3→w4, w4→w5).
+4. **Context was already 110k tokens by the first wake-up.** The first single-iteration turn (11:06:54, `d7504700`) read 110,207 cached tokens, which the Skill text, the 21.7k-char catalog read (`e00398c2`) and the system prompt account for. It grew to only 126k by 11:14 (`92b7e914`), so dispatch results stayed small. Spec sizes (Workflow input lengths) were 2.3-5.0 kB. The largest was the w3-d1 chain spec at 5,032 bytes (`e57ec9fe`), so no context was pasted into specs.
+5. **The blocked generator-evaluator ended after one generator round, with no evaluator.** w2-d1 ran only "Generator (1 of 3)" plus the Grapher (`b56b5843`). The generator stopped because "the harness wouldn't let it write FINDINGS.md". In autonomous mode the orchestrator took the inline findings and dropped the file requirement (`028beaf0`). session.mmd still records this as a `human · blocked` node (`human_2`), which overstates how many times a human was involved.
+6. **Chains are expensive in agents.** The three chains used 31 of the 57 agents and 2.71M of the 5.37M subagent tokens (`86df41fa`, `3c2be601`, `05ed0978`). Generator-evaluator links mostly stopped after 2 rounds. w5-d1 ran all 3 rounds (`05ed0978`).
+7. **The final result is large.** It is 8,449 chars, with the full session.mmd inline (`3fa8d614`), as the skill requires. The deliverable stayed in the scratchpad, and the orchestrator warned the user it would be cleared.
