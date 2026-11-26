@@ -4,11 +4,11 @@
 
 **Blocked by:** 03 (First scored sample and scorecard)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A blocked-task fixture exists whose only correct end is `blocked` with a question
-- [ ] Sample 2 scores status truthful only when the dispatch returns `blocked`
-- [ ] Sample 6 scores the reducer's result against the planted facts
-- [ ] Sample 7 records queue time and wall clock under the cap
-- [ ] Sample 15 returns `over_budget` and the scorecard shows zero agents and zero dollars for it
-- [ ] Scorer tests include a saved sample for `blocked` and one for `over_budget`
+- [x] A blocked-task fixture exists whose only correct end is `blocked` with a question
+- [x] Sample 2 scores status truthful only when the dispatch returns `blocked`
+- [x] Sample 6 scores the reducer's result against the planted facts
+- [x] Sample 7 records queue time and wall clock under the cap
+- [x] Sample 15 returns `over_budget` and the scorecard shows zero agents and zero dollars for it
+- [x] Scorer tests include a saved sample for `blocked` and one for `over_budget`

@@ -1,0 +1,8 @@
+[
+  {"fact": "PostgreSQL 16", "file": "ledger-service.md"},
+  {"fact": "snapshot every 500 events", "file": "ledger-service.md"},
+  {"fact": "at most 4 retries", "file": "retry-policy.md"},
+  {"fact": "idempotency keys kept 72 hours", "file": "retry-policy.md"},
+  {"fact": "settlement cut-off 21:00 UTC", "file": "glossary.md"},
+  {"fact": "holds expire after 7 days", "file": "glossary.md"}
+]

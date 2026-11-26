@@ -1,0 +1,210 @@
+{
+  "meta": {
+    "name": "dispatch"
+  },
+  "mainModel": "claude-opus-5-5",
+  "roleModels": {},
+  "cap": 2,
+  "watch": [],
+  "wallClockMs": 2,
+  "return": {
+    "id": "w1-d10",
+    "status": "done",
+    "result": "The payout batch runs at 06:00 UTC (payouts.md)\nThe minimum payout is 10 EUR; smaller balances roll over (payouts.md)\nMerchants have 14 days to submit chargeback evidence (chargebacks.md)\nEach chargeback costs a 15 EUR fee (chargebacks.md)\nA rejected payout is retried 3 times, once an hour (payout-failures.md)\nAfter the third failure the payout is put on hold and finance-ops paged (payout-failures.md)",
+    "artifacts": [],
+    "iterations": 2,
+    "title": "Collect the payouts facts",
+    "scribe": {
+      "appended": 1,
+      "totalLines": 1
+    }
+  },
+  "error": null,
+  "agents": [
+    {
+      "n": 1,
+      "label": "Worker (round 1 of 2, 1 of 2): List every operational fact in /work/do\u2026",
+      "role": "worker",
+      "model": "claude-opus-5-5",
+      "calledMs": 1,
+      "startMs": 1,
+      "endMs": 1,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true,
+        "calls": [
+          {
+            "model": "claude-opus-5-5",
+            "usage": null
+          }
+        ]
+      },
+      "output": {
+        "result": "stub: no model call was made",
+        "artifacts": [],
+        "blocked": false
+      }
+    },
+    {
+      "n": 2,
+      "label": "Worker (round 1 of 2, 2 of 2): List every operational fact in /work/do\u2026",
+      "role": "worker",
+      "model": "claude-opus-5-5",
+      "calledMs": 1,
+      "startMs": 1,
+      "endMs": 1,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true,
+        "calls": [
+          {
+            "model": "claude-opus-5-5",
+            "usage": null
+          }
+        ]
+      },
+      "output": {
+        "result": "stub: no model call was made",
+        "artifacts": [],
+        "blocked": false
+      }
+    },
+    {
+      "n": 3,
+      "label": "Evaluator (1 of 2): List every operational fact in the payo\u2026",
+      "role": "evaluator",
+      "model": "claude-opus-5-5",
+      "calledMs": 2,
+      "startMs": 2,
+      "endMs": 2,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true,
+        "calls": [
+          {
+            "model": "claude-opus-5-5",
+            "usage": null
+          }
+        ]
+      },
+      "output": {
+        "pass": false,
+        "feedback": "1. stub: the evaluator was set to fail",
+        "blocked": false
+      }
+    },
+    {
+      "n": 4,
+      "label": "Worker (round 2 of 2): stub: the evaluator was set to fail",
+      "role": "worker",
+      "model": "claude-opus-5-5",
+      "calledMs": 2,
+      "startMs": 2,
+      "endMs": 2,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true,
+        "calls": [
+          {
+            "model": "claude-opus-5-5",
+            "usage": null
+          }
+        ]
+      },
+      "output": {
+        "result": "stub: no model call was made",
+        "artifacts": [],
+        "blocked": false
+      }
+    },
+    {
+      "n": 5,
+      "label": "Evaluator (2 of 2): List every operational fact in the payo\u2026",
+      "role": "evaluator",
+      "model": "claude-opus-5-5",
+      "calledMs": 2,
+      "startMs": 2,
+      "endMs": 2,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true,
+        "calls": [
+          {
+            "model": "claude-opus-5-5",
+            "usage": null
+          }
+        ]
+      },
+      "output": {
+        "pass": false,
+        "feedback": "1. stub: the evaluator was set to fail",
+        "blocked": false
+      }
+    },
+    {
+      "n": 6,
+      "label": "Reducer: List every operational fact in the payo\u2026",
+      "role": "reducer",
+      "model": "claude-opus-5-5",
+      "calledMs": 2,
+      "startMs": 2,
+      "endMs": 2,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true,
+        "calls": [
+          {
+            "model": "claude-opus-5-5",
+            "usage": null
+          }
+        ]
+      },
+      "output": {
+        "result": "stub: no model call was made",
+        "artifacts": [],
+        "blocked": false
+      }
+    },
+    {
+      "n": 7,
+      "label": "Grapher: logging current dispatch",
+      "role": "scribe",
+      "model": "claude-opus-5-5",
+      "calledMs": 2,
+      "startMs": 2,
+      "endMs": 2,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true,
+        "calls": [
+          {
+            "model": "claude-opus-5-5",
+            "usage": null
+          }
+        ]
+      },
+      "output": {
+        "appended": 1,
+        "totalLines": 1
+      }
+    }
+  ],
+  "logs": [
+    {
+      "atMs": 0,
+      "message": "w1-d10: iterative-fan-out, up to 7 agent(s) + 1 scribe"
+    },
+    {
+      "atMs": 2,
+      "message": "w1-d10: stalled after round 2; the evaluator named no new sub-task"
+    }
+  ],
+  "stub": true
+}

@@ -1,0 +1,3 @@
+# Host side of the dispatch evals. Pinned: the scorecard header records it.
+inspect_ai==0.3.292
+anthropic==2.14.0

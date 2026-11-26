@@ -1,0 +1,31 @@
+From: A. Contributor <contributor@example.test>
+Subject: [PATCH] fetchPage: log each page request so slow pages can be traced
+
+Support cannot tell which order-history pages are slow. Log every page
+request with its URL, request headers, status and duration, through an
+optional `log` callback that defaults to console.debug.
+
+---
+diff --git a/src/fetchPage.ts b/src/fetchPage.ts
+index df00b33..da9aed4 100644
+--- a/src/fetchPage.ts
++++ b/src/fetchPage.ts
+@@ -3,6 +3,8 @@ export type FetchOptions = {
+   /** The API token, sent as a bearer token. */
+   token: string;
+   fetchImpl?: typeof fetch;
++  /** Called once per request, so slow pages can be traced. Defaults to console.debug. */
++  log?: (message: string, details: Record<string, unknown>) => void;
+ };
+ 
+ /** One page of `path` from the order-history API. */
+@@ -10,7 +12,9 @@ export async function fetchPage(path: string, page: number, o: FetchOptions): Pr
+   const url = new URL(path, o.baseUrl);
+   url.searchParams.set("page", String(page));
+   const headers = { authorization: `Bearer ${o.token}`, accept: "application/json" };
++  const started = Date.now();
+   const res = await (o.fetchImpl ?? fetch)(url, { headers });
++  (o.log ?? console.debug)("fetchPage", { url: url.toString(), headers, status: res.status, ms: Date.now() - started });
+   if (!res.ok) throw new Error(`GET ${url.pathname} page ${page}: HTTP ${res.status}`);
+   return res.json();
+ }

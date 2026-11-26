@@ -1,0 +1,1 @@
+Sample 14 (14-relay-python-features). `main.ts --stub --stub-evaluator fail --watch <scratch>/progress.md`: 3 worker sessions, each adding a line to the progress file, and 3 failing checks; exhausted. Scratch paths rewritten to /work/scratch; files/ holds the progress file as left.

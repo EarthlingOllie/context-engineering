@@ -1,0 +1,21 @@
+{
+  "id": "01-single-docs",
+  "description": "single over the docs fixture: summarise every operational fact with its source file (cost floor per dispatch, COST-02)",
+  "fixture": "docs",
+  "expected_status": "done",
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d1",
+      "title": "Summarise the payments docs",
+      "topology": "single",
+      "task": "Read every file under /work/docs and write /work/scratch/summary.md listing each operational fact with the file it comes from.",
+      "context": ["The docs are short Markdown files; there are three of them."],
+      "roles": { "worker": { "instructions": "State each fact on its own line and cite its source file in the form (file.md)." } },
+      "params": {},
+      "returns": { "shape": "line1: path of summary.md; then one line per fact with its file in the form (file.md)", "maxLines": 12 },
+      "dependsOn": []
+    }
+  }
+}

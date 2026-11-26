@@ -1,0 +1,9 @@
+{
+  "meta": {"name": "dispatch"}, "mainModel": "claude-opus-5-5", "cap": 2, "wallClockMs": 30500, "error": null, "stub": false,
+  "return": {"id": "w1-d1", "status": "blocked", "iterations": 1, "artifacts": [], "result": "", "question": "Which docs directory?", "title": "Summarise the payments docs", "scribe": {"appended": 1, "totalLines": 1}},
+  "agents": [
+    {"n": 1, "label": "Worker: Read every file under /work/docs and wr…", "model": "claude-opus-5-5", "calledMs": 0, "startMs": 0, "endMs": 20000, "queuedMs": 0, "error": null, "engine": null},
+    {"n": 2, "label": "Grapher: logging current dispatch", "model": "claude-opus-5-5", "calledMs": 20000, "startMs": 20000, "endMs": 30400, "queuedMs": 0, "error": null, "engine": null}
+  ],
+  "logs": []
+}

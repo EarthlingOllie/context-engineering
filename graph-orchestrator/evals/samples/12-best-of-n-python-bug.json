@@ -1,0 +1,47 @@
+{
+  "id": "12-best-of-n-python-bug",
+  "description": "best-of-n over a Python bug: 3 attempts with different approaches, each written as a candidate copy, and a judge that picks one; correct only when the chosen candidate passes the hidden tests (judge)",
+  "fixture": "python-bug",
+  "expected_status": "done",
+  "check": {
+    "kind": "chosen_tests"
+  },
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d12",
+      "title": "Fix the fee split",
+      "topology": "best-of-n",
+      "task": "Fix BUG-431 (/work/docs/BUG-431.md): the shares feekit.allocate returns must keep every promise of its docstring.",
+      "context": [
+        "The package is /work/feekit; its tests are under /work/tests and run with `python3 -m pytest` from /work.",
+        "Write your fixed copy of every file you change under your CANDIDATE DIR at its path relative to /work, for example <CANDIDATE DIR>/feekit/allocate.py, and test it there (for example by copying /work to a temporary directory and putting your copy in it). Do not edit /work itself."
+      ],
+      "roles": {
+        "worker": {
+          "skill": "test-driven-development",
+          "instructions": "Write a failing test for the bug before the fix. Report the path of your fixed allocate.py on line 1."
+        },
+        "judge": {
+          "skill": "code-review",
+          "instructions": "Read each candidate's allocate.py against the docstring and run its tests. Pick the one that keeps every promise of the docstring; prefer the smaller change between equals."
+        }
+      },
+      "params": {
+        "variants": [
+          "the smallest change to the existing rounding",
+          "integer arithmetic only: floor every share, then hand out the left-over cents",
+          "rewrite allocate from its docstring, test first"
+        ],
+        "criteria": "The fixed allocate keeps every promise of its docstring: shares add up to the total, each within a cent of exact, left-over cents to the largest remainders, ties to the earlier share; and `python3 -m pytest` passes.",
+        "mode": "select"
+      },
+      "returns": {
+        "shape": "line1: [i] the chosen candidate and the path of its allocate.py; line2: why, in one line",
+        "maxLines": 3
+      },
+      "dependsOn": []
+    }
+  }
+}

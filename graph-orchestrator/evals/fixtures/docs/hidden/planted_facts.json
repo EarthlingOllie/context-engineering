@@ -1,0 +1,8 @@
+[
+  {"fact": "the ledger runs on PostgreSQL 16", "file": "ledger-service.md", "patterns": ["postgres(ql)?\\s*16"]},
+  {"fact": "a snapshot every 500 events per account", "file": "ledger-service.md", "patterns": ["snapshot", "\\b500\\b"]},
+  {"fact": "card-network calls retry at most 4 times", "file": "retry-policy.md", "patterns": ["retr", "\\b4\\b"]},
+  {"fact": "idempotency keys are kept 72 hours", "file": "retry-policy.md", "patterns": ["idempotency", "72\\s*(h|hours)"]},
+  {"fact": "the settlement cut-off is 21:00 UTC", "file": "glossary.md", "patterns": ["21:00", "utc"]},
+  {"fact": "holds expire after 7 days", "file": "glossary.md", "patterns": ["hold", "\\b7\\s*days"]}
+]

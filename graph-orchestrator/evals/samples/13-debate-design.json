@@ -1,0 +1,39 @@
+{
+  "id": "13-debate-design",
+  "description": "debate over a design question in the docs (where the idempotency keys live), 2 debaters over 2 rounds and a judge: scored by a verdict in the return contract (one of the two options on line 1); every round runs, so its cost and agent count are recorded against the catalog's demand formula (cost with no early stop)",
+  "fixture": "design",
+  "expected_status": "done",
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d13",
+      "title": "Decide the idempotency store",
+      "topology": "debate",
+      "task": "Decide design question DQ-07 (/work/docs/DQ-07-idempotency-store.md): store the payments API's idempotency keys in postgres or in redis.",
+      "context": [
+        "/work/docs/DQ-07-idempotency-store.md states the question, both options and every known constraint; nothing else in /work bears on it."
+      ],
+      "roles": {
+        "debater": {
+          "instructions": "Argue from the constraints in DQ-07 and cite the line you rely on. Change nothing on disk."
+        },
+        "judge": {
+          "instructions": "Weigh the cost of a duplicate charge above operating effort. Line 1 is exactly one word, postgres or redis."
+        }
+      },
+      "params": {
+        "participants": [
+          { "name": "postgres", "stance": "the keys belong in a postgres table written in the ledger event's transaction" },
+          { "name": "redis", "stance": "the keys belong in the existing redis cluster with a 72-hour time-to-live" }
+        ],
+        "rounds": 2
+      },
+      "returns": {
+        "shape": "line1: the chosen option, exactly postgres or redis; line2: the decisive reason in one line",
+        "maxLines": 2
+      },
+      "dependsOn": []
+    }
+  }
+}

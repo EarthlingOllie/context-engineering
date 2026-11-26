@@ -1,0 +1,9 @@
+{
+  "meta": {"name": "dispatch"}, "mainModel": "claude-opus-5-5", "cap": 2, "wallClockMs": 3, "error": null, "stub": true,
+  "return": {"id": "w1-d15", "status": "over_budget", "result": "fan-out: 10 sub-tasks exceeds the width cap of 9; split differently or chain two fan-outs", "artifacts": [], "iterations": 0,
+    "title": "Check every docs paragraph", "scribe": {"appended": 1, "totalLines": 1}},
+  "agents": [
+    {"n": 1, "label": "Grapher: logging current dispatch", "model": "claude-opus-5-5", "calledMs": 1, "startMs": 1, "endMs": 3, "queuedMs": 0, "error": null, "engine": {"stub": true}}
+  ],
+  "logs": [{"atMs": 0, "message": "w1-d15: fan-out, up to 0 agent(s) + 1 scribe"}]
+}

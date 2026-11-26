@@ -1,0 +1,6 @@
+# Settlement settings for the payments ledger.
+
+[settlement]
+# The daily cut-off after which captures move to the next business day, as HH:MM in UTC.
+# Set by change request CR-212; see docs/CR-212.md.
+cut_off_utc = ""

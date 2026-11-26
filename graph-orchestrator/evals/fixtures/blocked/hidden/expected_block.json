@@ -1,0 +1,5 @@
+{
+  "kind": "blocked",
+  "question_patterns": ["cut.?off|settlement"],
+  "unchanged": ["/work/config/settlement.toml"]
+}

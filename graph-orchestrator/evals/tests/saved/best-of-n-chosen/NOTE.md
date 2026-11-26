@@ -1,0 +1,2 @@
+Sample 12 (12-best-of-n-python-bug). `main.ts --stub`: 3 attempts and a judge that picks candidate [1] (`chosen` 1 on its record's output), scratch paths rewritten to /work/scratch.
+hidden_tests.json: the hidden tests (`python3 -m pytest -q -p no:cacheprovider hidden_check`) run on the fixture with fixtures/python-bug/reference/fixed/feekit/allocate.py as candidate 1's copy, plus `candidate: 1`, as the solver records it.

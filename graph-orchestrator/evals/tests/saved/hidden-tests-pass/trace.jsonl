@@ -1,0 +1,3 @@
+{"type":"dispatch","wave":1,"id":"w1-d8-s1","title":"Plan the parse_duration tests","topology":"single","iterations":1,"status":"done","dependsOn":[],"parent":"w1-d8"}
+{"type":"dispatch","wave":1,"id":"w1-d8-s2","title":"Add parse_duration","topology":"generator-evaluator","iterations":1,"status":"done","dependsOn":[],"parent":"w1-d8"}
+{"type":"dispatch","wave":1,"id":"w1-d8","title":"Plan and add parse_duration","topology":"chain","iterations":2,"status":"done","dependsOn":[],"stages":["w1-d8-s1:done","w1-d8-s2:done"],"at":"2026-11-26T00:00:00Z"}

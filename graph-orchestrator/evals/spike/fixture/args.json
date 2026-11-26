@@ -1,0 +1,15 @@
+{
+  "now": "2026-11-26T00:00:00Z",
+  "scratch": "/work/scratch",
+  "dispatch": {
+    "id": "w1-d1",
+    "title": "Summarise the payments docs",
+    "topology": "single",
+    "task": "Read every file under /work/docs and write /work/scratch/summary.md listing each operational fact with the file it comes from.",
+    "context": ["The docs are short Markdown files; there are three of them."],
+    "roles": { "worker": { "skill": "root-cause-analysis", "instructions": "Cite the source file for every fact in the form (file.md). The skill is named to prove skills load in the sandbox: load it, then do this summary task directly; do not start a root cause analysis or create worktrees." } },
+    "params": {},
+    "returns": { "shape": "line1: path of summary.md; then one line per fact with its file", "maxLines": 10 },
+    "dependsOn": []
+  }
+}

@@ -4,9 +4,9 @@
 
 **Blocked by:** 04 (Run parameters and limits), 05 (Single and fan-out samples with every status)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] One documented command runs the sweep; it is not part of the routine run or its budget
-- [ ] Caps, CPU count and memory are parameters, defaulting to caps 2, 4, 8 on 4 CPUs
-- [ ] The output is one table: cap, wall clock, queue time, dollars, per sample
-- [ ] The sweep's cost for one pass is recorded in the README
+- [x] One documented command runs the sweep; it is not part of the routine run or its budget
+- [x] Caps, CPU count and memory are parameters, defaulting to caps 2, 4, 8 on 4 CPUs
+- [x] The output is one table: cap, wall clock, queue time, dollars, per sample
+- [x] The sweep's cost for one pass is recorded in the README

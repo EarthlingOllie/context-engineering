@@ -1,0 +1,5 @@
+{
+  "kind": "tests",
+  "runner": "node",
+  "tests": ["paginate.hidden.test.ts"]
+}
