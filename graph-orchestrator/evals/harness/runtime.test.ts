@@ -113,3 +113,23 @@ test("no more than `cap` engines run at once, and an agent that waited for a slo
     [0, 0, 10, 20, 30],
   );
 });
+
+test("the cap holds across nested parallel() calls: never more than `cap` agents run at once", async () => {
+  for (const cap of [1, 2, 3]) {
+    let running = 0;
+    let peak = 0;
+    const engine: Engine = async () => {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, 2));
+      running--;
+      return { output: { result: "ok" } };
+    };
+    const { runtime, agents } = createRuntime({ engine, mainModel: "claude-opus-5-5", cap });
+    const fan = (k: string) => () => runtime.parallel([1, 2, 3].map((i) => () => runtime.agent(`${k}${i}`, { label: `Worker: ${k}${i}` })));
+    const out = await runtime.parallel([fan("a"), fan("b"), fan("c")]);
+    assert.equal(agents.length, 9);
+    assert.equal(peak, cap, `cap ${cap}`);
+    assert.equal(out.flat().filter((x) => x !== null).length, 9);
+  }
+});

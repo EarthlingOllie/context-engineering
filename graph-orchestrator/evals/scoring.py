@@ -113,8 +113,24 @@ def usage_metrics(usage: dict[str, dict]) -> dict:
     }
 
 
-def sample_row(*, sample_id: str, epoch: int, rec: Recorded, facts: list[dict], expected_status: str, hidden_names: list[str], pinned_model: str) -> dict:
+def sample_row(
+    *,
+    sample_id: str,
+    epoch: int,
+    rec: Recorded,
+    facts: list[dict],
+    expected_status: str,
+    hidden_names: list[str],
+    pinned_model: str,
+    limit_hit: str | None = None,
+) -> dict:
+    """One scorecard row. A sample that Inspect stopped at a limit (`limit_hit`:
+    "cost", "time", ...) is reported as limit-hit: it is not scored, so it never
+    counts as a failure of the plugin."""
     correct, missing = outcome_correct(rec, facts)
+    truthful = status_truthful(rec, expected_status)
+    if limit_hit:
+        correct, missing, truthful = None, [], None
     u = usage_metrics(rec.usage)
     models = u.pop("models")
     wall = rec.result.get("wallClockMs")
@@ -123,7 +139,8 @@ def sample_row(*, sample_id: str, epoch: int, rec: Recorded, facts: list[dict], 
         "epoch": epoch,
         "outcome_correct": correct,
         "missing_facts": missing,
-        "status_truthful": status_truthful(rec, expected_status),
+        "status_truthful": truthful,
+        "limit_hit": limit_hit,
         "reported_status": _returned(rec).get("status"),
         "expected_status": expected_status,
         **u,
@@ -159,8 +176,12 @@ def render_markdown(card: dict) -> str:
     for r in card["rows"]:
         dollars = "-" if r["dollars"] is None else f"{r['dollars']:.4f}"
         wall = "-" if r["wall_clock_s"] is None else f"{r['wall_clock_s']:.1f}"
+        if r.get("limit_hit"):
+            correct = truthful = f"limit-hit ({r['limit_hit']})"
+        else:
+            correct, truthful = _yn(r["outcome_correct"]), _yn(r["status_truthful"])
         out.append(
-            f"| {r['sample']} | {r['epoch']} | {_yn(r['outcome_correct'])} | {_yn(r['status_truthful'])} | {r['reported_status']} | {r['expected_status']} "
+            f"| {r['sample']} | {r['epoch']} | {correct} | {truthful} | {r['reported_status']} | {r['expected_status']} "
             f"| {dollars} | {r['input_tokens']} | {r['output_tokens']} | {r['cache_read_tokens']} | {r['cache_write_tokens']} "
             f"| {r['cache_write_share'] * 100:.1f}% | {r['agents']} | {wall} |"
         )

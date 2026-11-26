@@ -68,6 +68,7 @@ def build_scorecard(log, commit: str) -> dict:
             expected_status=s.metadata["expected_status"],
             hidden_names=[p.name for p in suite.hidden_files(s.metadata["fixture"])],
             pinned_model=suite.MODEL,
+            limit_hit=getattr(getattr(s, "limit", None), "type", None),
         )
         for s, rec in zip(samples, recs)
     ]
@@ -81,6 +82,8 @@ def build_scorecard(log, commit: str) -> dict:
         "cpus": task_args.get("cpus", suite.DEFAULT_CPUS),
         "memory": task_args.get("memory", suite.DEFAULT_MEMORY),
         "epochs": log.eval.config.epochs or task_args.get("epochs", suite.DEFAULT_EPOCHS),
+        "cost_limit": task_args.get("cost_limit", suite.DEFAULT_COST_LIMIT),
+        "time_limit": task_args.get("time_limit", suite.DEFAULT_TIME_LIMIT),
         "stub": bool(task_args.get("stub", False)),
         "created_at": log.eval.created,
         "log": Path(log.location).name if log.location else None,
@@ -98,7 +101,7 @@ def write_scorecard(card: dict, out_dir: Path) -> tuple[Path, Path]:
     return j, m
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--stub", action="store_true", help="canned engine and mockllm: no model call, no cost")
     ap.add_argument("--epochs", type=int, default=suite.DEFAULT_EPOCHS)
@@ -106,12 +109,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cpus", type=int, default=suite.DEFAULT_CPUS)
     ap.add_argument("--memory", default=suite.DEFAULT_MEMORY)
     ap.add_argument("--samples", default="", help="comma-separated sample ids (default: all)")
-    ap.add_argument("--cost-limit", type=float, default=30.0, help="per-sample dollar limit (Inspect cost_limit)")
-    ap.add_argument("--time-limit", type=int, default=1800, help="per-sample seconds (Inspect time_limit)")
+    ap.add_argument("--cost-limit", type=float, default=suite.DEFAULT_COST_LIMIT, help="per-sample dollar limit (Inspect cost_limit)")
+    ap.add_argument("--time-limit", type=int, default=suite.DEFAULT_TIME_LIMIT, help="per-sample wall-clock seconds (Inspect time_limit)")
     ap.add_argument("--log-dir", default=str(suite.EVALS / "logs"))
     ap.add_argument("--out-dir", default=str(suite.EVALS / "out" / "scorecards"))
     ap.add_argument("--from-log", help="build the scorecard from this Inspect log instead of running")
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    a = build_parser().parse_args(argv)
 
     import inspect_ai
     from inspect_ai.log import read_eval_log

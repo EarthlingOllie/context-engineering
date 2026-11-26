@@ -116,6 +116,7 @@ class Row(unittest.TestCase):
                 "outcome_correct": True,
                 "missing_facts": [],
                 "status_truthful": True,
+                "limit_hit": None,
                 "reported_status": "done",
                 "expected_status": "done",
                 "dollars": 0.5,
@@ -143,6 +144,14 @@ class Row(unittest.TestCase):
             {k: r[k] for k in ("outcome_correct", "status_truthful", "reported_status", "on_pinned_model", "hidden_check_absent", "agents", "wall_clock_s")},
             {"outcome_correct": False, "status_truthful": False, "reported_status": "blocked", "on_pinned_model": False, "hidden_check_absent": False, "agents": 2, "wall_clock_s": 30.5},
         )
+
+    def test_a_sample_stopped_by_its_cost_limit_is_limit_hit_and_not_scored(self):
+        r = sample_row(
+            sample_id="01-single-docs", epoch=2, rec=load_saved_sample(SAVED / "blocked"), facts=FACTS,
+            expected_status="done", hidden_names=HIDDEN_NAMES, pinned_model=MODEL, limit_hit="cost",
+        )
+        self.assertEqual((r["limit_hit"], r["outcome_correct"], r["status_truthful"], r["missing_facts"]), ("cost", None, None, []))
+        self.assertIn("| 01-single-docs | 2 | limit-hit (cost) | limit-hit (cost) |", render_markdown(scorecard(HEADER, [r])))
 
 
 HEADER = {
