@@ -7,7 +7,7 @@
  */
 import type { DispatchResult, DispatchSpec, Topology } from "../types.ts";
 import { TOPOLOGIES } from "../types.ts";
-import { type TopologyContext, type TopologyImpl, fail, normaliseSpec } from "./shared.ts";
+import { type TopologyContext, type TopologyImpl, fail, normaliseSpec, withThrown } from "./shared.ts";
 import { single } from "./single.ts";
 import { generatorEvaluator } from "./generator-evaluator.ts";
 import { fanOut } from "./fan-out.ts";
@@ -47,16 +47,25 @@ export function agentDemand(raw: Partial<DispatchSpec> | null | undefined): numb
   return isTopology(spec.topology) ? REGISTRY[spec.topology].demand(spec, params) : 0;
 }
 
-/** Run one dispatch spec. Never throws: a spec that cannot run returns `failed`. */
+/**
+ * Run one dispatch spec. Never throws: a spec that cannot run returns `failed`.
+ * A `failed` result after an agent threw says what it threw (the first such
+ * message), so a usage limit reads as one rather than "returned nothing".
+ */
 export async function runDispatch(ctx: TopologyContext, raw: DispatchSpec): Promise<DispatchResult> {
   if (!raw || typeof raw !== "object") return fail({ id: "?" }, "dispatch spec is not an object");
   if (typeof raw.id !== "string" || !raw.id) return fail({ id: "?" }, "dispatch spec has no id");
   if (!isTopology(raw.topology)) return fail(raw, `unknown topology "${String(raw.topology)}"; valid: ${TOPOLOGIES.join(", ")}`);
   const spec = normaliseSpec(raw);
   if (!spec.task) return fail(spec, "dispatch spec has no task");
+  const errors = (ctx.agentErrors ??= []);
+  const before = errors.length;
+  let r: DispatchResult;
   try {
-    return await REGISTRY[spec.topology].run(ctx, spec);
+    r = await REGISTRY[spec.topology].run(ctx, spec);
   } catch (err) {
-    return fail(spec, `topology threw: ${err instanceof Error ? err.message : String(err)}`);
+    r = fail(spec, `topology threw: ${err instanceof Error ? err.message : String(err)}`);
   }
+  const thrown = errors[before];
+  return thrown === undefined ? r : withThrown(r, thrown, spec.returns.maxLines);
 }

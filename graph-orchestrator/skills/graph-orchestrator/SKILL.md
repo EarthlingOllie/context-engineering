@@ -97,7 +97,7 @@ Workflow({
 
 The script is a two-line wrapper: its `meta` names the workflow after the dispatch, and it hands `args` to the plugin's dispatch script. Write it exactly as above with the title, id, topology and plugin root substituted; `meta` must stay a plain literal. Never paste `dispatch.js` itself. `<Topology>` in the name is one of `Single`, `Generator-evaluator`, `Fan-out`, `Chain`, `Relay`, `Best-of-n`, `Iterative fan-out`, `Panel`, `Debate`: `name: 'Generator-evaluator: Add the HTTP retry policy'`. The agents inside are labelled by role only (`Generator (1 of 3): …`), except a chain's, which name their link (stage) and its topology (`Link 2 · Single, Worker: …`).
 
-Then say one line, `Wave <n> dispatched: <title>; <title>.`, and wait. Each workflow notifies you when it finishes; integrate once every workflow of the wave has reported. Never poll a running workflow or ask how it is going.
+Then say one line, `Wave <n> dispatched: <title>; <title>.`, and wait. Each workflow notifies you when it finishes; integrate once every workflow of the wave has reported. Never poll a running workflow or ask how it is going. The notification says "completed" whenever the script returned, whatever the outcome: it is not the dispatch's status. The status is only in the returned data (and in the workflow's last log line, `STATUS <status>`); act on that.
 
 Each returns `{ id, title, status, result, artifacts[], question?, iterations, stages?, scribe }` as data. A workflow logs its agent demand; over the concurrency cap means slow, not broken. A `scribe` of `null` means that dispatch's trace line was not written; the result is still complete, so carry on.
 
@@ -111,7 +111,7 @@ For each result, by status:
 | `blocked` | **Trigger 2: ask, in both modes.** The `question` is the worker's. Record the intervention. Re-dispatch next wave with the answer as a `context` line and the blocked id in `dependsOn`, so the worker resumes rather than restarts. A fan-out that is `done` with a `question` had a blocked branch: ask the same way; re-dispatch only that branch. |
 | `exhausted` | **Trigger 3.** Attended: ask whether to change the criteria, the approach or stop. Autonomous: if you see another route, take it and record the choice; if not, record a best guess and move on. Never re-run the same spec unchanged. |
 | `over_budget` | the spec exceeded a cap; the `result` says which. Split or narrow it and re-dispatch. |
-| `failed` | the spec could not run; the `result` says why. Fix the spec once. A second failure is treated as `exhausted`. A result saying `dependsOn names <id> from the same wave` is a planning fault: dispatch it next wave, or make the two one `chain`. |
+| `failed` | the spec could not run or finish; the `result` says why, including what an agent threw (a usage limit, say). Fix the spec once. A second failure is treated as `exhausted`. A result saying `dependsOn names <id> from the same wave` is a planning fault: dispatch it next wave, or make the two one `chain`. |
 
 Then: update FRONTIER (remove what finished, add what the results opened), rewrite the state file, and plan the next wave from the state file alone.
 
