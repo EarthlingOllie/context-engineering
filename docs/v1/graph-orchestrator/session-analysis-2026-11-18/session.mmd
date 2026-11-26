@@ -1,0 +1,77 @@
+flowchart TD
+  classDef done fill:#dcfce7,stroke:#16a34a,color:#14532d
+  classDef blocked fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+  classDef exhausted fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef over_budget fill:#fef3c7,stroke:#d97706,stroke-dasharray:4 2,color:#78350f
+  classDef failed fill:#f3f4f6,stroke:#6b7280,stroke-dasharray:4 2,color:#111827
+  classDef human fill:#ede9fe,stroke:#7c3aed,color:#3b0764
+  human_1(["human · ambiguity<br/>on w1-d1<br/>attended or autonomous?<br/>→ autonomous"]):::human
+  subgraph wave1["Wave 1 · 2026-11-18 · 2 done"]
+    direction TB
+    w1_d1["Inventory orchestrator sessions<br/>w1-d1 · single ×1"]:::done
+    w1_d2["Map plugin mechanics<br/>w1-d2 · single ×1"]:::done
+  end
+  subgraph wave2["Wave 2 · 2026-11-18 · 2 done · 1 exhausted"]
+    direction TB
+    w2_d1["Analyse each orchestrator session<br/>w2-d1 · iterative-fan-out ×2<br/>exhausted"]:::exhausted
+    w2_d2["Finish probing remaining sessions<br/>w2-d2 · single ×1"]:::done
+    w2_d3["Baseline prior known findings<br/>w2-d3 · single ×1"]:::done
+  end
+  human_2(["human · exhausted<br/>on w2-d1<br/>iterative fan-out exhausted with 8 gaps and the reducer's s…<br/>→ re-route: gaps and 6 new sessions to w3…"]):::human
+  subgraph wave3["Wave 3 · 2026-11-18 · 3 done"]
+    direction TB
+    w3_d1["Analyse new sessions and gaps<br/>w3-d1 · fan-out ×1"]:::done
+    w3_d2["Decompose cost and speed<br/>w3-d2 · single ×1"]:::done
+    w3_d3["Audit outcome quality<br/>w3-d3 · single ×1"]:::done
+  end
+  human_3(["human · budget<br/>on w3-d1<br/>d6Vc waves 1-19 and dKG5 early waves only recoverable at ti…<br/>→ stop; diminishing returns, recorded und…"]):::human
+  subgraph wave4["Wave 4 · 2026-11-18 · 1 exhausted"]
+    direction TB
+    subgraph w4_d1["Write the findings report · w4-d1 · chain ×2 · exhausted"]
+      direction LR
+      w4_d1_s1["Aggregate session metrics<br/>w4-d1-s1 · single ×1"]:::done
+      w4_d1_s2["Draft findings report<br/>w4-d1-s2 · generator-evaluator ×3<br/>exhausted"]:::exhausted
+      w4_d1_s1 --> w4_d1_s2
+    end
+    class w4_d1 exhausted
+  end
+  human_4(["human · exhausted<br/>on w4-d1<br/>findings report generator's Write refused by harness; loop …<br/>→ orchestrator saved the last generator d…"]):::human
+  subgraph wave5["Wave 5 · 2026-11-18 · 1 done"]
+    direction TB
+    w5_d1["Review findings report<br/>w5-d1 · panel ×1"]:::done
+  end
+  subgraph wave6["Wave 6 · 2026-11-18 · 1 exhausted"]
+    direction TB
+    w6_d1["Apply panel corrections<br/>w6-d1 · generator-evaluator ×2<br/>exhausted"]:::exhausted
+  end
+  human_5(["human · exhausted<br/>on w6-d1<br/>corrections loop exhausted on one owner-count inconsistency…<br/>→ take option (b): state the rule, apply …"]):::human
+  subgraph wave7["Wave 7 · 2026-11-18 · 1 done"]
+    direction TB
+    w7_d1["Fix owner count line<br/>w7-d1 · single ×1"]:::done
+  end
+  w2_d1 --> human_2
+  human_2 -.-> w3_d1
+  human_2 -.-> w3_d2
+  human_2 -.-> w3_d3
+  w3_d1 --> human_3
+  human_3 -.-> w4_d1
+  w4_d1 --> human_4
+  human_4 -.-> w5_d1
+  w6_d1 --> human_5
+  human_5 -.-> w7_d1
+  w1_d1 --> w2_d1
+  w1_d2 --> w2_d1
+  w1_d1 --> w2_d2
+  w1_d1 --> w2_d3
+  w2_d1 --> w3_d1
+  w2_d2 --> w3_d1
+  w2_d1 --> w3_d2
+  w1_d2 --> w3_d2
+  w2_d1 --> w3_d3
+  w2_d3 --> w3_d3
+  w3_d1 --> w4_d1
+  w3_d2 --> w4_d1
+  w3_d3 --> w4_d1
+  w4_d1 --> w5_d1
+  w5_d1 --> w6_d1
+  w6_d1 --> w7_d1

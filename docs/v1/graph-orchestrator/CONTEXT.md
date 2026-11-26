@@ -63,3 +63,15 @@ _Avoid_: Logger, recorder
 **State File**:
 The orchestrator's whole memory between waves: goal, status, known facts, ruled-out hypotheses, frontier and decisions. Rewritten in place, never appended.
 _Avoid_: Log, notes, scratchpad (that is the directory it lives in)
+
+**Dispatch Eval**:
+An evaluation of one dispatch in isolation: a dispatch spec in; its result, trace and files out. No orchestrator takes part.
+_Avoid_: Topology test, unit eval
+
+**Session Eval**:
+An evaluation of one whole orchestrated session: a task in; everything the orchestrator planned, dispatched and integrated out.
+_Avoid_: End-to-end test, e2e eval
+
+**Baseline**:
+The eval results for the plugin as shipped, untouched, with every role on one pinned model. Every fix is measured against it.
+_Avoid_: Benchmark, control
