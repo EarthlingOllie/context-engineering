@@ -1,0 +1,37 @@
+{
+  "id": "07-fan-out-partition-docs",
+  "description": "fan-out over the docs partitioned into 6 sub-tasks, more branches than the concurrency cap: records queue time and wall clock (queueing under the cap, SPD-04)",
+  "fixture": "docs",
+  "expected_status": "done",
+  "check": {
+    "kind": "facts",
+    "source": "result+files"
+  },
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d7",
+      "title": "Extract the payments facts",
+      "topology": "fan-out",
+      "task": "Extract every operational fact from the payments docs under /work/docs, each with the file it comes from.",
+      "context": [
+        "The docs are three short Markdown files under /work/docs: glossary.md, ledger-service.md and retry-policy.md."
+      ],
+      "roles": {
+        "worker": {
+          "instructions": "State each operational fact on its own line and cite its source file in the form (file.md)."
+        }
+      },
+      "params": {
+        "split": "Split into exactly 6 sub-tasks, two per document under /work/docs: for each document, one sub-task covers the first half of its lines and one covers the second half.",
+        "width": 6
+      },
+      "returns": {
+        "shape": "one operational fact per line, each ending with its source file in the form (file.md)",
+        "maxLines": 18
+      },
+      "dependsOn": []
+    }
+  }
+}

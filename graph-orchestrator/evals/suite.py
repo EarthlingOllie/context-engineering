@@ -85,3 +85,26 @@ def hidden_files(fixture: str) -> list[Path]:
 
 def hidden_facts(fixture: str) -> list[dict]:
     return json.loads((FIXTURES / fixture / "hidden" / "planted_facts.json").read_text())
+
+
+def hidden_check(sample: dict) -> dict:
+    """The hidden check a sample is scored by, read on the host.
+
+    The fixture's `hidden/expected_block.json` (or, for a research fixture, its
+    planted facts) gives the check; the sample's own `check` may refine it
+    (`source`: score the facts in the returned `result` only, or in the
+    result and the files the agents wrote). A check's `unchanged` paths are
+    resolved to the fixture's original text, which the files must still hold.
+    """
+    fixture = sample["fixture"]
+    root = FIXTURES / fixture / "hidden"
+    block = root / "expected_block.json"
+    base = json.loads(block.read_text()) if block.exists() else {"kind": "facts"}
+    check = {**base, **sample.get("check", {})}
+    if check["kind"] == "facts":
+        check.setdefault("source", "result+files")
+        check["facts"] = hidden_facts(fixture)
+    if "unchanged" in check:
+        copied = fixture_sandbox_files(fixture)
+        check["unchanged"] = {p: copied[p].read_text() for p in check["unchanged"]}
+    return check

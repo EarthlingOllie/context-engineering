@@ -1,0 +1,46 @@
+{
+  "id": "15-fan-out-over-budget",
+  "description": "fan-out over the docs with an explicit split of 10, past the width cap of 9: must return over_budget without spending an agent (cap enforcement)",
+  "fixture": "docs",
+  "expected_status": "over_budget",
+  "check": {
+    "kind": "over_budget"
+  },
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d15",
+      "title": "Check every docs paragraph",
+      "topology": "fan-out",
+      "task": "Check each listed statement in the docs under /work/docs and report whether it is still current.",
+      "context": [
+        "The docs are three short Markdown files under /work/docs: glossary.md, ledger-service.md and retry-policy.md."
+      ],
+      "roles": {
+        "worker": {
+          "instructions": "Report one line: the statement, current or not, and its file in the form (file.md)."
+        }
+      },
+      "params": {
+        "split": [
+          "Check the settlement cut-off in glossary.md.",
+          "Check the hold expiry in glossary.md.",
+          "Check the event storage model in ledger-service.md.",
+          "Check the database version in ledger-service.md.",
+          "Check the on-call owner in ledger-service.md.",
+          "Check the snapshot interval in ledger-service.md.",
+          "Check the card-network retry count in retry-policy.md.",
+          "Check the backoff start in retry-policy.md.",
+          "Check the backoff cap in retry-policy.md.",
+          "Check the idempotency-key retention in retry-policy.md."
+        ]
+      },
+      "returns": {
+        "shape": "one line per statement: statement, current or not, (file.md)",
+        "maxLines": 10
+      },
+      "dependsOn": []
+    }
+  }
+}

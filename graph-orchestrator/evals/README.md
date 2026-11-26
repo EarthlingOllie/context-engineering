@@ -33,7 +33,7 @@ What a run may spend and what hardware it simulates. Defaults are in `suite.py` 
 
 Every sample runs under both limits. A sample that exceeds its cost or time limit is stopped by Inspect, and its scorecard row has `limit_hit` set to `cost` or `time`, with `outcome_correct` and `status_truthful` left empty (`limit-hit (cost)` in the Markdown): it is not scored, so it never counts as a failure of the plugin. The cap, CPU count, memory and both limits are recorded in the scorecard header.
 
-Other options: `--stub` (canned engine, mockllm, no model call), `--samples <ids>`, `--log-dir`, `--out-dir`, and `--from-log <file>` to rebuild a scorecard from a saved log without running.
+Other options: `--stub` (canned engine, mockllm, no model call) and `--stub-delay-ms`, `--samples <ids>`, `--log-dir`, `--out-dir`, and `--from-log <file>` to rebuild a scorecard from a saved log without running.
 
 Raw Inspect logs go to `logs/` and generated files to `out/`; both are git-ignored, because logs hold full transcripts. Baseline scorecards, when frozen, are committed under `baselines/`.
 
@@ -45,17 +45,34 @@ One row per sample and epoch:
 
 | Field | Meaning |
 |---|---|
-| `outcome_correct` | the hidden check passed; for a research sample, every planted fact is stated on one line with its source file named, in the returned result or a file the agents wrote under `/work/scratch` |
-| `missing_facts` | the planted facts not found |
+| `outcome_correct` | the sample's hidden check passed (see Samples) |
+| `missing_facts` | what the hidden check found missing: planted facts not found, or why a blocked or over-budget sample failed its check |
 | `status_truthful` | `reported_status` equals `expected_status` |
 | `limit_hit` | `cost` or `time` when Inspect stopped the sample at a limit (then not scored); empty otherwise |
 | `dollars` | Inspect's `total_cost` summed over models, from the prices the task supplies; empty if a model that ran has no price |
 | `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens` | from Inspect's per-model usage |
 | `cache_write_share` | cache-write tokens / (uncached input + cache write + cache read) |
-| `agents` | agent() calls the dispatch made, scribe included |
+| `agents` | agent() calls the dispatch's topology made, the scribe not counted (the catalog's demand formula does not count it either) |
+| `scribe` | whether the scribe ran to write the dispatch's trace lines; it runs even for an `over_budget` dispatch |
 | `wall_clock_s` | the harness's own clock, from loading the bundle to the dispatch's return |
+| `queue_s` | seconds agents spent waiting for a slot under the concurrency cap, summed over agents |
+| `peak_concurrency` | the most agents that ran at once, from their start and end times; never above `concurrency_cap` |
 | `models`, `on_pinned_model` | the models that served the sample, and whether all are the pinned model |
 | `hidden_check_absent` | no hidden-check file was in the sandbox before the agents ran |
+
+## Samples
+
+| Sample | Topology | Fixture | Expected | Hidden check |
+|---|---|---|---|---|
+| `01-single-docs` | single | docs | done | every planted fact stated with its file cited, in the result or a file under `/work/scratch` |
+| `02-single-blocked` | single | blocked | blocked | `blocked`, with a question about the cut-off, and `config/settlement.toml` unchanged: the value exists only outside the sandbox, so a guess fails |
+| `06-fan-out-reducer-docs` | fan-out, explicit list of 3, reducer | docs | done | the planted facts in the returned result only, which is the reducer's |
+| `07-fan-out-partition-docs` | fan-out, partitioned into 6 | docs | done | the planted facts; the row's `queue_s`, `wall_clock_s` and `peak_concurrency` show the queueing under the cap |
+| `15-fan-out-over-budget` | fan-out, explicit list of 10 | docs | over_budget | `over_budget` with no dispatch agent run; the row shows 0 agents and, in a dry run, $0. In a paid run the scribe still runs, so `dollars` holds its cost alone until cost by role separates it |
+
+A sample's hidden check comes from its fixture (`hidden/planted_facts.json`, or `hidden/expected_block.json` for the blocked fixture), refined by the sample's own `check` (`source: result` scores the returned result only; `kind: over_budget`). See `suite.hidden_check`. The scorer tests cover each kind over saved samples: `tests/saved/blocked-task` and `tests/saved/over-budget` among them.
+
+With `--stub`, the canned engine never blocks, so sample 2 reports `done` and is scored untruthful: that is the scorer working. `--stub-delay-ms <n>` makes each canned answer take `n` ms, so a dry run shows queue time under the cap.
 
 ## Compare
 

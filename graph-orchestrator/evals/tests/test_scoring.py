@@ -15,6 +15,7 @@ from scoring import (
     HEADER_FIELDS,
     hidden_check_absent,
     load_saved_sample,
+    outcome,
     outcome_correct,
     render_markdown,
     sample_row,
@@ -28,14 +29,17 @@ EVALS = Path(__file__).resolve().parent.parent
 FACTS = json.loads((EVALS / "fixtures" / "docs" / "hidden" / "planted_facts.json").read_text())
 HIDDEN_NAMES = ["planted_facts.json"]
 MODEL = "claude-opus-5-5"
+DOCS_CHECK = {"kind": "facts", "source": "result+files", "facts": FACTS}
+SETTLEMENT = (EVALS / "fixtures" / "blocked" / "sandbox" / "config" / "settlement.toml").read_text()
+BLOCKED_CHECK = {"kind": "blocked", "question_patterns": ["cut.?off|settlement"], "unchanged": {"/work/config/settlement.toml": SETTLEMENT}}
 
 
-def row(name: str, expected: str = "done") -> dict:
+def row(name: str, expected: str = "done", check: dict = DOCS_CHECK, sample_id: str = "01-single-docs") -> dict:
     return sample_row(
-        sample_id="01-single-docs",
+        sample_id=sample_id,
         epoch=1,
         rec=load_saved_sample(SAVED / name),
-        facts=FACTS,
+        check=check,
         expected_status=expected,
         hidden_names=HIDDEN_NAMES,
         pinned_model=MODEL,
@@ -125,8 +129,11 @@ class Row(unittest.TestCase):
                 "cache_read_tokens": 90000,
                 "cache_write_tokens": 30000,
                 "cache_write_share": 0.2475,
-                "agents": 2,
+                "agents": 1,
+                "scribe": True,
                 "wall_clock_s": 84.25,
+                "queue_s": 0.0,
+                "peak_concurrency": 1,
                 "models": ["anthropic/claude-opus-5-5"],
                 "on_pinned_model": True,
                 "hidden_check_absent": True,
@@ -142,16 +149,87 @@ class Row(unittest.TestCase):
         r = row("blocked")
         self.assertEqual(
             {k: r[k] for k in ("outcome_correct", "status_truthful", "reported_status", "on_pinned_model", "hidden_check_absent", "agents", "wall_clock_s")},
-            {"outcome_correct": False, "status_truthful": False, "reported_status": "blocked", "on_pinned_model": False, "hidden_check_absent": False, "agents": 2, "wall_clock_s": 30.5},
+            {"outcome_correct": False, "status_truthful": False, "reported_status": "blocked", "on_pinned_model": False, "hidden_check_absent": False, "agents": 1, "wall_clock_s": 30.5},
         )
 
     def test_a_sample_stopped_by_its_cost_limit_is_limit_hit_and_not_scored(self):
         r = sample_row(
-            sample_id="01-single-docs", epoch=2, rec=load_saved_sample(SAVED / "blocked"), facts=FACTS,
+            sample_id="01-single-docs", epoch=2, rec=load_saved_sample(SAVED / "blocked"), check=DOCS_CHECK,
             expected_status="done", hidden_names=HIDDEN_NAMES, pinned_model=MODEL, limit_hit="cost",
         )
         self.assertEqual((r["limit_hit"], r["outcome_correct"], r["status_truthful"], r["missing_facts"]), ("cost", None, None, []))
         self.assertIn("| 01-single-docs | 2 | limit-hit (cost) | limit-hit (cost) |", render_markdown(scorecard(HEADER, [r])))
+
+
+
+class Blocked(unittest.TestCase):
+    """Sample 2: the blocked-task fixture's only correct end is `blocked` with a question, the config left as it was."""
+
+    def test_blocked_with_a_question_about_the_cut_off_and_the_config_untouched_is_correct_and_truthful(self):
+        r = row("blocked-task", expected="blocked", check=BLOCKED_CHECK, sample_id="02-single-blocked")
+        self.assertEqual(
+            {k: r[k] for k in ("outcome_correct", "missing_facts", "status_truthful", "reported_status", "agents", "scribe", "hidden_check_absent")},
+            {"outcome_correct": True, "missing_facts": [], "status_truthful": True, "reported_status": "blocked", "agents": 1, "scribe": True, "hidden_check_absent": True},
+        )
+
+    def test_status_is_truthful_only_when_the_dispatch_returns_blocked(self):
+        rec = load_saved_sample(SAVED / "blocked-task")
+        for status, truthful in [("blocked", True), ("done", False), ("failed", False), ("exhausted", False)]:
+            rec.result["return"]["status"] = status
+            self.assertEqual(status_truthful(rec, "blocked"), truthful, status)
+
+    def test_a_guess_that_changes_the_config_is_not_correct_even_when_blocked(self):
+        rec = load_saved_sample(SAVED / "blocked-task")
+        rec.after["/work/config/settlement.toml"] = SETTLEMENT.replace('cut_off_utc = ""', 'cut_off_utc = "20:00"')
+        ok, why = outcome(rec, BLOCKED_CHECK)
+        self.assertFalse(ok)
+        self.assertEqual(why, ["/work/config/settlement.toml was changed"])
+
+    def test_done_or_blocked_without_a_question_is_not_correct(self):
+        rec = load_saved_sample(SAVED / "blocked-task")
+        rec.result["return"]["question"] = ""
+        self.assertEqual(outcome(rec, BLOCKED_CHECK), (False, ["no question asked", "question does not match cut.?off|settlement"]))
+        rec = load_saved_sample(SAVED / "blocked-task")
+        rec.result["return"]["status"] = "done"
+        self.assertEqual(outcome(rec, BLOCKED_CHECK), (False, ["status done, not blocked"]))
+
+
+class OverBudget(unittest.TestCase):
+    """Sample 15: a fan-out split past the width cap comes back over_budget without spending a dispatch agent."""
+
+    CHECK = {"kind": "over_budget"}
+
+    def test_over_budget_with_no_dispatch_agent_shows_zero_agents_and_zero_dollars(self):
+        r = row("over-budget", expected="over_budget", check=self.CHECK, sample_id="15-fan-out-over-budget")
+        self.assertEqual(
+            {k: r[k] for k in ("outcome_correct", "status_truthful", "reported_status", "agents", "scribe", "dollars", "queue_s")},
+            {"outcome_correct": True, "status_truthful": True, "reported_status": "over_budget", "agents": 0, "scribe": True, "dollars": 0, "queue_s": 0.0},
+        )
+        self.assertIn("| 15-fan-out-over-budget | 1 | yes | yes | over_budget | over_budget | 0.0000 | 0 | 0 | 0 | 0 | 0.0% | 0 |", render_markdown(scorecard(HEADER, [r])))
+
+    def test_over_budget_after_an_agent_ran_is_not_correct(self):
+        rec = load_saved_sample(SAVED / "over-budget")
+        rec.result["agents"].insert(0, {"n": 0, "label": "Worker (1 of 10): x", "startMs": 0, "endMs": 1, "queuedMs": 0})
+        self.assertEqual(outcome(rec, self.CHECK), (False, ["1 dispatch agent(s) ran"]))
+
+
+class FanOut(unittest.TestCase):
+    def test_sample_6_scores_the_reducers_result_not_the_files_the_branches_wrote(self):
+        rec = load_saved_sample(SAVED / "done-correct")
+        rec.result["return"]["result"] = "/work/scratch/summary.md"
+        result_only = dict(DOCS_CHECK, source="result")
+        self.assertEqual(outcome(rec, DOCS_CHECK), (True, []))
+        ok, missing = outcome(rec, result_only)
+        self.assertFalse(ok)
+        self.assertEqual(len(missing), 6)
+
+    def test_sample_7_records_queue_time_wall_clock_and_peak_concurrency_under_the_cap(self):
+        r = row("fan-out-queued", sample_id="07-fan-out-partition-docs")
+        self.assertEqual(
+            {k: r[k] for k in ("outcome_correct", "status_truthful", "agents", "scribe", "wall_clock_s", "queue_s", "peak_concurrency")},
+            {"outcome_correct": True, "status_truthful": True, "agents": 7, "scribe": True, "wall_clock_s": 80.5, "queue_s": 120.0, "peak_concurrency": 2},
+        )
+        self.assertIn("| 7 | 80.5 | 120.0 |", render_markdown(scorecard(HEADER, [r])))
 
 
 HEADER = {
@@ -186,7 +264,7 @@ class Scorecard(unittest.TestCase):
         md = render_markdown(scorecard(HEADER, [row("done-correct")]))
         self.assertIn("| plugin_commit | 3234600 |", md)
         self.assertIn("| epochs | 3 |", md)
-        self.assertIn("| 01-single-docs | 1 | yes | yes | done | done | 0.5000 | 1200 | 800 | 90000 | 30000 | 24.8% | 2 | 84.2 |", md)
+        self.assertIn("| 01-single-docs | 1 | yes | yes | done | done | 0.5000 | 1200 | 800 | 90000 | 30000 | 24.8% | 1 | 84.2 | 0.0 |", md)
 
 
 if __name__ == "__main__":

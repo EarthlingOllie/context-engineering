@@ -1,0 +1,1 @@
+{"anthropic/claude-opus-5-5": {"input_tokens": 900, "output_tokens": 350, "input_tokens_cache_write": 25000, "input_tokens_cache_read": 40000, "total_cost": 0.14}}

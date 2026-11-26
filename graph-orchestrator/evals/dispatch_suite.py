@@ -27,7 +27,7 @@ from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util import sandbox, store
 
 import suite
-from scoring import Recorded, outcome_correct, status_truthful
+from scoring import Recorded, outcome, status_truthful
 
 HARNESS = suite.EVALS / "harness"
 SCRATCH = "/work/scratch"
@@ -62,7 +62,7 @@ async def _lines(cmd: str) -> list[str]:
 
 
 @agent
-def dispatch_harness(stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: int = suite.DEFAULT_TIME_LIMIT) -> Agent:
+def dispatch_harness(stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: int = suite.DEFAULT_TIME_LIMIT, stub_delay_ms: int = 0) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         sbx = sandbox()
         meta = store().get("sample_meta")
@@ -89,7 +89,7 @@ def dispatch_harness(stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: 
             "--model", suite.MODEL,
             "--skills", "/opt/skills",
             "--cwd", "/work",
-        ] + (["--stub"] if stub else [])
+        ] + (["--stub", "--stub-delay-ms", str(stub_delay_ms)] if stub else [])
         aliases = {name: f"anthropic/{name}" for name in suite.DECLARED_MODELS}
         async with sandbox_agent_bridge(state, model_aliases=None if stub else aliases) as bridge:
             env = {
@@ -118,6 +118,14 @@ def dispatch_harness(stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: 
                 except Exception:  # noqa: BLE001
                     pass
             store().set("files", files)
+            # The fixture's own files as the agents left them, for checks that a file was not changed.
+            after = {}
+            for p in suite.fixture_sandbox_files(meta["fixture"]):
+                try:
+                    after[p] = await sbx.read_file(p)
+                except Exception:  # noqa: BLE001  (deleted)
+                    pass
+            store().set("after", after)
             return bridge.state
 
     return execute
@@ -130,16 +138,17 @@ def recorded_from_store(usage: dict | None = None) -> Recorded:
         files=store().get("files", {}) or {},
         sandbox_tree=store().get("sandbox_tree", []) or [],
         usage=usage or {},
+        after=store().get("after", {}) or {},
     )
 
 
 @scorer(metrics=[accuracy()])
 def outcome_correct_scorer():
-    """Hidden check, read on the host: every planted fact stated with its file cited."""
+    """The sample's hidden check, read on the host (suite.hidden_check): planted facts, blocked with a question, or over_budget."""
 
     async def score(state: TaskState, target: Target) -> Score:
-        ok, missing = outcome_correct(recorded_from_store(), suite.hidden_facts(state.metadata["fixture"]))
-        return Score(value=1 if ok else 0, explanation="missing: " + "; ".join(missing) if missing else "all planted facts cited")
+        ok, missing = outcome(recorded_from_store(), suite.hidden_check(state.metadata))
+        return Score(value=1 if ok else 0, explanation="failed: " + "; ".join(missing) if missing else "hidden check passed")
 
     return score
 
@@ -176,6 +185,7 @@ def dispatch_suite(
     samples: str = "",
     cost_limit: float = suite.DEFAULT_COST_LIMIT,
     time_limit: int = suite.DEFAULT_TIME_LIMIT,
+    stub_delay_ms: int = 0,
 ) -> Task:
     register_prices()
     wanted = {s for s in samples.split(",") if s}
@@ -184,14 +194,14 @@ def dispatch_suite(
             id=s["id"],
             input=f"Run dispatch {s['args']['dispatch']['id']}: {s['description']}",
             target=s["expected_status"],
-            metadata={"fixture": s["fixture"], "expected_status": s["expected_status"], "args": s["args"]},
+            metadata={"fixture": s["fixture"], "expected_status": s["expected_status"], "check": s.get("check", {}), "args": s["args"]},
         )
         for s in suite.load_samples()
         if not wanted or s["id"] in wanted
     ]
     return Task(
         dataset=dataset,
-        solver=[sample_meta(), as_solver(dispatch_harness(stub=stub, cap=cap, timeout=time_limit))],
+        solver=[sample_meta(), as_solver(dispatch_harness(stub=stub, cap=cap, timeout=time_limit, stub_delay_ms=stub_delay_ms))],
         scorer=[outcome_correct_scorer(), status_truthful_scorer()],
         sandbox=("docker", str(compose_file(cpus, memory))),
         epochs=epochs,

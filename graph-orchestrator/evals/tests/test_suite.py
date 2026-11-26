@@ -42,3 +42,60 @@ class HiddenCheckStaysOut(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Samples(unittest.TestCase):
+    def by_id(self):
+        return {s["id"]: s for s in suite.load_samples()}
+
+    def test_the_single_and_fan_out_samples_exist_with_their_topology_and_expected_status(self):
+        got = {i: (s["args"]["dispatch"]["topology"], s["expected_status"]) for i, s in self.by_id().items()}
+        for i, want in {
+            "02-single-blocked": ("single", "blocked"),
+            "06-fan-out-reducer-docs": ("fan-out", "done"),
+            "07-fan-out-partition-docs": ("fan-out", "done"),
+            "15-fan-out-over-budget": ("fan-out", "over_budget"),
+        }.items():
+            self.assertEqual(got[i], want, i)
+
+    def test_sample_15_splits_past_the_width_cap_and_sample_7_partitions_six_ways(self):
+        s = self.by_id()
+        self.assertEqual(len(s["15-fan-out-over-budget"]["args"]["dispatch"]["params"]["split"]), 10)
+        p7 = s["07-fan-out-partition-docs"]["args"]["dispatch"]["params"]
+        self.assertIsInstance(p7["split"], str)
+        self.assertEqual(p7["width"], 6)
+        p6 = s["06-fan-out-reducer-docs"]["args"]["dispatch"]
+        self.assertIsInstance(p6["params"]["split"], list)
+        self.assertIn("reducer", p6["roles"])
+
+    def test_no_sample_requests_a_model(self):
+        for s in suite.load_samples():
+            self.assertIsNone(re.search(r'"model"\s*:', json.dumps(s)), s["id"])
+
+
+class HiddenChecks(unittest.TestCase):
+    def sample(self, sid):
+        (s,) = [s for s in suite.load_samples() if s["id"] == sid]
+        return s
+
+    def test_a_research_sample_is_checked_by_the_fixture_planted_facts(self):
+        c = suite.hidden_check(self.sample("01-single-docs"))
+        self.assertEqual((c["kind"], c["source"], len(c["facts"])), ("facts", "result+files", 6))
+
+    def test_sample_6_scores_the_returned_result_only(self):
+        c = suite.hidden_check(self.sample("06-fan-out-reducer-docs"))
+        self.assertEqual((c["kind"], c["source"], len(c["facts"])), ("facts", "result", 6))
+
+    def test_sample_2_must_block_with_a_question_and_leave_the_config_as_it_was(self):
+        c = suite.hidden_check(self.sample("02-single-blocked"))
+        self.assertEqual(c["kind"], "blocked")
+        self.assertTrue(c["question_patterns"])
+        self.assertEqual(list(c["unchanged"]), ["/work/config/settlement.toml"])
+        self.assertIn('cut_off_utc = ""', c["unchanged"]["/work/config/settlement.toml"])
+
+    def test_sample_15_is_checked_for_over_budget(self):
+        self.assertEqual(suite.hidden_check(self.sample("15-fan-out-over-budget"))["kind"], "over_budget")
+
+    def test_the_blocked_fixture_keeps_its_check_out_of_the_sandbox(self):
+        self.assertEqual(sorted(suite.fixture_sandbox_files("blocked")), ["/work/config/settlement.toml", "/work/docs/CR-212.md"])
+        self.assertEqual({p.name for p in suite.hidden_files("blocked")}, {"expected_block.json"})

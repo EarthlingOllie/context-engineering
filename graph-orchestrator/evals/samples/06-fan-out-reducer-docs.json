@@ -1,0 +1,44 @@
+{
+  "id": "06-fan-out-reducer-docs",
+  "description": "fan-out over the docs with an explicit list (one branch per file) and a reducer; the reducer's result is scored against the planted facts (reducer output, QUA-05)",
+  "fixture": "docs",
+  "expected_status": "done",
+  "check": {
+    "kind": "facts",
+    "source": "result"
+  },
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d6",
+      "title": "Collect the payments facts",
+      "topology": "fan-out",
+      "task": "List every operational fact in the payments docs under /work/docs, each with the file it comes from.",
+      "context": [
+        "The docs are three short Markdown files under /work/docs: glossary.md, ledger-service.md and retry-policy.md."
+      ],
+      "roles": {
+        "worker": {
+          "instructions": "State each operational fact in your file on its own line and cite the file in the form (file.md)."
+        },
+        "reducer": {
+          "instructions": "Merge the branch results into one list: one fact per line, each ending with its source file in the form (file.md). Keep every fact; drop duplicates."
+        }
+      },
+      "params": {
+        "split": [
+          "List every operational fact in /work/docs/glossary.md.",
+          "List every operational fact in /work/docs/ledger-service.md.",
+          "List every operational fact in /work/docs/retry-policy.md."
+        ],
+        "reducer": true
+      },
+      "returns": {
+        "shape": "one operational fact per line, each ending with its source file in the form (file.md)",
+        "maxLines": 12
+      },
+      "dependsOn": []
+    }
+  }
+}

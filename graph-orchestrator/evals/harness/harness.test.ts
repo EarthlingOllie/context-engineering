@@ -74,3 +74,57 @@ test("an engine failure reaches the plugin as nothing returned: the dispatch fai
   assert.equal(result.return?.["status"], "failed");
   assert.equal(result.agents[0]!.error, "engine result error_during_execution");
 });
+
+const sampleArgs = (file: string) => (JSON.parse(readFileSync(new URL(`../samples/${file}`, import.meta.url), "utf8")) as { args: Record<string, unknown> }).args;
+
+test("sample 15 (fan-out split of 10) comes back over_budget without spending a dispatch agent: only the scribe runs", async () => {
+  const { engine, seen } = stubEngine({ v: 0 });
+  const result = await runHarness({ bundleSource, args: sampleArgs("15-fan-out-over-budget.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.error, null);
+  assert.equal(result.return?.["status"], "over_budget");
+  assert.equal(result.return?.["iterations"], 0);
+  assert.deepEqual(seen.map((r) => r.label?.split(":")[0]), ["Grapher"]);
+});
+
+test("sample 7 (fan-out partitioned six ways) runs the partition and 6 branches under cap 2, and the branches past the cap record queue time", async () => {
+  let running = 0;
+  let peak = 0;
+  const engine: Engine = async (req) => {
+    running++;
+    peak = Math.max(peak, running);
+    await new Promise((r) => setTimeout(r, 5));
+    running--;
+    if (req.label?.startsWith("Grapher")) return { output: { appended: 1, totalLines: 1 } };
+    if (req.label?.startsWith("Partition")) return { output: { subtasks: [1, 2, 3, 4, 5, 6].map((i) => `part ${i}`), blocked: false } };
+    return { output: { result: "Holds expire after 7 days (glossary.md)", artifacts: [], blocked: false } };
+  };
+  const result = await runHarness({ bundleSource, args: sampleArgs("07-fan-out-partition-docs.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.return?.["status"], "done");
+  assert.deepEqual(result.agents.map((a) => a.label?.split(/[ :]/)[0]), ["Partition", ...Array(6).fill("Worker"), "Grapher"]);
+  assert.equal(peak, 2);
+  const branches = result.agents.filter((a) => a.label?.startsWith("Worker"));
+  assert.ok(branches.filter((a) => (a.queuedMs ?? 0) > 0).length >= 4, "branches beyond the cap wait for a slot");
+  assert.ok(result.wallClockMs >= 15);
+});
+
+test("sample 2 (single over the blocked-task fixture) returns blocked with the worker's question", async () => {
+  const engine: Engine = async (req) => {
+    if (req.label?.startsWith("Grapher")) return { output: { appended: 1, totalLines: 1 } };
+    return { output: { result: "", artifacts: [], blocked: true, question: "What settlement cut-off did the bank sign?" } };
+  };
+  const result = await runHarness({ bundleSource, args: sampleArgs("02-single-blocked.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.return?.["status"], "blocked");
+  assert.equal(result.return?.["question"], "What settlement cut-off did the bank sign?");
+});
+
+test("sample 6 (fan-out with an explicit list and a reducer) runs one branch per file, then the reducer, whose result is the dispatch's", async () => {
+  const engine: Engine = async (req) => {
+    if (req.label?.startsWith("Grapher")) return { output: { appended: 1, totalLines: 1 } };
+    if (req.label?.startsWith("Reducer")) return { output: { result: "merged (glossary.md)", artifacts: [], blocked: false } };
+    return { output: { result: "a fact (x.md)", artifacts: [], blocked: false } };
+  };
+  const result = await runHarness({ bundleSource, args: sampleArgs("06-fan-out-reducer-docs.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.return?.["status"], "done");
+  assert.equal(result.return?.["result"], "merged (glossary.md)");
+  assert.deepEqual(result.agents.map((a) => a.label?.split(/[ :]/)[0]), ["Worker", "Worker", "Worker", "Reducer", "Grapher"]);
+});

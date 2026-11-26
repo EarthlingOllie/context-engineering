@@ -1,0 +1,11 @@
+{
+  "meta": {"name": "dispatch"}, "mainModel": "claude-opus-5-5", "cap": 2, "wallClockMs": 41200, "error": null, "stub": false,
+  "return": {"id": "w1-d2", "status": "blocked", "iterations": 1, "artifacts": [], "result": "",
+    "question": "CR-212 says the agreed cut-off is only in the signed contract Treasury holds (drafts said 20:00 and 22:00 UTC). Which settlement cut-off did the bank sign?",
+    "title": "Apply CR-212", "scribe": {"appended": 1, "totalLines": 1}},
+  "agents": [
+    {"n": 1, "label": "Worker: Set the settlement cut-off in /work/co…", "model": "claude-opus-5-5", "calledMs": 1, "startMs": 1, "endMs": 30100, "queuedMs": 0, "error": null, "engine": null},
+    {"n": 2, "label": "Grapher: logging current dispatch", "model": "claude-opus-5-5", "calledMs": 30101, "startMs": 30101, "endMs": 41190, "queuedMs": 0, "error": null, "engine": null}
+  ],
+  "logs": [{"atMs": 0, "message": "w1-d2: single, up to 1 agent(s) + 1 scribe"}]
+}

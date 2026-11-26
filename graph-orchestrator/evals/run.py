@@ -41,6 +41,7 @@ def recorded_from_log_sample(s) -> Recorded:
         files=st.get("files") or {},
         sandbox_tree=st.get("sandbox_tree") or [],
         usage={m: u.model_dump() for m, u in (s.model_usage or {}).items()},
+        after=st.get("after") or {},
     )
 
 
@@ -64,7 +65,7 @@ def build_scorecard(log, commit: str) -> dict:
             sample_id=str(s.id),
             epoch=s.epoch,
             rec=rec,
-            facts=suite.hidden_facts(s.metadata["fixture"]),
+            check=suite.hidden_check(s.metadata),
             expected_status=s.metadata["expected_status"],
             hidden_names=[p.name for p in suite.hidden_files(s.metadata["fixture"])],
             pinned_model=suite.MODEL,
@@ -104,6 +105,7 @@ def write_scorecard(card: dict, out_dir: Path) -> tuple[Path, Path]:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--stub", action="store_true", help="canned engine and mockllm: no model call, no cost")
+    ap.add_argument("--stub-delay-ms", type=int, default=0, help="with --stub: each canned answer takes this long, so queueing under the cap shows")
     ap.add_argument("--epochs", type=int, default=suite.DEFAULT_EPOCHS)
     ap.add_argument("--cap", type=int, default=suite.DEFAULT_CAP)
     ap.add_argument("--cpus", type=int, default=suite.DEFAULT_CPUS)
@@ -138,7 +140,8 @@ def main(argv: list[str] | None = None) -> int:
         from dispatch_suite import dispatch_suite
 
         task = dispatch_suite(
-            stub=a.stub, cap=a.cap, cpus=a.cpus, memory=a.memory, epochs=a.epochs, samples=a.samples, cost_limit=a.cost_limit, time_limit=a.time_limit
+            stub=a.stub, cap=a.cap, cpus=a.cpus, memory=a.memory, epochs=a.epochs, samples=a.samples, cost_limit=a.cost_limit, time_limit=a.time_limit,
+            stub_delay_ms=a.stub_delay_ms,
         )
         (log,) = inspect_eval(task, model="mockllm/model" if a.stub else f"anthropic/{suite.MODEL}", log_dir=a.log_dir)
         if log.location:
