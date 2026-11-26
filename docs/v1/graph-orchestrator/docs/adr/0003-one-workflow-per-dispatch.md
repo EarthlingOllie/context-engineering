@@ -23,6 +23,7 @@ A workflow's displayed name is its `meta.name`, which must be a literal, so nami
 - The 1,000-agent limit is checked per dispatch (its demand plus the scribe), not summed across a wave. Each run has its own concurrency cap, so a wide wave's agents may run more at once than under ADR-0002.
 - One scribe agent per dispatch, not per wave.
 - Interventions since the last wave travel in the `humans` args of the next wave's first dispatch.
+- A run is resumed with its original call. The orchestrator writes each call's exact `args` to `<scratch>/args/<id>.json` before launching, and puts that path beside the run id on the dispatch's FRONTIER line in the state file, so that after a compaction or a container restart it can resume an interrupted run with `resumeFromRunId` and byte-identical `args`, which replays finished agents from cache. (Added with execution-lifecycle ticket 04.)
 
 ## To verify in a live session
 
