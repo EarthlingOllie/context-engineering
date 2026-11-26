@@ -1,0 +1,8 @@
+{
+  "name": "langgraph-spike-01",
+  "private": true,
+  "description": "Throwaway: LangGraph inside a Claude Code Workflow script",
+  "scripts": { "build": "node build.cjs --minify", "emu": "node emu.cjs spike-graph.js" },
+  "dependencies": { "@langchain/core": "1.5.1", "@langchain/langgraph": "1.7.5" },
+  "devDependencies": { "esbuild": "0.28.2" }
+}
