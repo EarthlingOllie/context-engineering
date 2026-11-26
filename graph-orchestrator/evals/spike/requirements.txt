@@ -1,0 +1,4 @@
+# Host side of the spike. inspect_swe is not needed (and 0.3.2 fails to import
+# against the current acp package).
+inspect_ai==0.3.292
+anthropic==2.14.0

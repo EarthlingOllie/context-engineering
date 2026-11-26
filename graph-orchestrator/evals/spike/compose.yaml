@@ -1,0 +1,12 @@
+# Inspect docker sandbox for the spike. The bridge runs inside the container on
+# localhost:13131, so the container needs no outbound network at run time.
+services:
+  default:
+    build:
+      context: ./sandbox
+    image: dispatch-evals-spike:local
+    init: true
+    command: ["sleep", "infinity"]
+    network_mode: none
+    cpus: 4
+    mem_limit: 8g
