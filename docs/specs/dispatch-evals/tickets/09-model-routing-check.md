@@ -4,10 +4,10 @@
 
 **Blocked by:** 03 (First scored sample and scorecard)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Opus, Sonnet and Haiku model ids are declared to the bridge, each with prices
-- [ ] The scorecard records requested model and serving model per role
-- [ ] A sample is marked failed when any call's serving model differs from the requested one
-- [ ] The check is shown working with one role forced to Haiku through a harness option, without changing the plugin
-- [ ] The baseline configuration still runs every role on `claude-opus-5-5`
+- [x] Opus, Sonnet and Haiku model ids are declared to the bridge, each with prices
+- [x] The scorecard records requested model and serving model per role
+- [x] A sample is marked failed when any call's serving model differs from the requested one
+- [x] The check is shown working with one role forced to Haiku through a harness option, without changing the plugin
+- [x] The baseline configuration still runs every role on `claude-opus-5-5`

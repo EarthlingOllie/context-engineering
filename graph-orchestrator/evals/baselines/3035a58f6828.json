@@ -1,0 +1,7088 @@
+{
+  "header": {
+    "plugin_commit": "3035a58f6828",
+    "engine_version": "@anthropic-ai/claude-agent-sdk 0.3.332 (Claude Code 2.1.332)",
+    "inspect_version": "0.3.292",
+    "model": "claude-opus-5-5",
+    "concurrency_cap": 2,
+    "cpus": 4,
+    "memory": "8g",
+    "epochs": 5,
+    "cost_limit": 30.0,
+    "time_limit": 1800,
+    "stub": false,
+    "role_models": {},
+    "sdk_version": "0.3.332",
+    "claude_code_version": "2.1.332",
+    "pytest_version": "8.3.5",
+    "created_at": "2026-11-26T14:17:44+00:00",
+    "log": "2026-11-26T14-17-44-00-00_dispatch-suite_PDDqGUJ7RsnCYK8K3v6ono.eval"
+  },
+  "rows": [
+    {
+      "sample": "01-single-docs",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.089168,
+      "input_tokens": 10,
+      "output_tokens": 1290,
+      "cache_read_tokens": 69514,
+      "cache_write_tokens": 9885,
+      "cache_write_share": 0.1245,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 19.981,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.055085,
+          "input_tokens": 6,
+          "output_tokens": 981,
+          "cache_read_tokens": 43079,
+          "cache_write_tokens": 5365
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034083,
+          "input_tokens": 4,
+          "output_tokens": 309,
+          "cache_read_tokens": 26435,
+          "cache_write_tokens": 4520
+        }
+      }
+    },
+    {
+      "sample": "02-single-blocked",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "blocked",
+      "expected_status": "blocked",
+      "dollars": 0.07444,
+      "input_tokens": 8,
+      "output_tokens": 784,
+      "cache_read_tokens": 53464,
+      "cache_write_tokens": 9607,
+      "cache_write_share": 0.1523,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 13.92,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.037992,
+          "input_tokens": 4,
+          "output_tokens": 396,
+          "cache_read_tokens": 26954,
+          "cache_write_tokens": 4933
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.036448,
+          "input_tokens": 4,
+          "output_tokens": 388,
+          "cache_read_tokens": 26510,
+          "cache_write_tokens": 4674
+        }
+      }
+    },
+    {
+      "sample": "03-generator-evaluator-python",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.32771,
+      "input_tokens": 30,
+      "output_tokens": 4614,
+      "cache_read_tokens": 189827,
+      "cache_write_tokens": 39469,
+      "cache_write_share": 0.1721,
+      "agents": 2,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 68.426,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 1,
+          "dollars": 0.091055,
+          "input_tokens": 12,
+          "output_tokens": 2929,
+          "cache_read_tokens": 87962,
+          "cache_write_tokens": 2967
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.202351,
+          "input_tokens": 14,
+          "output_tokens": 1368,
+          "cache_read_tokens": 75426,
+          "cache_write_tokens": 31970
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034304,
+          "input_tokens": 4,
+          "output_tokens": 317,
+          "cache_read_tokens": 26439,
+          "cache_write_tokens": 4532
+        }
+      }
+    },
+    {
+      "sample": "04-generator-evaluator-false-pass",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.171201,
+      "input_tokens": 28,
+      "output_tokens": 2441,
+      "cache_read_tokens": 188746,
+      "cache_write_tokens": 16904,
+      "cache_write_share": 0.0822,
+      "agents": 2,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 50.264,
+      "queue_s": 0.001,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 1,
+          "dollars": 0.05177,
+          "input_tokens": 12,
+          "output_tokens": 1033,
+          "cache_read_tokens": 83560,
+          "cache_write_tokens": 2870
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.105719,
+          "input_tokens": 12,
+          "output_tokens": 1092,
+          "cache_read_tokens": 74456,
+          "cache_write_tokens": 13788
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.013712,
+          "input_tokens": 4,
+          "output_tokens": 316,
+          "cache_read_tokens": 30730,
+          "cache_write_tokens": 246
+        }
+      }
+    },
+    {
+      "sample": "05-generator-evaluator-exhausted",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.312915,
+      "input_tokens": 46,
+      "output_tokens": 6091,
+      "cache_read_tokens": 327255,
+      "cache_write_tokens": 25092,
+      "cache_write_share": 0.0712,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 106.128,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 2,
+          "dollars": 0.133431,
+          "input_tokens": 18,
+          "output_tokens": 3095,
+          "cache_read_tokens": 133095,
+          "cache_write_tokens": 8968
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.166748,
+          "input_tokens": 24,
+          "output_tokens": 2670,
+          "cache_read_tokens": 163162,
+          "cache_write_tokens": 16124
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012736,
+          "input_tokens": 4,
+          "output_tokens": 326,
+          "cache_read_tokens": 30998,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "06-fan-out-reducer-docs",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.088425,
+      "input_tokens": 18,
+      "output_tokens": 1706,
+      "cache_read_tokens": 137015,
+      "cache_write_tokens": 5366,
+      "cache_write_share": 0.0377,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 27.765,
+      "queue_s": 6.275,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.037736,
+          "input_tokens": 12,
+          "output_tokens": 857,
+          "cache_read_tokens": 94816,
+          "cache_write_tokens": 317
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.0373,
+          "input_tokens": 2,
+          "output_tokens": 490,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5049
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.013389,
+          "input_tokens": 4,
+          "output_tokens": 359,
+          "cache_read_tokens": 30965,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "07-fan-out-partition-docs",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.340209,
+      "input_tokens": 34,
+      "output_tokens": 2527,
+      "cache_read_tokens": 220289,
+      "cache_write_tokens": 49095,
+      "cache_write_share": 0.1822,
+      "agents": 7,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 47.432,
+      "queue_s": 36.035,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "partition": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "partition": {
+          "agents": 1,
+          "dollars": 0.10116,
+          "input_tokens": 6,
+          "output_tokens": 699,
+          "cache_read_tokens": 31632,
+          "cache_write_tokens": 16166
+        },
+        "worker": {
+          "agents": 6,
+          "dollars": 0.204805,
+          "input_tokens": 24,
+          "output_tokens": 1513,
+          "cache_read_tokens": 162220,
+          "cache_write_tokens": 28401
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034243,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 26437,
+          "cache_write_tokens": 4528
+        }
+      }
+    },
+    {
+      "sample": "08-chain-single-then-ge-python",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.459618,
+      "input_tokens": 60,
+      "output_tokens": 8042,
+      "cache_read_tokens": 429342,
+      "cache_write_tokens": 42534,
+      "cache_write_share": 0.0901,
+      "agents": 5,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 137.595,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.03404,
+          "input_tokens": 6,
+          "output_tokens": 820,
+          "cache_read_tokens": 48355,
+          "cache_write_tokens": 1589
+        },
+        "generator": {
+          "agents": 2,
+          "dollars": 0.190635,
+          "input_tokens": 24,
+          "output_tokens": 3548,
+          "cache_read_tokens": 167895,
+          "cache_write_tokens": 17200
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.193716,
+          "input_tokens": 26,
+          "output_tokens": 3109,
+          "cache_read_tokens": 186461,
+          "cache_write_tokens": 18828
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.041227,
+          "input_tokens": 4,
+          "output_tokens": 565,
+          "cache_read_tokens": 26631,
+          "cache_write_tokens": 4917
+        }
+      }
+    },
+    {
+      "sample": "09-chain-stage-2-fails",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.276811,
+      "input_tokens": 30,
+      "output_tokens": 4857,
+      "cache_read_tokens": 199282,
+      "cache_write_tokens": 27939,
+      "cache_write_share": 0.1229,
+      "agents": 3,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 69.643,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.055714,
+          "input_tokens": 6,
+          "output_tokens": 805,
+          "cache_read_tokens": 43848,
+          "cache_write_tokens": 6164
+        },
+        "generator": {
+          "agents": 1,
+          "dollars": 0.096944,
+          "input_tokens": 10,
+          "output_tokens": 2132,
+          "cache_read_tokens": 63770,
+          "cache_write_tokens": 8302
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.083458,
+          "input_tokens": 10,
+          "output_tokens": 1391,
+          "cache_read_tokens": 65015,
+          "cache_write_tokens": 8519
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.040696,
+          "input_tokens": 4,
+          "output_tokens": 529,
+          "cache_read_tokens": 26649,
+          "cache_write_tokens": 4954
+        }
+      }
+    },
+    {
+      "sample": "10-iterative-fan-out-docs-gap",
+      "epoch": 1,
+      "outcome_correct": false,
+      "missing_facts": [
+        "status exhausted, not done"
+      ],
+      "status_truthful": false,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "done",
+      "dollars": 0.298435,
+      "input_tokens": 44,
+      "output_tokens": 5499,
+      "cache_read_tokens": 310743,
+      "cache_write_tokens": 25226,
+      "cache_write_share": 0.0751,
+      "agents": 7,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 85.751,
+      "queue_s": 0.022,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 4,
+          "dollars": 0.075318,
+          "input_tokens": 16,
+          "output_tokens": 1303,
+          "cache_read_tokens": 122794,
+          "cache_write_tokens": 4927
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.165788,
+          "input_tokens": 22,
+          "output_tokens": 3195,
+          "cache_read_tokens": 145726,
+          "cache_write_tokens": 14531
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.044655,
+          "input_tokens": 2,
+          "output_tokens": 678,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5768
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012674,
+          "input_tokens": 4,
+          "output_tokens": 323,
+          "cache_read_tokens": 30989,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "11-panel-diff-defect",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.31291,
+      "input_tokens": 36,
+      "output_tokens": 4396,
+      "cache_read_tokens": 241607,
+      "cache_write_tokens": 35305,
+      "cache_write_share": 0.1275,
+      "agents": 3,
+      "demand": 3,
+      "scribe": true,
+      "wall_clock_s": 50.391,
+      "queue_s": 21.741,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "evaluator": {
+          "agents": 3,
+          "dollars": 0.278697,
+          "input_tokens": 32,
+          "output_tokens": 4082,
+          "cache_read_tokens": 215171,
+          "cache_write_tokens": 30779
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034213,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 26436,
+          "cache_write_tokens": 4526
+        }
+      }
+    },
+    {
+      "sample": "12-best-of-n-python-bug",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.609398,
+      "input_tokens": 56,
+      "output_tokens": 10700,
+      "cache_read_tokens": 355344,
+      "cache_write_tokens": 64821,
+      "cache_write_share": 0.1543,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 108.076,
+      "queue_s": 31.791,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.331041,
+          "input_tokens": 36,
+          "output_tokens": 7684,
+          "cache_read_tokens": 240510,
+          "cache_write_tokens": 25823
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.244113,
+          "input_tokens": 16,
+          "output_tokens": 2701,
+          "cache_read_tokens": 88397,
+          "cache_write_tokens": 34470
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034243,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 26437,
+          "cache_write_tokens": 4528
+        }
+      }
+    },
+    {
+      "sample": "13-debate-design",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.467762,
+      "input_tokens": 24,
+      "output_tokens": 4959,
+      "cache_read_tokens": 131579,
+      "cache_write_tokens": 68434,
+      "cache_write_share": 0.3421,
+      "agents": 5,
+      "demand": 5,
+      "scribe": true,
+      "wall_clock_s": 47.806,
+      "queue_s": 0.026,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "debater": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "debater": {
+          "agents": 4,
+          "dollars": 0.32722,
+          "input_tokens": 16,
+          "output_tokens": 4158,
+          "cache_read_tokens": 87228,
+          "cache_write_tokens": 45310
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.106329,
+          "input_tokens": 4,
+          "output_tokens": 487,
+          "cache_read_tokens": 17915,
+          "cache_write_tokens": 18598
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034213,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 26436,
+          "cache_write_tokens": 4526
+        }
+      }
+    },
+    {
+      "sample": "14-relay-python-features",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.656151,
+      "input_tokens": 82,
+      "output_tokens": 10699,
+      "cache_read_tokens": 576040,
+      "cache_write_tokens": 65327,
+      "cache_write_share": 0.1018,
+      "agents": 6,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 186.226,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.303139,
+          "input_tokens": 40,
+          "output_tokens": 5366,
+          "cache_read_tokens": 290769,
+          "cache_write_tokens": 27501
+        },
+        "evaluator": {
+          "agents": 3,
+          "dollars": 0.318739,
+          "input_tokens": 38,
+          "output_tokens": 5017,
+          "cache_read_tokens": 258833,
+          "cache_write_tokens": 33296
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034274,
+          "input_tokens": 4,
+          "output_tokens": 316,
+          "cache_read_tokens": 26438,
+          "cache_write_tokens": 4530
+        }
+      }
+    },
+    {
+      "sample": "15-fan-out-over-budget",
+      "epoch": 1,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "over_budget",
+      "expected_status": "over_budget",
+      "dollars": 0.034364,
+      "input_tokens": 4,
+      "output_tokens": 319,
+      "cache_read_tokens": 26441,
+      "cache_write_tokens": 4536,
+      "cache_write_share": 0.1464,
+      "agents": 0,
+      "demand": 0,
+      "scribe": true,
+      "wall_clock_s": 9.334,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034364,
+          "input_tokens": 4,
+          "output_tokens": 319,
+          "cache_read_tokens": 26441,
+          "cache_write_tokens": 4536
+        }
+      }
+    },
+    {
+      "sample": "01-single-docs",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.045324,
+      "input_tokens": 10,
+      "output_tokens": 1257,
+      "cache_read_tokens": 78519,
+      "cache_write_tokens": 888,
+      "cache_write_share": 0.0112,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 17.802,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.032937,
+          "input_tokens": 6,
+          "output_tokens": 948,
+          "cache_read_tokens": 47564,
+          "cache_write_tokens": 888
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012387,
+          "input_tokens": 4,
+          "output_tokens": 309,
+          "cache_read_tokens": 30955,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "02-single-blocked",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "blocked",
+      "expected_status": "blocked",
+      "dollars": 0.058902,
+      "input_tokens": 10,
+      "output_tokens": 847,
+      "cache_read_tokens": 74110,
+      "cache_write_tokens": 5420,
+      "cache_write_share": 0.0681,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 17.191,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.022424,
+          "input_tokens": 6,
+          "output_tokens": 458,
+          "cache_read_tokens": 47599,
+          "cache_write_tokens": 744
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.036478,
+          "input_tokens": 4,
+          "output_tokens": 389,
+          "cache_read_tokens": 26511,
+          "cache_write_tokens": 4676
+        }
+      }
+    },
+    {
+      "sample": "03-generator-evaluator-python",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.366531,
+      "input_tokens": 54,
+      "output_tokens": 7228,
+      "cache_read_tokens": 382824,
+      "cache_write_tokens": 29038,
+      "cache_write_share": 0.0705,
+      "agents": 4,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 118.726,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 2,
+          "dollars": 0.154181,
+          "input_tokens": 24,
+          "output_tokens": 3518,
+          "cache_read_tokens": 168899,
+          "cache_write_tokens": 9989
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.1998,
+          "input_tokens": 26,
+          "output_tokens": 3393,
+          "cache_read_tokens": 182954,
+          "cache_write_tokens": 19049
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.01255,
+          "input_tokens": 4,
+          "output_tokens": 317,
+          "cache_read_tokens": 30971,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "04-generator-evaluator-false-pass",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.225742,
+      "input_tokens": 30,
+      "output_tokens": 2502,
+      "cache_read_tokens": 196862,
+      "cache_write_tokens": 27242,
+      "cache_write_share": 0.1215,
+      "agents": 2,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 52.116,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 1,
+          "dollars": 0.079116,
+          "input_tokens": 12,
+          "output_tokens": 1111,
+          "cache_read_tokens": 79616,
+          "cache_write_tokens": 8185
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.112232,
+          "input_tokens": 14,
+          "output_tokens": 1071,
+          "cache_read_tokens": 90804,
+          "cache_write_tokens": 14519
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034394,
+          "input_tokens": 4,
+          "output_tokens": 320,
+          "cache_read_tokens": 26442,
+          "cache_write_tokens": 4538
+        }
+      }
+    },
+    {
+      "sample": "05-generator-evaluator-exhausted",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.339914,
+      "input_tokens": 46,
+      "output_tokens": 5344,
+      "cache_read_tokens": 317725,
+      "cache_write_tokens": 33861,
+      "cache_write_share": 0.0963,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 104.316,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 2,
+          "dollars": 0.145663,
+          "input_tokens": 18,
+          "output_tokens": 2619,
+          "cache_read_tokens": 128254,
+          "cache_write_tokens": 13512
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.159676,
+          "input_tokens": 24,
+          "output_tokens": 2399,
+          "cache_read_tokens": 163023,
+          "cache_write_tokens": 15799
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034576,
+          "input_tokens": 4,
+          "output_tokens": 326,
+          "cache_read_tokens": 26448,
+          "cache_write_tokens": 4550
+        }
+      }
+    },
+    {
+      "sample": "06-fan-out-reducer-docs",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.086526,
+      "input_tokens": 18,
+      "output_tokens": 1648,
+      "cache_read_tokens": 137170,
+      "cache_write_tokens": 5212,
+      "cache_write_share": 0.0366,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 26.649,
+      "queue_s": 4.964,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.036967,
+          "input_tokens": 12,
+          "output_tokens": 853,
+          "cache_read_tokens": 94971,
+          "cache_write_tokens": 173
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.03705,
+          "input_tokens": 2,
+          "output_tokens": 480,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5039
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012509,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 30965,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "07-fan-out-partition-docs",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.236677,
+      "input_tokens": 32,
+      "output_tokens": 2430,
+      "cache_read_tokens": 224621,
+      "cache_write_tokens": 28605,
+      "cache_write_share": 0.1129,
+      "agents": 7,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 44.193,
+      "queue_s": 47.82,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "partition": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "partition": {
+          "agents": 1,
+          "dollars": 0.018813,
+          "input_tokens": 4,
+          "output_tokens": 578,
+          "cache_read_tokens": 31436,
+          "cache_write_tokens": 190
+        },
+        "worker": {
+          "agents": 6,
+          "dollars": 0.205355,
+          "input_tokens": 24,
+          "output_tokens": 1537,
+          "cache_read_tokens": 162220,
+          "cache_write_tokens": 28415
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012509,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 30965,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "08-chain-single-then-ge-python",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.243195,
+      "input_tokens": 36,
+      "output_tokens": 4748,
+      "cache_read_tokens": 262282,
+      "cache_write_tokens": 19127,
+      "cache_write_share": 0.068,
+      "agents": 3,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 76.666,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.033824,
+          "input_tokens": 6,
+          "output_tokens": 807,
+          "cache_read_tokens": 48376,
+          "cache_write_tokens": 1597
+        },
+        "generator": {
+          "agents": 1,
+          "dollars": 0.080558,
+          "input_tokens": 12,
+          "output_tokens": 2200,
+          "cache_read_tokens": 88050,
+          "cache_write_tokens": 3780
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.088661,
+          "input_tokens": 14,
+          "output_tokens": 1230,
+          "cache_read_tokens": 99225,
+          "cache_write_tokens": 8832
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.040152,
+          "input_tokens": 4,
+          "output_tokens": 511,
+          "cache_read_tokens": 26631,
+          "cache_write_tokens": 4918
+        }
+      }
+    },
+    {
+      "sample": "09-chain-stage-2-fails",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.207217,
+      "input_tokens": 32,
+      "output_tokens": 4568,
+      "cache_read_tokens": 232193,
+      "cache_write_tokens": 13858,
+      "cache_write_share": 0.0563,
+      "agents": 3,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 70.679,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.035739,
+          "input_tokens": 6,
+          "output_tokens": 880,
+          "cache_read_tokens": 48402,
+          "cache_write_tokens": 1687
+        },
+        "generator": {
+          "agents": 1,
+          "dollars": 0.07284,
+          "input_tokens": 12,
+          "output_tokens": 1918,
+          "cache_read_tokens": 87612,
+          "cache_write_tokens": 3382
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.079567,
+          "input_tokens": 10,
+          "output_tokens": 1243,
+          "cache_read_tokens": 65035,
+          "cache_write_tokens": 8332
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.01907,
+          "input_tokens": 4,
+          "output_tokens": 527,
+          "cache_read_tokens": 31144,
+          "cache_write_tokens": 457
+        }
+      }
+    },
+    {
+      "sample": "10-iterative-fan-out-docs-gap",
+      "epoch": 2,
+      "outcome_correct": false,
+      "missing_facts": [
+        "status exhausted, not done"
+      ],
+      "status_truthful": false,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "done",
+      "dollars": 0.429555,
+      "input_tokens": 46,
+      "output_tokens": 5632,
+      "cache_read_tokens": 310556,
+      "cache_write_tokens": 50924,
+      "cache_write_share": 0.1409,
+      "agents": 7,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 85.935,
+      "queue_s": 0.031,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 4,
+          "dollars": 0.147152,
+          "input_tokens": 16,
+          "output_tokens": 1455,
+          "cache_read_tokens": 108390,
+          "cache_write_tokens": 19262
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.204063,
+          "input_tokens": 24,
+          "output_tokens": 3211,
+          "cache_read_tokens": 164487,
+          "cache_write_tokens": 21370
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.043855,
+          "input_tokens": 2,
+          "output_tokens": 643,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5748
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034485,
+          "input_tokens": 4,
+          "output_tokens": 323,
+          "cache_read_tokens": 26445,
+          "cache_write_tokens": 4544
+        }
+      }
+    },
+    {
+      "sample": "11-panel-diff-defect",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.213896,
+      "input_tokens": 38,
+      "output_tokens": 5613,
+      "cache_read_tokens": 289146,
+      "cache_write_tokens": 8731,
+      "cache_write_share": 0.0293,
+      "agents": 3,
+      "demand": 3,
+      "scribe": true,
+      "wall_clock_s": 57.426,
+      "queue_s": 21.793,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "evaluator": {
+          "agents": 3,
+          "dollars": 0.201408,
+          "input_tokens": 34,
+          "output_tokens": 5299,
+          "cache_read_tokens": 258184,
+          "cache_write_tokens": 8731
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012488,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 30962,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "12-best-of-n-python-bug",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.363484,
+      "input_tokens": 52,
+      "output_tokens": 8971,
+      "cache_read_tokens": 374481,
+      "cache_write_tokens": 21792,
+      "cache_write_share": 0.055,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 105.654,
+      "queue_s": 26.849,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.22248,
+          "input_tokens": 36,
+          "output_tokens": 6703,
+          "cache_read_tokens": 258030,
+          "cache_write_tokens": 7334
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.128495,
+          "input_tokens": 12,
+          "output_tokens": 1953,
+          "cache_read_tokens": 85486,
+          "cache_write_tokens": 14458
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012509,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 30965,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "13-debate-design",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.221701,
+      "input_tokens": 24,
+      "output_tokens": 4228,
+      "cache_read_tokens": 179198,
+      "cache_write_tokens": 20241,
+      "cache_write_share": 0.1015,
+      "agents": 5,
+      "demand": 5,
+      "scribe": true,
+      "wall_clock_s": 45.057,
+      "queue_s": 0.025,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "debater": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "debater": {
+          "agents": 4,
+          "dollars": 0.156781,
+          "input_tokens": 16,
+          "output_tokens": 3376,
+          "cache_read_tokens": 119233,
+          "cache_write_tokens": 13070
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.052432,
+          "input_tokens": 4,
+          "output_tokens": 538,
+          "cache_read_tokens": 29003,
+          "cache_write_tokens": 7171
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012488,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 30962,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "14-relay-python-features",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.418417,
+      "input_tokens": 46,
+      "output_tokens": 7442,
+      "cache_read_tokens": 313363,
+      "cache_write_tokens": 41344,
+      "cache_write_share": 0.1165,
+      "agents": 4,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 116.138,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 2,
+          "dollars": 0.221523,
+          "input_tokens": 24,
+          "output_tokens": 4594,
+          "cache_read_tokens": 170237,
+          "cache_write_tokens": 19100
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.16262,
+          "input_tokens": 18,
+          "output_tokens": 2532,
+          "cache_read_tokens": 116688,
+          "cache_write_tokens": 17714
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034274,
+          "input_tokens": 4,
+          "output_tokens": 316,
+          "cache_read_tokens": 26438,
+          "cache_write_tokens": 4530
+        }
+      }
+    },
+    {
+      "sample": "15-fan-out-over-budget",
+      "epoch": 2,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "over_budget",
+      "expected_status": "over_budget",
+      "dollars": 0.034364,
+      "input_tokens": 4,
+      "output_tokens": 319,
+      "cache_read_tokens": 26441,
+      "cache_write_tokens": 4536,
+      "cache_write_share": 0.1464,
+      "agents": 0,
+      "demand": 0,
+      "scribe": true,
+      "wall_clock_s": 8.153,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034364,
+          "input_tokens": 4,
+          "output_tokens": 319,
+          "cache_read_tokens": 26441,
+          "cache_write_tokens": 4536
+        }
+      }
+    },
+    {
+      "sample": "01-single-docs",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.088967,
+      "input_tokens": 10,
+      "output_tokens": 1274,
+      "cache_read_tokens": 69537,
+      "cache_write_tokens": 9908,
+      "cache_write_share": 0.1247,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 19.398,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.054884,
+          "input_tokens": 6,
+          "output_tokens": 965,
+          "cache_read_tokens": 43102,
+          "cache_write_tokens": 5388
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034083,
+          "input_tokens": 4,
+          "output_tokens": 309,
+          "cache_read_tokens": 26435,
+          "cache_write_tokens": 4520
+        }
+      }
+    },
+    {
+      "sample": "02-single-blocked",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "blocked",
+      "expected_status": "blocked",
+      "dollars": 0.052805,
+      "input_tokens": 8,
+      "output_tokens": 784,
+      "cache_read_tokens": 57940,
+      "cache_write_tokens": 5101,
+      "cache_write_share": 0.0809,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 14.411,
+      "queue_s": 0.001,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.016659,
+          "input_tokens": 4,
+          "output_tokens": 406,
+          "cache_read_tokens": 31440,
+          "cache_write_tokens": 447
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.036146,
+          "input_tokens": 4,
+          "output_tokens": 378,
+          "cache_read_tokens": 26500,
+          "cache_write_tokens": 4654
+        }
+      }
+    },
+    {
+      "sample": "03-generator-evaluator-python",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.378108,
+      "input_tokens": 52,
+      "output_tokens": 6152,
+      "cache_read_tokens": 350498,
+      "cache_write_tokens": 36952,
+      "cache_write_share": 0.0954,
+      "agents": 4,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 101.347,
+      "queue_s": 0.001,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 2,
+          "dollars": 0.159104,
+          "input_tokens": 20,
+          "output_tokens": 2958,
+          "cache_read_tokens": 124694,
+          "cache_write_tokens": 14985
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.1847,
+          "input_tokens": 28,
+          "output_tokens": 2877,
+          "cache_read_tokens": 199365,
+          "cache_write_tokens": 17435
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034304,
+          "input_tokens": 4,
+          "output_tokens": 317,
+          "cache_read_tokens": 26439,
+          "cache_write_tokens": 4532
+        }
+      }
+    },
+    {
+      "sample": "04-generator-evaluator-false-pass",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.149746,
+      "input_tokens": 30,
+      "output_tokens": 2466,
+      "cache_read_tokens": 211805,
+      "cache_write_tokens": 11589,
+      "cache_write_share": 0.0519,
+      "agents": 2,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 52.834,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 1,
+          "dollars": 0.047333,
+          "input_tokens": 12,
+          "output_tokens": 1093,
+          "cache_read_tokens": 86077,
+          "cache_write_tokens": 1642
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.089881,
+          "input_tokens": 14,
+          "output_tokens": 1057,
+          "cache_read_tokens": 94752,
+          "cache_write_tokens": 9947
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012531,
+          "input_tokens": 4,
+          "output_tokens": 316,
+          "cache_read_tokens": 30976,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "05-generator-evaluator-exhausted",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.323075,
+      "input_tokens": 44,
+      "output_tokens": 5023,
+      "cache_read_tokens": 281969,
+      "cache_write_tokens": 33209,
+      "cache_write_share": 0.1054,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 94.038,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 2,
+          "dollars": 0.137769,
+          "input_tokens": 18,
+          "output_tokens": 2490,
+          "cache_read_tokens": 109133,
+          "cache_write_tokens": 13214
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.150731,
+          "input_tokens": 22,
+          "output_tokens": 2207,
+          "cache_read_tokens": 146388,
+          "cache_write_tokens": 15445
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034576,
+          "input_tokens": 4,
+          "output_tokens": 326,
+          "cache_read_tokens": 26448,
+          "cache_write_tokens": 4550
+        }
+      }
+    },
+    {
+      "sample": "06-fan-out-reducer-docs",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.175256,
+      "input_tokens": 18,
+      "output_tokens": 1653,
+      "cache_read_tokens": 118696,
+      "cache_write_tokens": 23677,
+      "cache_write_share": 0.1663,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 27.117,
+      "queue_s": 5.857,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.104018,
+          "input_tokens": 12,
+          "output_tokens": 858,
+          "cache_read_tokens": 81025,
+          "cache_write_tokens": 14121
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.036995,
+          "input_tokens": 2,
+          "output_tokens": 480,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5028
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034243,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 26437,
+          "cache_write_tokens": 4528
+        }
+      }
+    },
+    {
+      "sample": "07-fan-out-partition-docs",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.246605,
+      "input_tokens": 36,
+      "output_tokens": 2575,
+      "cache_read_tokens": 256582,
+      "cache_write_tokens": 28729,
+      "cache_write_share": 0.1007,
+      "agents": 7,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 40.538,
+      "queue_s": 38.912,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "partition": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "partition": {
+          "agents": 1,
+          "dollars": 0.025141,
+          "input_tokens": 6,
+          "output_tokens": 718,
+          "cache_read_tokens": 47534,
+          "cache_write_tokens": 250
+        },
+        "worker": {
+          "agents": 6,
+          "dollars": 0.208956,
+          "input_tokens": 26,
+          "output_tokens": 1542,
+          "cache_read_tokens": 178083,
+          "cache_write_tokens": 28479
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012509,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 30965,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "08-chain-single-then-ge-python",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.490666,
+      "input_tokens": 60,
+      "output_tokens": 8009,
+      "cache_read_tokens": 418080,
+      "cache_write_tokens": 49326,
+      "cache_write_share": 0.1055,
+      "agents": 5,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 140.678,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.055239,
+          "input_tokens": 6,
+          "output_tokens": 786,
+          "cache_read_tokens": 43848,
+          "cache_write_tokens": 6145
+        },
+        "generator": {
+          "agents": 2,
+          "dollars": 0.183716,
+          "input_tokens": 22,
+          "output_tokens": 3390,
+          "cache_read_tokens": 148938,
+          "cache_write_tokens": 17208
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.21161,
+          "input_tokens": 28,
+          "output_tokens": 3324,
+          "cache_read_tokens": 198663,
+          "cache_write_tokens": 21057
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.040102,
+          "input_tokens": 4,
+          "output_tokens": 509,
+          "cache_read_tokens": 26631,
+          "cache_write_tokens": 4916
+        }
+      }
+    },
+    {
+      "sample": "09-chain-stage-2-fails",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.259919,
+      "input_tokens": 34,
+      "output_tokens": 4733,
+      "cache_read_tokens": 234316,
+      "cache_write_tokens": 23652,
+      "cache_write_share": 0.0917,
+      "agents": 3,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 74.48,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.034271,
+          "input_tokens": 6,
+          "output_tokens": 789,
+          "cache_read_tokens": 48558,
+          "cache_write_tokens": 1751
+        },
+        "generator": {
+          "agents": 1,
+          "dollars": 0.09521,
+          "input_tokens": 10,
+          "output_tokens": 2063,
+          "cache_read_tokens": 63976,
+          "cache_write_tokens": 8223
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.089768,
+          "input_tokens": 14,
+          "output_tokens": 1353,
+          "cache_read_tokens": 95133,
+          "cache_write_tokens": 8725
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.040671,
+          "input_tokens": 4,
+          "output_tokens": 528,
+          "cache_read_tokens": 26649,
+          "cache_write_tokens": 4953
+        }
+      }
+    },
+    {
+      "sample": "10-iterative-fan-out-docs-gap",
+      "epoch": 3,
+      "outcome_correct": false,
+      "missing_facts": [
+        "status exhausted, not done"
+      ],
+      "status_truthful": false,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "done",
+      "dollars": 0.311673,
+      "input_tokens": 42,
+      "output_tokens": 5079,
+      "cache_read_tokens": 299975,
+      "cache_write_tokens": 29986,
+      "cache_write_share": 0.0909,
+      "agents": 6,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 85.739,
+      "queue_s": 0.014,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.068683,
+          "input_tokens": 12,
+          "output_tokens": 1310,
+          "cache_read_tokens": 90798,
+          "cache_write_tokens": 4855
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.186992,
+          "input_tokens": 24,
+          "output_tokens": 2749,
+          "cache_read_tokens": 166954,
+          "cache_write_tokens": 19705
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.043325,
+          "input_tokens": 2,
+          "output_tokens": 697,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5426
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012674,
+          "input_tokens": 4,
+          "output_tokens": 323,
+          "cache_read_tokens": 30989,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "11-panel-diff-defect",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.194605,
+      "input_tokens": 34,
+      "output_tokens": 5185,
+      "cache_read_tokens": 252918,
+      "cache_write_tokens": 8037,
+      "cache_write_share": 0.0308,
+      "agents": 3,
+      "demand": 3,
+      "scribe": true,
+      "wall_clock_s": 50.632,
+      "queue_s": 21.639,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "evaluator": {
+          "agents": 3,
+          "dollars": 0.182116,
+          "input_tokens": 30,
+          "output_tokens": 4871,
+          "cache_read_tokens": 221956,
+          "cache_write_tokens": 8037
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012488,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 30962,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "12-best-of-n-python-bug",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.466754,
+      "input_tokens": 58,
+      "output_tokens": 9987,
+      "cache_read_tokens": 402260,
+      "cache_write_tokens": 37266,
+      "cache_write_share": 0.0848,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 114.816,
+      "queue_s": 28.324,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.235063,
+          "input_tokens": 36,
+          "output_tokens": 6886,
+          "cache_read_tokens": 256272,
+          "cache_write_tokens": 9189
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.197447,
+          "input_tokens": 18,
+          "output_tokens": 2786,
+          "cache_read_tokens": 119551,
+          "cache_write_tokens": 23549
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034243,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 26437,
+          "cache_write_tokens": 4528
+        }
+      }
+    },
+    {
+      "sample": "13-debate-design",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.226176,
+      "input_tokens": 24,
+      "output_tokens": 4331,
+      "cache_read_tokens": 179649,
+      "cache_write_tokens": 20706,
+      "cache_write_share": 0.1033,
+      "agents": 5,
+      "demand": 5,
+      "scribe": true,
+      "wall_clock_s": 44.078,
+      "queue_s": 0.027,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "debater": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "debater": {
+          "agents": 4,
+          "dollars": 0.158564,
+          "input_tokens": 16,
+          "output_tokens": 3405,
+          "cache_read_tokens": 119476,
+          "cache_write_tokens": 13301
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.055123,
+          "input_tokens": 4,
+          "output_tokens": 612,
+          "cache_read_tokens": 29211,
+          "cache_write_tokens": 7405
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012488,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 30962,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "14-relay-python-features",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.596113,
+      "input_tokens": 80,
+      "output_tokens": 10599,
+      "cache_read_tokens": 580765,
+      "cache_write_tokens": 53532,
+      "cache_write_share": 0.0844,
+      "agents": 6,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 180.311,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.285352,
+          "input_tokens": 42,
+          "output_tokens": 5667,
+          "cache_read_tokens": 315197,
+          "cache_write_tokens": 21761
+        },
+        "evaluator": {
+          "agents": 3,
+          "dollars": 0.276487,
+          "input_tokens": 34,
+          "output_tokens": 4616,
+          "cache_read_tokens": 239130,
+          "cache_write_tokens": 27241
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034274,
+          "input_tokens": 4,
+          "output_tokens": 316,
+          "cache_read_tokens": 26438,
+          "cache_write_tokens": 4530
+        }
+      }
+    },
+    {
+      "sample": "15-fan-out-over-budget",
+      "epoch": 3,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "over_budget",
+      "expected_status": "over_budget",
+      "dollars": 0.012591,
+      "input_tokens": 4,
+      "output_tokens": 319,
+      "cache_read_tokens": 30977,
+      "cache_write_tokens": 0,
+      "cache_write_share": 0.0,
+      "agents": 0,
+      "demand": 0,
+      "scribe": true,
+      "wall_clock_s": 7.75,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012591,
+          "input_tokens": 4,
+          "output_tokens": 319,
+          "cache_read_tokens": 30977,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "01-single-docs",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.048377,
+      "input_tokens": 10,
+      "output_tokens": 1335,
+      "cache_read_tokens": 78337,
+      "cache_write_tokens": 1194,
+      "cache_write_share": 0.015,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 21.254,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.034743,
+          "input_tokens": 6,
+          "output_tokens": 1022,
+          "cache_read_tokens": 47621,
+          "cache_write_tokens": 951
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.013634,
+          "input_tokens": 4,
+          "output_tokens": 313,
+          "cache_read_tokens": 30716,
+          "cache_write_tokens": 243
+        }
+      }
+    },
+    {
+      "sample": "02-single-blocked",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "blocked",
+      "expected_status": "blocked",
+      "dollars": 0.057366,
+      "input_tokens": 10,
+      "output_tokens": 882,
+      "cache_read_tokens": 74553,
+      "cache_write_tokens": 4955,
+      "cache_write_share": 0.0623,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 16.453,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.02011,
+          "input_tokens": 6,
+          "output_tokens": 448,
+          "cache_read_tokens": 48054,
+          "cache_write_tokens": 303
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.037256,
+          "input_tokens": 4,
+          "output_tokens": 434,
+          "cache_read_tokens": 26499,
+          "cache_write_tokens": 4652
+        }
+      }
+    },
+    {
+      "sample": "03-generator-evaluator-python",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.341553,
+      "input_tokens": 48,
+      "output_tokens": 6763,
+      "cache_read_tokens": 337957,
+      "cache_write_tokens": 27702,
+      "cache_write_share": 0.0757,
+      "agents": 4,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 106.003,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 2,
+          "dollars": 0.149862,
+          "input_tokens": 24,
+          "output_tokens": 3376,
+          "cache_read_tokens": 167503,
+          "cache_write_tokens": 9749
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.178056,
+          "input_tokens": 20,
+          "output_tokens": 3074,
+          "cache_read_tokens": 139730,
+          "cache_write_tokens": 17710
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.013636,
+          "input_tokens": 4,
+          "output_tokens": 313,
+          "cache_read_tokens": 30724,
+          "cache_write_tokens": 243
+        }
+      }
+    },
+    {
+      "sample": "04-generator-evaluator-false-pass",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.146994,
+      "input_tokens": 28,
+      "output_tokens": 2465,
+      "cache_read_tokens": 195733,
+      "cache_write_tokens": 11687,
+      "cache_write_share": 0.0563,
+      "agents": 2,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 52.069,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 1,
+          "dollars": 0.050908,
+          "input_tokens": 12,
+          "output_tokens": 992,
+          "cache_read_tokens": 83599,
+          "cache_write_tokens": 2860
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.083555,
+          "input_tokens": 12,
+          "output_tokens": 1157,
+          "cache_read_tokens": 81158,
+          "cache_write_tokens": 8827
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012531,
+          "input_tokens": 4,
+          "output_tokens": 316,
+          "cache_read_tokens": 30976,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "05-generator-evaluator-exhausted",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.319208,
+      "input_tokens": 44,
+      "output_tokens": 6180,
+      "cache_read_tokens": 305360,
+      "cache_write_tokens": 26872,
+      "cache_write_share": 0.0809,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 100.556,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 2,
+          "dollars": 0.122701,
+          "input_tokens": 16,
+          "output_tokens": 2802,
+          "cache_read_tokens": 114010,
+          "cache_write_tokens": 8759
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.183771,
+          "input_tokens": 24,
+          "output_tokens": 3052,
+          "cache_read_tokens": 160352,
+          "cache_write_tokens": 18113
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012736,
+          "input_tokens": 4,
+          "output_tokens": 326,
+          "cache_read_tokens": 30998,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "06-fan-out-reducer-docs",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.177031,
+      "input_tokens": 18,
+      "output_tokens": 1734,
+      "cache_read_tokens": 118696,
+      "cache_write_tokens": 23708,
+      "cache_write_share": 0.1665,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 28.209,
+      "queue_s": 6.585,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.104533,
+          "input_tokens": 12,
+          "output_tokens": 880,
+          "cache_read_tokens": 81025,
+          "cache_write_tokens": 14136
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.037355,
+          "input_tokens": 2,
+          "output_tokens": 494,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5044
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.035143,
+          "input_tokens": 4,
+          "output_tokens": 360,
+          "cache_read_tokens": 26437,
+          "cache_write_tokens": 4528
+        }
+      }
+    },
+    {
+      "sample": "07-fan-out-partition-docs",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.332791,
+      "input_tokens": 32,
+      "output_tokens": 2407,
+      "cache_read_tokens": 204363,
+      "cache_write_tokens": 48730,
+      "cache_write_share": 0.1925,
+      "agents": 7,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 40.513,
+      "queue_s": 48.215,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "partition": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "partition": {
+          "agents": 1,
+          "dollars": 0.09436,
+          "input_tokens": 4,
+          "output_tokens": 583,
+          "cache_read_tokens": 15718,
+          "cache_write_tokens": 15908
+        },
+        "worker": {
+          "agents": 6,
+          "dollars": 0.204188,
+          "input_tokens": 24,
+          "output_tokens": 1509,
+          "cache_read_tokens": 162208,
+          "cache_write_tokens": 28294
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034243,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 26437,
+          "cache_write_tokens": 4528
+        }
+      }
+    },
+    {
+      "sample": "08-chain-single-then-ge-python",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.23819,
+      "input_tokens": 32,
+      "output_tokens": 4736,
+      "cache_read_tokens": 232586,
+      "cache_write_tokens": 19365,
+      "cache_write_share": 0.0769,
+      "agents": 3,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 73.17,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.038792,
+          "input_tokens": 6,
+          "output_tokens": 996,
+          "cache_read_tokens": 48491,
+          "cache_write_tokens": 1830
+        },
+        "generator": {
+          "agents": 1,
+          "dollars": 0.076073,
+          "input_tokens": 12,
+          "output_tokens": 1999,
+          "cache_read_tokens": 87674,
+          "cache_write_tokens": 3702
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.083173,
+          "input_tokens": 10,
+          "output_tokens": 1230,
+          "cache_read_tokens": 69790,
+          "cache_write_tokens": 8915
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.040152,
+          "input_tokens": 4,
+          "output_tokens": 511,
+          "cache_read_tokens": 26631,
+          "cache_write_tokens": 4918
+        }
+      }
+    },
+    {
+      "sample": "09-chain-stage-2-fails",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.260299,
+      "input_tokens": 34,
+      "output_tokens": 4718,
+      "cache_read_tokens": 240115,
+      "cache_write_tokens": 23556,
+      "cache_write_share": 0.0893,
+      "agents": 3,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 75.756,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.034412,
+          "input_tokens": 6,
+          "output_tokens": 802,
+          "cache_read_tokens": 48514,
+          "cache_write_tokens": 1729
+        },
+        "generator": {
+          "agents": 1,
+          "dollars": 0.102985,
+          "input_tokens": 12,
+          "output_tokens": 2178,
+          "cache_read_tokens": 83358,
+          "cache_write_tokens": 8541
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.082257,
+          "input_tokens": 12,
+          "output_tokens": 1211,
+          "cache_read_tokens": 81594,
+          "cache_write_tokens": 8334
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.040646,
+          "input_tokens": 4,
+          "output_tokens": 527,
+          "cache_read_tokens": 26649,
+          "cache_write_tokens": 4952
+        }
+      }
+    },
+    {
+      "sample": "10-iterative-fan-out-docs-gap",
+      "epoch": 4,
+      "outcome_correct": false,
+      "missing_facts": [
+        "status exhausted, not done"
+      ],
+      "status_truthful": false,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "done",
+      "dollars": 0.31703,
+      "input_tokens": 38,
+      "output_tokens": 4689,
+      "cache_read_tokens": 267963,
+      "cache_write_tokens": 33901,
+      "cache_write_share": 0.1123,
+      "agents": 7,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 66.258,
+      "queue_s": 0.019,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 4,
+          "dollars": 0.126497,
+          "input_tokens": 16,
+          "output_tokens": 1511,
+          "cache_read_tokens": 113040,
+          "cache_write_tokens": 14721
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.134299,
+          "input_tokens": 16,
+          "output_tokens": 2228,
+          "cache_read_tokens": 112700,
+          "cache_write_tokens": 13427
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.04356,
+          "input_tokens": 2,
+          "output_tokens": 627,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5753
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012674,
+          "input_tokens": 4,
+          "output_tokens": 323,
+          "cache_read_tokens": 30989,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "11-panel-diff-defect",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.254738,
+      "input_tokens": 36,
+      "output_tokens": 4869,
+      "cache_read_tokens": 255145,
+      "cache_write_tokens": 21237,
+      "cache_write_share": 0.0768,
+      "agents": 3,
+      "demand": 3,
+      "scribe": true,
+      "wall_clock_s": 59.796,
+      "queue_s": 19.335,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "evaluator": {
+          "agents": 3,
+          "dollars": 0.220525,
+          "input_tokens": 32,
+          "output_tokens": 4555,
+          "cache_read_tokens": 228709,
+          "cache_write_tokens": 16711
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034213,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 26436,
+          "cache_write_tokens": 4526
+        }
+      }
+    },
+    {
+      "sample": "12-best-of-n-python-bug",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.373774,
+      "input_tokens": 54,
+      "output_tokens": 9188,
+      "cache_read_tokens": 394992,
+      "cache_write_tokens": 22160,
+      "cache_write_share": 0.0531,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 111.577,
+      "queue_s": 26.502,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.217387,
+          "input_tokens": 36,
+          "output_tokens": 6703,
+          "cache_read_tokens": 258640,
+          "cache_write_tokens": 6291
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.143878,
+          "input_tokens": 14,
+          "output_tokens": 2170,
+          "cache_read_tokens": 105387,
+          "cache_write_tokens": 15869
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012509,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 30965,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "13-debate-design",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.349654,
+      "input_tokens": 24,
+      "output_tokens": 4413,
+      "cache_read_tokens": 153941,
+      "cache_write_tokens": 46102,
+      "cache_write_share": 0.2304,
+      "agents": 5,
+      "demand": 5,
+      "scribe": true,
+      "wall_clock_s": 39.895,
+      "queue_s": 0.021,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "debater": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "debater": {
+          "agents": 4,
+          "dollars": 0.20834,
+          "input_tokens": 16,
+          "output_tokens": 3564,
+          "cache_read_tokens": 109654,
+          "cache_write_tokens": 23013
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.107101,
+          "input_tokens": 4,
+          "output_tokens": 535,
+          "cache_read_tokens": 17851,
+          "cache_write_tokens": 18563
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034213,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 26436,
+          "cache_write_tokens": 4526
+        }
+      }
+    },
+    {
+      "sample": "14-relay-python-features",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.407121,
+      "input_tokens": 54,
+      "output_tokens": 7583,
+      "cache_read_tokens": 379024,
+      "cache_write_tokens": 35888,
+      "cache_write_share": 0.0865,
+      "agents": 4,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 123.437,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 2,
+          "dollars": 0.188089,
+          "input_tokens": 24,
+          "output_tokens": 4316,
+          "cache_read_tokens": 173939,
+          "cache_write_tokens": 13377
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.184758,
+          "input_tokens": 26,
+          "output_tokens": 2951,
+          "cache_read_tokens": 178647,
+          "cache_write_tokens": 17981
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034274,
+          "input_tokens": 4,
+          "output_tokens": 316,
+          "cache_read_tokens": 26438,
+          "cache_write_tokens": 4530
+        }
+      }
+    },
+    {
+      "sample": "15-fan-out-over-budget",
+      "epoch": 4,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "over_budget",
+      "expected_status": "over_budget",
+      "dollars": 0.012591,
+      "input_tokens": 4,
+      "output_tokens": 319,
+      "cache_read_tokens": 30977,
+      "cache_write_tokens": 0,
+      "cache_write_share": 0.0,
+      "agents": 0,
+      "demand": 0,
+      "scribe": true,
+      "wall_clock_s": 8.332,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012591,
+          "input_tokens": 4,
+          "output_tokens": 319,
+          "cache_read_tokens": 30977,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "01-single-docs",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.04605,
+      "input_tokens": 10,
+      "output_tokens": 1236,
+      "cache_read_tokens": 78302,
+      "cache_write_tokens": 1126,
+      "cache_write_share": 0.0142,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 19.416,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.032516,
+          "input_tokens": 6,
+          "output_tokens": 927,
+          "cache_read_tokens": 47586,
+          "cache_write_tokens": 887
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.013534,
+          "input_tokens": 4,
+          "output_tokens": 309,
+          "cache_read_tokens": 30716,
+          "cache_write_tokens": 239
+        }
+      }
+    },
+    {
+      "sample": "02-single-blocked",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "blocked",
+      "expected_status": "blocked",
+      "dollars": 0.050459,
+      "input_tokens": 8,
+      "output_tokens": 775,
+      "cache_read_tokens": 58385,
+      "cache_write_tokens": 4650,
+      "cache_write_share": 0.0738,
+      "agents": 1,
+      "demand": 1,
+      "scribe": true,
+      "wall_clock_s": 14.472,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.014373,
+          "input_tokens": 4,
+          "output_tokens": 399,
+          "cache_read_tokens": 31887,
+          "cache_write_tokens": 0
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.036086,
+          "input_tokens": 4,
+          "output_tokens": 376,
+          "cache_read_tokens": 26498,
+          "cache_write_tokens": 4650
+        }
+      }
+    },
+    {
+      "sample": "03-generator-evaluator-python",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.196108,
+      "input_tokens": 28,
+      "output_tokens": 4015,
+      "cache_read_tokens": 194128,
+      "cache_write_tokens": 15374,
+      "cache_write_share": 0.0734,
+      "agents": 2,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 66.955,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 1,
+          "dollars": 0.069651,
+          "input_tokens": 10,
+          "output_tokens": 2248,
+          "cache_read_tokens": 68682,
+          "cache_write_tokens": 2183
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.092152,
+          "input_tokens": 14,
+          "output_tokens": 1450,
+          "cache_read_tokens": 99007,
+          "cache_write_tokens": 8659
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034304,
+          "input_tokens": 4,
+          "output_tokens": 317,
+          "cache_read_tokens": 26439,
+          "cache_write_tokens": 4532
+        }
+      }
+    },
+    {
+      "sample": "04-generator-evaluator-false-pass",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.148847,
+      "input_tokens": 28,
+      "output_tokens": 2339,
+      "cache_read_tokens": 197002,
+      "cache_write_tokens": 12511,
+      "cache_write_share": 0.0597,
+      "agents": 2,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 45.695,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 1,
+          "dollars": 0.046674,
+          "input_tokens": 10,
+          "output_tokens": 960,
+          "cache_read_tokens": 66772,
+          "cache_write_tokens": 2816
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.089642,
+          "input_tokens": 14,
+          "output_tokens": 1063,
+          "cache_read_tokens": 99254,
+          "cache_write_tokens": 9695
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012531,
+          "input_tokens": 4,
+          "output_tokens": 316,
+          "cache_read_tokens": 30976,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "05-generator-evaluator-exhausted",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.303839,
+      "input_tokens": 38,
+      "output_tokens": 5504,
+      "cache_read_tokens": 254909,
+      "cache_write_tokens": 28525,
+      "cache_write_share": 0.1006,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 93.627,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "generator": {
+          "agents": 2,
+          "dollars": 0.11246,
+          "input_tokens": 14,
+          "output_tokens": 2582,
+          "cache_read_tokens": 95069,
+          "cache_write_tokens": 8350
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.156803,
+          "input_tokens": 20,
+          "output_tokens": 2596,
+          "cache_read_tokens": 133392,
+          "cache_write_tokens": 15625
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.034576,
+          "input_tokens": 4,
+          "output_tokens": 326,
+          "cache_read_tokens": 26448,
+          "cache_write_tokens": 4550
+        }
+      }
+    },
+    {
+      "sample": "06-fan-out-reducer-docs",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.086968,
+      "input_tokens": 18,
+      "output_tokens": 1672,
+      "cache_read_tokens": 137228,
+      "cache_write_tokens": 5202,
+      "cache_write_share": 0.0365,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 26.577,
+      "queue_s": 5.656,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.037499,
+          "input_tokens": 12,
+          "output_tokens": 879,
+          "cache_read_tokens": 95029,
+          "cache_write_tokens": 173
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.03696,
+          "input_tokens": 2,
+          "output_tokens": 478,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5029
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012509,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 30965,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "07-fan-out-partition-docs",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.235312,
+      "input_tokens": 32,
+      "output_tokens": 2363,
+      "cache_read_tokens": 224621,
+      "cache_write_tokens": 28600,
+      "cache_write_share": 0.1129,
+      "agents": 7,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 40.881,
+      "queue_s": 44.582,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "partition": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "partition": {
+          "agents": 1,
+          "dollars": 0.018133,
+          "input_tokens": 4,
+          "output_tokens": 551,
+          "cache_read_tokens": 31436,
+          "cache_write_tokens": 162
+        },
+        "worker": {
+          "agents": 6,
+          "dollars": 0.20467,
+          "input_tokens": 24,
+          "output_tokens": 1497,
+          "cache_read_tokens": 162220,
+          "cache_write_tokens": 28438
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012509,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 30965,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "08-chain-single-then-ge-python",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.214935,
+      "input_tokens": 34,
+      "output_tokens": 4648,
+      "cache_read_tokens": 247996,
+      "cache_write_tokens": 14448,
+      "cache_write_share": 0.055,
+      "agents": 3,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 70.088,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.033921,
+          "input_tokens": 6,
+          "output_tokens": 775,
+          "cache_read_tokens": 48558,
+          "cache_write_tokens": 1737
+        },
+        "generator": {
+          "agents": 1,
+          "dollars": 0.069704,
+          "input_tokens": 10,
+          "output_tokens": 1914,
+          "cache_read_tokens": 68445,
+          "cache_write_tokens": 3539
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.093485,
+          "input_tokens": 14,
+          "output_tokens": 1384,
+          "cache_read_tokens": 99444,
+          "cache_write_tokens": 9172
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.017826,
+          "input_tokens": 4,
+          "output_tokens": 575,
+          "cache_read_tokens": 31549,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "09-chain-stage-2-fails",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "exhausted",
+      "dollars": 0.210617,
+      "input_tokens": 32,
+      "output_tokens": 4555,
+      "cache_read_tokens": 230319,
+      "cache_write_tokens": 14665,
+      "cache_write_share": 0.0599,
+      "agents": 3,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 68.713,
+      "queue_s": 0.001,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "generator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 1,
+          "dollars": 0.035413,
+          "input_tokens": 6,
+          "output_tokens": 833,
+          "cache_read_tokens": 48568,
+          "cache_write_tokens": 1803
+        },
+        "generator": {
+          "agents": 1,
+          "dollars": 0.07079,
+          "input_tokens": 10,
+          "output_tokens": 1958,
+          "cache_read_tokens": 68927,
+          "cache_write_tokens": 3561
+        },
+        "evaluator": {
+          "agents": 1,
+          "dollars": 0.085319,
+          "input_tokens": 12,
+          "output_tokens": 1236,
+          "cache_read_tokens": 81680,
+          "cache_write_tokens": 8843
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.019095,
+          "input_tokens": 4,
+          "output_tokens": 528,
+          "cache_read_tokens": 31144,
+          "cache_write_tokens": 458
+        }
+      }
+    },
+    {
+      "sample": "10-iterative-fan-out-docs-gap",
+      "epoch": 5,
+      "outcome_correct": false,
+      "missing_facts": [
+        "status exhausted, not done"
+      ],
+      "status_truthful": false,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "exhausted",
+      "expected_status": "done",
+      "dollars": 0.237647,
+      "input_tokens": 30,
+      "output_tokens": 4367,
+      "cache_read_tokens": 212935,
+      "cache_write_tokens": 21520,
+      "cache_write_share": 0.0918,
+      "agents": 6,
+      "demand": 7,
+      "scribe": true,
+      "wall_clock_s": 69.467,
+      "queue_s": 0.017,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "reducer": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.062355,
+          "input_tokens": 12,
+          "output_tokens": 969,
+          "cache_read_tokens": 90635,
+          "cache_write_tokens": 4960
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.120778,
+          "input_tokens": 12,
+          "output_tokens": 2446,
+          "cache_read_tokens": 80077,
+          "cache_write_tokens": 11159
+        },
+        "reducer": {
+          "agents": 1,
+          "dollars": 0.04184,
+          "input_tokens": 2,
+          "output_tokens": 629,
+          "cache_read_tokens": 11234,
+          "cache_write_tokens": 5401
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012674,
+          "input_tokens": 4,
+          "output_tokens": 323,
+          "cache_read_tokens": 30989,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "11-panel-diff-defect",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.180734,
+      "input_tokens": 36,
+      "output_tokens": 4530,
+      "cache_read_tokens": 269323,
+      "cache_write_tokens": 7225,
+      "cache_write_share": 0.0261,
+      "agents": 3,
+      "demand": 3,
+      "scribe": true,
+      "wall_clock_s": 59.854,
+      "queue_s": 22.744,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "evaluator": {
+          "agents": 3,
+          "dollars": 0.168245,
+          "input_tokens": 32,
+          "output_tokens": 4216,
+          "cache_read_tokens": 238361,
+          "cache_write_tokens": 7225
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012488,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 30962,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "12-best-of-n-python-bug",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.34444,
+      "input_tokens": 52,
+      "output_tokens": 8839,
+      "cache_read_tokens": 380283,
+      "cache_write_tokens": 18279,
+      "cache_write_share": 0.0459,
+      "agents": 4,
+      "demand": 4,
+      "scribe": true,
+      "wall_clock_s": 100.21,
+      "queue_s": 26.168,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 3,
+          "dollars": 0.229306,
+          "input_tokens": 38,
+          "output_tokens": 6775,
+          "cache_read_tokens": 277144,
+          "cache_write_tokens": 7645
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.102625,
+          "input_tokens": 10,
+          "output_tokens": 1749,
+          "cache_read_tokens": 72174,
+          "cache_write_tokens": 10634
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012509,
+          "input_tokens": 4,
+          "output_tokens": 315,
+          "cache_read_tokens": 30965,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "13-debate-design",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.231528,
+      "input_tokens": 24,
+      "output_tokens": 4736,
+      "cache_read_tokens": 180558,
+      "cache_write_tokens": 20120,
+      "cache_write_share": 0.1002,
+      "agents": 5,
+      "demand": 5,
+      "scribe": true,
+      "wall_clock_s": 47.335,
+      "queue_s": 0.023,
+      "peak_concurrency": 2,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "debater": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "judge": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "debater": {
+          "agents": 4,
+          "dollars": 0.163113,
+          "input_tokens": 16,
+          "output_tokens": 3788,
+          "cache_read_tokens": 120295,
+          "cache_write_tokens": 12646
+        },
+        "judge": {
+          "agents": 1,
+          "dollars": 0.055926,
+          "input_tokens": 4,
+          "output_tokens": 634,
+          "cache_read_tokens": 29301,
+          "cache_write_tokens": 7474
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012488,
+          "input_tokens": 4,
+          "output_tokens": 314,
+          "cache_read_tokens": 30962,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "14-relay-python-features",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "done",
+      "expected_status": "done",
+      "dollars": 0.366972,
+      "input_tokens": 50,
+      "output_tokens": 7082,
+      "cache_read_tokens": 355461,
+      "cache_write_tokens": 30808,
+      "cache_write_share": 0.0797,
+      "agents": 4,
+      "demand": 6,
+      "scribe": true,
+      "wall_clock_s": 111.885,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "worker": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "evaluator": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        },
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "worker": {
+          "agents": 2,
+          "dollars": 0.191563,
+          "input_tokens": 24,
+          "output_tokens": 4430,
+          "cache_read_tokens": 174936,
+          "cache_write_tokens": 13576
+        },
+        "evaluator": {
+          "agents": 2,
+          "dollars": 0.162879,
+          "input_tokens": 22,
+          "output_tokens": 2336,
+          "cache_read_tokens": 149557,
+          "cache_write_tokens": 17232
+        },
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.01253,
+          "input_tokens": 4,
+          "output_tokens": 316,
+          "cache_read_tokens": 30968,
+          "cache_write_tokens": 0
+        }
+      }
+    },
+    {
+      "sample": "15-fan-out-over-budget",
+      "epoch": 5,
+      "outcome_correct": true,
+      "missing_facts": [],
+      "status_truthful": true,
+      "false_pass": false,
+      "limit_hit": null,
+      "reported_status": "over_budget",
+      "expected_status": "over_budget",
+      "dollars": 0.012591,
+      "input_tokens": 4,
+      "output_tokens": 319,
+      "cache_read_tokens": 30977,
+      "cache_write_tokens": 0,
+      "cache_write_share": 0.0,
+      "agents": 0,
+      "demand": 0,
+      "scribe": true,
+      "wall_clock_s": 6.799,
+      "queue_s": 0.0,
+      "peak_concurrency": 1,
+      "models": [
+        "anthropic/claude-opus-5-5"
+      ],
+      "on_pinned_model": true,
+      "models_by_role": {
+        "scribe": {
+          "requested": [
+            "claude-opus-5-5"
+          ],
+          "served": [
+            "claude-opus-5-5"
+          ]
+        }
+      },
+      "misrouted": [],
+      "routing_ok": true,
+      "hidden_check_absent": true,
+      "harness_error": null,
+      "by_role": {
+        "scribe": {
+          "agents": 1,
+          "dollars": 0.012591,
+          "input_tokens": 4,
+          "output_tokens": 319,
+          "cache_read_tokens": 30977,
+          "cache_write_tokens": 0
+        }
+      }
+    }
+  ],
+  "false_passes": {
+    "by_sample": {
+      "01-single-docs": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "02-single-blocked": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "03-generator-evaluator-python": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "04-generator-evaluator-false-pass": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "05-generator-evaluator-exhausted": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "06-fan-out-reducer-docs": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "07-fan-out-partition-docs": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "08-chain-single-then-ge-python": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "09-chain-stage-2-fails": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "10-iterative-fan-out-docs-gap": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "11-panel-diff-defect": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "12-best-of-n-python-bug": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "13-debate-design": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "14-relay-python-features": {
+        "false_passes": 0,
+        "scored": 5
+      },
+      "15-fan-out-over-budget": {
+        "false_passes": 0,
+        "scored": 5
+      }
+    },
+    "total": 0,
+    "scored": 75
+  },
+  "spread": {
+    "01-single-docs": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.045324,
+        "max": 0.089168,
+        "spread": 0.043844,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 17.802,
+        "max": 21.254,
+        "spread": 3.452,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.0,
+        "max": 0.0,
+        "spread": 0.0,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 10,
+        "max": 10,
+        "spread": 0,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 1236,
+        "max": 1335,
+        "spread": 99,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 69514,
+        "max": 78519,
+        "spread": 9005,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 888,
+        "max": 9908,
+        "spread": 9020,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0112,
+        "max": 0.1247,
+        "spread": 0.1135,
+        "n": 5
+      },
+      "agents": {
+        "min": 1,
+        "max": 1,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "02-single-blocked": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.050459,
+        "max": 0.07444,
+        "spread": 0.023981,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 13.92,
+        "max": 17.191,
+        "spread": 3.271,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.0,
+        "max": 0.001,
+        "spread": 0.001,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 8,
+        "max": 10,
+        "spread": 2,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 775,
+        "max": 882,
+        "spread": 107,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 53464,
+        "max": 74553,
+        "spread": 21089,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 4650,
+        "max": 9607,
+        "spread": 4957,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0623,
+        "max": 0.1523,
+        "spread": 0.09,
+        "n": 5
+      },
+      "agents": {
+        "min": 1,
+        "max": 1,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "03-generator-evaluator-python": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.196108,
+        "max": 0.378108,
+        "spread": 0.182,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 66.955,
+        "max": 118.726,
+        "spread": 51.771,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.0,
+        "max": 0.001,
+        "spread": 0.001,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 28,
+        "max": 54,
+        "spread": 26,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 4015,
+        "max": 7228,
+        "spread": 3213,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 189827,
+        "max": 382824,
+        "spread": 192997,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 15374,
+        "max": 39469,
+        "spread": 24095,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0705,
+        "max": 0.1721,
+        "spread": 0.1016,
+        "n": 5
+      },
+      "agents": {
+        "min": 2,
+        "max": 4,
+        "spread": 2,
+        "n": 5
+      }
+    },
+    "04-generator-evaluator-false-pass": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.146994,
+        "max": 0.225742,
+        "spread": 0.078748,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 45.695,
+        "max": 52.834,
+        "spread": 7.139,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.0,
+        "max": 0.001,
+        "spread": 0.001,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 28,
+        "max": 30,
+        "spread": 2,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 2339,
+        "max": 2502,
+        "spread": 163,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 188746,
+        "max": 211805,
+        "spread": 23059,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 11589,
+        "max": 27242,
+        "spread": 15653,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0519,
+        "max": 0.1215,
+        "spread": 0.0696,
+        "n": 5
+      },
+      "agents": {
+        "min": 2,
+        "max": 2,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "05-generator-evaluator-exhausted": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.303839,
+        "max": 0.339914,
+        "spread": 0.036075,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 93.627,
+        "max": 106.128,
+        "spread": 12.501,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.0,
+        "max": 0.0,
+        "spread": 0.0,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 38,
+        "max": 46,
+        "spread": 8,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 5023,
+        "max": 6180,
+        "spread": 1157,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 254909,
+        "max": 327255,
+        "spread": 72346,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 25092,
+        "max": 33861,
+        "spread": 8769,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0712,
+        "max": 0.1054,
+        "spread": 0.0342,
+        "n": 5
+      },
+      "agents": {
+        "min": 4,
+        "max": 4,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "06-fan-out-reducer-docs": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.086526,
+        "max": 0.177031,
+        "spread": 0.090505,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 26.577,
+        "max": 28.209,
+        "spread": 1.632,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 4.964,
+        "max": 6.585,
+        "spread": 1.621,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 18,
+        "max": 18,
+        "spread": 0,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 1648,
+        "max": 1734,
+        "spread": 86,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 118696,
+        "max": 137228,
+        "spread": 18532,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 5202,
+        "max": 23708,
+        "spread": 18506,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0365,
+        "max": 0.1665,
+        "spread": 0.13,
+        "n": 5
+      },
+      "agents": {
+        "min": 4,
+        "max": 4,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "07-fan-out-partition-docs": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.235312,
+        "max": 0.340209,
+        "spread": 0.104897,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 40.513,
+        "max": 47.432,
+        "spread": 6.919,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 36.035,
+        "max": 48.215,
+        "spread": 12.18,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 32,
+        "max": 36,
+        "spread": 4,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 2363,
+        "max": 2575,
+        "spread": 212,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 204363,
+        "max": 256582,
+        "spread": 52219,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 28600,
+        "max": 49095,
+        "spread": 20495,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.1007,
+        "max": 0.1925,
+        "spread": 0.0918,
+        "n": 5
+      },
+      "agents": {
+        "min": 7,
+        "max": 7,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "08-chain-single-then-ge-python": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.214935,
+        "max": 0.490666,
+        "spread": 0.275731,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 70.088,
+        "max": 140.678,
+        "spread": 70.59,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.0,
+        "max": 0.0,
+        "spread": 0.0,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 32,
+        "max": 60,
+        "spread": 28,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 4648,
+        "max": 8042,
+        "spread": 3394,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 232586,
+        "max": 429342,
+        "spread": 196756,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 14448,
+        "max": 49326,
+        "spread": 34878,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.055,
+        "max": 0.1055,
+        "spread": 0.0505,
+        "n": 5
+      },
+      "agents": {
+        "min": 3,
+        "max": 5,
+        "spread": 2,
+        "n": 5
+      }
+    },
+    "09-chain-stage-2-fails": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.207217,
+        "max": 0.276811,
+        "spread": 0.069594,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 68.713,
+        "max": 75.756,
+        "spread": 7.043,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.0,
+        "max": 0.001,
+        "spread": 0.001,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 30,
+        "max": 34,
+        "spread": 4,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 4555,
+        "max": 4857,
+        "spread": 302,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 199282,
+        "max": 240115,
+        "spread": 40833,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 13858,
+        "max": 27939,
+        "spread": 14081,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0563,
+        "max": 0.1229,
+        "spread": 0.0666,
+        "n": 5
+      },
+      "agents": {
+        "min": 3,
+        "max": 3,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "10-iterative-fan-out-docs-gap": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "0/5",
+      "status_truthful": "0/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.237647,
+        "max": 0.429555,
+        "spread": 0.191908,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 66.258,
+        "max": 85.935,
+        "spread": 19.677,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.014,
+        "max": 0.031,
+        "spread": 0.017,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 30,
+        "max": 46,
+        "spread": 16,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 4367,
+        "max": 5632,
+        "spread": 1265,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 212935,
+        "max": 310743,
+        "spread": 97808,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 21520,
+        "max": 50924,
+        "spread": 29404,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0751,
+        "max": 0.1409,
+        "spread": 0.0658,
+        "n": 5
+      },
+      "agents": {
+        "min": 6,
+        "max": 7,
+        "spread": 1,
+        "n": 5
+      }
+    },
+    "11-panel-diff-defect": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.180734,
+        "max": 0.31291,
+        "spread": 0.132176,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 50.391,
+        "max": 59.854,
+        "spread": 9.463,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 19.335,
+        "max": 22.744,
+        "spread": 3.409,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 34,
+        "max": 38,
+        "spread": 4,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 4396,
+        "max": 5613,
+        "spread": 1217,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 241607,
+        "max": 289146,
+        "spread": 47539,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 7225,
+        "max": 35305,
+        "spread": 28080,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0261,
+        "max": 0.1275,
+        "spread": 0.1014,
+        "n": 5
+      },
+      "agents": {
+        "min": 3,
+        "max": 3,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "12-best-of-n-python-bug": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.34444,
+        "max": 0.609398,
+        "spread": 0.264958,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 100.21,
+        "max": 114.816,
+        "spread": 14.606,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 26.168,
+        "max": 31.791,
+        "spread": 5.623,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 52,
+        "max": 58,
+        "spread": 6,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 8839,
+        "max": 10700,
+        "spread": 1861,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 355344,
+        "max": 402260,
+        "spread": 46916,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 18279,
+        "max": 64821,
+        "spread": 46542,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0459,
+        "max": 0.1543,
+        "spread": 0.1084,
+        "n": 5
+      },
+      "agents": {
+        "min": 4,
+        "max": 4,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "13-debate-design": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.221701,
+        "max": 0.467762,
+        "spread": 0.246061,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 39.895,
+        "max": 47.806,
+        "spread": 7.911,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.021,
+        "max": 0.027,
+        "spread": 0.006,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 24,
+        "max": 24,
+        "spread": 0,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 4228,
+        "max": 4959,
+        "spread": 731,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 131579,
+        "max": 180558,
+        "spread": 48979,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 20120,
+        "max": 68434,
+        "spread": 48314,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.1002,
+        "max": 0.3421,
+        "spread": 0.2419,
+        "n": 5
+      },
+      "agents": {
+        "min": 5,
+        "max": 5,
+        "spread": 0,
+        "n": 5
+      }
+    },
+    "14-relay-python-features": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.366972,
+        "max": 0.656151,
+        "spread": 0.289179,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 111.885,
+        "max": 186.226,
+        "spread": 74.341,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.0,
+        "max": 0.0,
+        "spread": 0.0,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 46,
+        "max": 82,
+        "spread": 36,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 7082,
+        "max": 10699,
+        "spread": 3617,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 313363,
+        "max": 580765,
+        "spread": 267402,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 30808,
+        "max": 65327,
+        "spread": 34519,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0797,
+        "max": 0.1165,
+        "spread": 0.0368,
+        "n": 5
+      },
+      "agents": {
+        "min": 4,
+        "max": 6,
+        "spread": 2,
+        "n": 5
+      }
+    },
+    "15-fan-out-over-budget": {
+      "epochs": 5,
+      "limit_hits": 0,
+      "outcome_correct": "5/5",
+      "status_truthful": "5/5",
+      "false_pass": "0/5",
+      "dollars": {
+        "min": 0.012591,
+        "max": 0.034364,
+        "spread": 0.021773,
+        "n": 5
+      },
+      "wall_clock_s": {
+        "min": 6.799,
+        "max": 9.334,
+        "spread": 2.535,
+        "n": 5
+      },
+      "queue_s": {
+        "min": 0.0,
+        "max": 0.0,
+        "spread": 0.0,
+        "n": 5
+      },
+      "input_tokens": {
+        "min": 4,
+        "max": 4,
+        "spread": 0,
+        "n": 5
+      },
+      "output_tokens": {
+        "min": 319,
+        "max": 319,
+        "spread": 0,
+        "n": 5
+      },
+      "cache_read_tokens": {
+        "min": 26441,
+        "max": 30977,
+        "spread": 4536,
+        "n": 5
+      },
+      "cache_write_tokens": {
+        "min": 0,
+        "max": 4536,
+        "spread": 4536,
+        "n": 5
+      },
+      "cache_write_share": {
+        "min": 0.0,
+        "max": 0.1464,
+        "spread": 0.1464,
+        "n": 5
+      },
+      "agents": {
+        "min": 0,
+        "max": 0,
+        "spread": 0,
+        "n": 5
+      }
+    }
+  },
+  "run_cost": {
+    "dollars": 18.487785,
+    "duration_s": 1547.0,
+    "budget": 30.0,
+    "over_budget": false,
+    "cut_to_one_epoch": []
+  }
+}

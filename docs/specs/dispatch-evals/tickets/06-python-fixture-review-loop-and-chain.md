@@ -4,13 +4,13 @@
 
 **Blocked by:** 02 (Add a `code-review` skill to this repo), 03 (First scored sample and scorecard)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A Python fixture exists with pytest, a build-this-feature task, visible tests, and stricter hidden tests kept out of the sandbox until scoring
-- [ ] Generator roles name `test-driven-development` and evaluator roles name `code-review`, both installed from this repo at the commit under test
-- [ ] Sample 3 scores outcome correct only when the hidden tests pass
-- [ ] Sample 5 returns `exhausted` after 2 rounds and scores status truthful
-- [ ] Sample 8 completes both stages and scores by the hidden tests
-- [ ] Sample 9 stops at stage 2 and the score checks the chain reports that stage and its status
-- [ ] The scorecard reports dollars and tokens per role (generator, evaluator, scribe and so on)
-- [ ] Scorer tests include a saved `exhausted` sample
+- [x] A Python fixture exists with pytest, a build-this-feature task, visible tests, and stricter hidden tests kept out of the sandbox until scoring
+- [x] Generator roles name `test-driven-development` and evaluator roles name `code-review`, both installed from this repo at the commit under test
+- [x] Sample 3 scores outcome correct only when the hidden tests pass
+- [x] Sample 5 returns `exhausted` after 2 rounds and scores status truthful
+- [x] Sample 8 completes both stages and scores by the hidden tests
+- [x] Sample 9 stops at stage 2 and the score checks the chain reports that stage and its status
+- [x] The scorecard reports dollars and tokens per role (generator, evaluator, scribe and so on)
+- [x] Scorer tests include a saved `exhausted` sample

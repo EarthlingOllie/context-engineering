@@ -135,7 +135,7 @@ The spread a baseline records is what `compare.py` uses as each sample's noise b
 
 **The routine budget.** A routine run (3 epochs) has a $30 budget (`suite.ROUTINE_BUDGET`) besides each sample's own limits; every scorecard records the run's actual cost and duration in `run_cost`. If the first routine run is over $30, debate, best-of-n and relay (`suite.CUT_TO_ONE_EPOCH`: samples 12, 13 and 14) are cut to 1 epoch before any sample is dropped: `run.py --cut-to-one-epoch` runs them as a second task at 1 epoch and the rest at `--epochs`, in one scorecard. The scorecard says when a run was over budget and names the command.
 
-**Status:** not yet frozen. The baseline run and the first 3-epoch routine run need the API key and are paid; no baseline is committed and no run cost has been measured. When they are, this paragraph records the routine run's actual cost and duration (its `run_cost`), whether it was over $30, and so whether routine runs use `--cut-to-one-epoch`.
+**Status:** frozen 2026-11-26 at plugin commit `3035a58f6828` (`baselines/3035a58f6828.json`): 5 epochs, $18.49, 25.8 minutes. 14 of 15 samples correct in every epoch, no false passes; `10-iterative-fan-out-docs-gap` fails 0/5 (`exhausted`, not `done`), a plugin finding: the evaluator is shown only the first line of each branch's result (`findingsText(findings, false)` in `src/topologies/iterative-fan-out.ts`), so it never sees full coverage. The first 3-epoch routine run cost **$10.74** in 16 minutes, under the $30 budget, so routine runs do not use `--cut-to-one-epoch`.
 
 ## Not measured by the suite
 
@@ -175,7 +175,7 @@ Also `--stub`, `--stub-delay-ms`, `--log-dir`, `--out-dir` (default `out/sweeps/
 
 `wall clock s`, `queue s` and `$` are the scorecard row's `wall_clock_s`, `queue_s` and `dollars`, each the mean over the cell's epochs (`-` if any is missing); the last line is the total dollars of the pass. The header records the caps, CPU count, memory, the pins and both limits. Tested in `tests/test_sweep.py`.
 
-**Cost of one pass:** not yet measured. It needs a paid run (`sweep.py` with the defaults: 6 runs, 1 epoch), and the figure goes here from its `total_dollars`. The dry run costs nothing.
+**Cost of one pass:** $1.21 (`sweep.py` with the defaults: 6 runs, 1 epoch; 2026-11-26, plugin commit `3035a58f6828`). Sample 7's queue time fell from 37.5 s at cap 2 to 15.3 s at cap 4 and 0.2 s at cap 8; wall clock from 39.2 s to 28.4 s. The dry run costs nothing.
 
 ## Compare
 
@@ -211,7 +211,7 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 |---|---|
 | `run.py` | the one command: runs the suite and writes the scorecard |
 | `compare.py` | compares two scorecards per sample and metric, marking noise |
-| `baselines/` | frozen baseline scorecards, committed: `<plugin commit>.json` and `.md` (none yet) |
+| `baselines/` | frozen baseline scorecards, committed: `<plugin commit>.json` and `.md` |
 | `sweep.py` | on demand: the concurrency sweep, samples 6 and 7 at each cap, one table |
 | `dispatch_suite.py` | the Inspect tasks (`dispatch_suite`, `concurrency_sweep`), their solver (sandbox set-up, bridge, harness) and scorers |
 | `scoring.py` | the scorers and scorecard, as pure functions over a recorded sample |
