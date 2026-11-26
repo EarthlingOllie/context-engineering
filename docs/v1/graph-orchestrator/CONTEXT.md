@@ -32,12 +32,20 @@ _Avoid_: Step, link
 The set of dispatches the orchestrator issues at once; each dispatch is its own workflow run, named for its purpose, and the wave is waited on in full before planning again (ADR-0003).
 _Avoid_: Batch, round
 
+**Run**:
+One execution of a dispatch as a workflow, identified by its run id. A dispatch normally has one run; a stopped run is resumed as a further run of the same dispatch.
+_Avoid_: Job, task, execution
+
+**Stopped**:
+A run that ended without returning, because the container or worker restarted. Not a signature status: the topology never produced one, so only the harness reports it.
+_Avoid_: Killed, crashed, failed (that is a signature status)
+
 **Frontier**:
 The work the orchestrator believes still needs doing. An empty frontier ends the session.
 _Avoid_: Backlog, queue
 
 **Signature**:
-The fixed contract every topology accepts from and returns to the orchestrator: a dispatch spec in; a status (done, blocked, exhausted, over budget), an inline result, artifact paths and an iteration count out.
+The fixed contract every topology accepts from and returns to the orchestrator: a dispatch spec in; a status (done, blocked, exhausted, over budget, failed), an inline result, artifact paths and an iteration count out.
 _Avoid_: Interface, API
 
 **Return Contract**:
