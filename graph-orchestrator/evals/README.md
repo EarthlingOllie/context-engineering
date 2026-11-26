@@ -39,6 +39,14 @@ One row per sample and epoch:
 | `models`, `on_pinned_model` | the models that served the sample, and whether all are the pinned model |
 | `hidden_check_absent` | no hidden-check file was in the sandbox before the agents ran |
 
+## Compare
+
+```sh
+python3 graph-orchestrator/evals/compare.py <baseline.json> <fix.json> [--force]
+```
+
+Prints one line per sample and metric: the baseline value, the fix value, the difference, the noise band and whether the move is `noise` or `MOVED`. Cost, time, tokens and agents compare the per-sample mean over epochs. The band is 10% of the baseline value, or, when the baseline has more than one epoch, the baseline's measured spread (max minus min over its epochs) for that sample; a difference no larger than the band is noise. Outcome correctness, false passes (a row's `false_pass`, else `done` reported while the hidden check failed) and status truthfulness compare as counts over epochs (`2/3` against `3/3`), never averaged, and any change in a count is shown. It refuses, exit 2, to compare scorecards whose `engine_version`, `inspect_version` or `model` differ, unless given `--force`. Tested in `tests/test_compare.py` with the hand-written scorecards in `tests/saved/scorecards/`.
+
 ## Pins
 
 `suite.py` pins the model (`claude-opus-5-5`, every role), Inspect (`inspect_ai==0.3.292`, also in `requirements.txt`) and the engine (`@anthropic-ai/claude-agent-sdk` 0.3.332 = Claude Code 2.1.332, also in `sandbox/package.json`). `tests/test_suite.py` checks they agree. Prices per model are in `suite.py` and are registered with Inspect's `set_model_cost`; Inspect ships none. Opus, Sonnet and Haiku are all declared to the bridge, so a role that requests one is served by it.
@@ -48,6 +56,7 @@ One row per sample and epoch:
 | Path | What it is |
 |---|---|
 | `run.py` | the one command: runs the suite and writes the scorecard |
+| `compare.py` | compares two scorecards per sample and metric, marking noise |
 | `dispatch_suite.py` | the Inspect task, its solver (sandbox set-up, bridge, harness) and scorers |
 | `scoring.py` | the scorers and scorecard, as pure functions over a recorded sample |
 | `suite.py` | pins, prices, run-parameter defaults, the sandbox copy rule |
