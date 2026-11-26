@@ -32,3 +32,30 @@ Finding ids (REL-01, QUA-04 and so on) refer to the session analysis in `docs/v1
 | 20 | **Set up an issue tracker for specs and tickets** (`/setup-matt-pocock-skills`), then publish the dispatch-evals spec and tickets there. | Specs and tickets are repo files only for now. | S | Nothing | n/a |
 | 21 | **A model grader for prose results.** | Only if the planted-fact checks prove too blunt for research dispatches. | M | Baseline | n/a |
 | 22 | **Close the gaps in the session analysis**: sessions eLKq and gFUT were only partly checked, and the early waves of d6Vc and dKG5 are known at ticket level only. | Low value: nothing found so far, and gFUT predates the plugin. | S | Nothing | n/a |
+
+## Groups
+
+The same work, grouped by goal and dependency rather than ranked. Rank 7's findings are placed individually. Every rank and all 27 findings appear exactly once. Ranks stay the order of work; groups say what belongs together.
+
+| Group | Goal | Items | Measured by |
+|---|---|---|---|
+| **1. Execution and lifecycle** | Dispatches launch, survive restarts and report their real status. | Ranks 2, 14, 18; REL-03, REL-05 | By hand in a cloud session; dispatch evals for rank 18 |
+| **2. Verification integrity** | No pass without a check that ran. | Ranks 1, 5 (both parts), 10; REL-08, QUA-02, QUA-05 | Dispatch evals; session evals for rank 5 part 2 and QUA-02 |
+| **3. Cost** | Spend less per dispatch without bringing back false passes. | Ranks 4, 9, 12; COST-05 | Dispatch evals; session evals for COST-05 |
+| **4. Orchestrator behaviour** | The main loop plans, waits, asks and uses context well. | Ranks 3, 11, 13; REL-06, QUA-03, QUA-07, QUA-09, QUA-10, SPD-02, SPD-03 | Session evals; by hand until they exist |
+| **5. Observability and evals** | Every run is recorded truthfully and can be measured cheaply. | Ranks 6, 8, 15, 16, 17, 19, 20, 21, 22; QUA-08, REL-07 | n/a (this is the measuring) |
+
+**Notes per group.**
+- **Execution and lifecycle.** Each finding has a plugin part and a platform part (rank 14); do both together. Rank 18 is this group's decision point: a second engine answers REL-01 and REL-03 at engine level, so decide on it before spending much on harness asks.
+- **Verification integrity.** Rank 1 and QUA-05 change the same line (`iterative-fan-out.ts:139`); do them together. REL-08 sets pass=false on a denied tool, and QUA-02 labels such work UNVERIFIED; land them as a pair.
+- **Cost.** Dispatch-evals ticket 09 → rank 4 → rank 9. Rank 12 runs in parallel, but needs rank 8's per-call usage to confirm the cause.
+- **Orchestrator behaviour.** Mostly SKILL.md rules, and mostly blocked on session evals for measurement, not for implementation. QUA-03 and QUA-04 (rank 3) are one rule at `SKILL.md:122`. QUA-10 relies on QUA-07. REL-06's pre-launch check is interim; revisit it with rank 11. Rank 13 also needs dispatch-evals ticket 12.
+- **Observability and evals.** Rank 6 is the hub of the roadmap: it gates group 4 and rank 17. Rank 15 has no design yet, so its place is provisional. Rank 20 is a process chore that fits no group well.
+
+**Links across groups.**
+- QUA-08 (group 5) depends on rank 9's scribe decision (group 3): without a scribe in `single`, the worker stamps the time.
+- Rank 1 (group 2) gates rank 18 (group 1).
+- Rank 6 (group 5) gates most of group 4.
+- SPD-03 (group 4) ties to rank 12 (group 3): long waits outlast the cache lifetime.
+
+**Corrections to rank 7.** Besides QUA-08 and REL-07, REL-05, REL-08, QUA-03, QUA-05 and SPD-03 also change dispatch code (`run.ts`, `roles.ts`, `render.ts`). The `roles.ts` changes alter agent prompts, so measure them with the dispatch evals against the baseline. QUA-05's `iterative-fan-out.ts:139` change is rank 1; rescope QUA-05 when rank 1 lands.
