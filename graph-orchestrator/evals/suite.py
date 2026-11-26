@@ -274,3 +274,16 @@ def harness_command(
         if stub_serve_model:
             cmd += ["--stub-serve-model", stub_serve_model]
     return cmd
+
+
+# ---- the concurrency sweep (spec: Baseline and runs): on demand, outside the routine run and its budget ----
+SWEEP_SAMPLES = ["06-fan-out-reducer-docs", "07-fan-out-partition-docs"]
+DEFAULT_SWEEP_CAPS = [2, 4, 8]
+DEFAULT_SWEEP_EPOCHS = 1  # on demand; raise it with --epochs for a noise band
+
+
+def sweep_samples(caps: list[int]) -> list[dict]:
+    """The sweep's dataset: each of SWEEP_SAMPLES once per cap, as is, with the cap on the sample (`cap`), the
+    sample it came from (`sample`) and an id naming both (`06-fan-out-reducer-docs@cap4`)."""
+    by_id = {s["id"]: s for s in load_samples()}
+    return [{**by_id[sid], "id": f"{sid}@cap{cap}", "sample": sid, "cap": cap} for sid in SWEEP_SAMPLES for cap in caps]

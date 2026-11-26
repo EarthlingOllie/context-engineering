@@ -106,6 +106,33 @@ Generator roles name the `test-driven-development` skill and evaluator roles `co
 
 With `--stub`, the canned engine never blocks, so sample 2 reports `done` and is scored untruthful: that is the scorer working. The canned judge picks candidate `[1]` and a canned relay worker adds a `SESSION s: stub` line to the progress file, so in a dry run sample 12's hidden tests run on candidate 1 (which wrote nothing, so they fail: a false pass), sample 13's verdict names no option, and sample 14's progress file is rewritten every session but its hidden tests fail. Sample 10 ends `done` after round 1 with the evaluator passing (scored not correct: one round, facts missing), and `exhausted` after round 2 with `--stub-evaluator fail`. `--stub-delay-ms <n>` makes each canned answer take `n` ms, so a dry run shows queue time under the cap. The canned evaluator passes; `--stub-evaluator fail` makes it fail, so samples 5 and 9 reach `exhausted` and sample 11's panel returns `FAIL` in a dry run (with the canned evaluator passing, sample 11 returns `PASS` and is scored a false pass). In a dry run nothing builds `parse_duration`, so samples 3 and 8 report `done` and their hidden tests fail, and nothing fixes the planted bug, so sample 4 is a false pass: again the scorer working.
 
+## Concurrency sweep
+
+On demand, and not part of the routine run or its budget: `run.py` never runs it, and it has its own command, log and output. It runs the two fan-out samples, `06-fan-out-reducer-docs` and `07-fan-out-partition-docs` (`suite.SWEEP_SAMPLES`), once per concurrency cap on one sandbox spec, and prints one table: per sample and cap, the wall clock, the queue time and the dollars.
+
+```sh
+env -u ANTHROPIC_BASE_URL .venv/bin/python graph-orchestrator/evals/sweep.py      # paid: caps 2, 4, 8 on 4 CPUs and 8g, 1 epoch
+.venv/bin/python graph-orchestrator/evals/sweep.py --stub --stub-delay-ms 300      # free dry run: canned engine, mockllm
+.venv/bin/python graph-orchestrator/evals/sweep.py --caps 2,4,8,16 --cpus 8 --memory 16g
+```
+
+| Option | Default | What it controls |
+|---|---|---|
+| `--caps` | `2,4,8` | the concurrency caps to run each sample at (`suite.DEFAULT_SWEEP_CAPS`) |
+| `--cpus` | `4` | CPUs given to the sandbox container, the same for every cap |
+| `--memory` | `8g` | memory given to the sandbox container, the same for every cap |
+| `--epochs` | `1` | runs per sample and cap; the table shows their mean |
+| `--cost-limit`, `--time-limit` | `30`, `1800` | per-run dollar and wall-clock limits, as in the suite |
+
+Also `--stub`, `--stub-delay-ms`, `--log-dir`, `--out-dir` (default `out/sweeps/`) and `--from-log <file>`. `sweep.py` runs the Inspect task `dispatch_suite.py@concurrency_sweep`: each sample once per cap (`suite.sweep_samples`, ids such as `07-fan-out-partition-docs@cap4`), the harness run under that sample's cap. It writes `out/sweeps/<plugin commit>-<UTC time>.json` (header, table, `total_dollars` and every run's scorecard row) and `.md`, the table:
+
+| sample | cap | wall clock s | queue s | $ | epochs |
+|---|---|---|---|---|---|
+
+`wall clock s`, `queue s` and `$` are the scorecard row's `wall_clock_s`, `queue_s` and `dollars`, each the mean over the cell's epochs (`-` if any is missing); the last line is the total dollars of the pass. The header records the caps, CPU count, memory, the pins and both limits. Tested in `tests/test_sweep.py`.
+
+**Cost of one pass:** not yet measured. It needs a paid run (`sweep.py` with the defaults: 6 runs, 1 epoch), and the figure goes here from its `total_dollars`. The dry run costs nothing.
+
 ## Compare
 
 ```sh
@@ -140,15 +167,16 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 |---|---|
 | `run.py` | the one command: runs the suite and writes the scorecard |
 | `compare.py` | compares two scorecards per sample and metric, marking noise |
-| `dispatch_suite.py` | the Inspect task, its solver (sandbox set-up, bridge, harness) and scorers |
+| `sweep.py` | on demand: the concurrency sweep, samples 6 and 7 at each cap, one table |
+| `dispatch_suite.py` | the Inspect tasks (`dispatch_suite`, `concurrency_sweep`), their solver (sandbox set-up, bridge, harness) and scorers |
 | `scoring.py` | the scorers and scorecard, as pure functions over a recorded sample |
-| `suite.py` | pins, prices, run-parameter defaults, the sandbox copy rule |
+| `suite.py` | pins, prices, run-parameter and sweep defaults, the sandbox copy rule |
 | `samples/` | one JSON file per sample: dispatch args, fixture, expected status |
 | `fixtures/<name>/sandbox/` | copied to `/work/` in the sandbox |
 | `fixtures/<name>/hidden/` | the hidden check; read by the scorer on the host, never in the sandbox while the agents run (hidden tests are copied in only after the dispatch) |
 | `harness/` | the Node harness: loads the built `workflows/dispatch.js` the way the Workflow harness does and supplies a real `Runtime` (`runtime.ts`), with the Agent SDK as its engine (`sdk-engine.ts`) or, for `--stub`, canned answers (`stub-engine.ts`); copied into the sandbox at run time |
 | `sandbox/` | the sandbox image (Python 3.12 with pytest from `sandbox/requirements.txt`, Node 22 copied from the Node image, the pinned Agent SDK); `run.py` writes its compose file to `out/` with the run's CPU count and memory |
-| `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`); suite and sample tests, the catalog demand formula among them (`test_suite.py`); fixture tests (`test_python_fixture.py`, `test_typescript_fixture.py`, `test_python_bug_fixture.py`) |
+| `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`); the sweep (`test_sweep.py`); suite and sample tests, the catalog demand formula among them (`test_suite.py`); fixture tests (`test_python_fixture.py`, `test_typescript_fixture.py`, `test_python_bug_fixture.py`) |
 | `spike/` | ticket 01's throwaway spike |
 
 The harness changes nothing in the plugin: the bundle is read as text and run with `agent`, `parallel` and `log` as globals.

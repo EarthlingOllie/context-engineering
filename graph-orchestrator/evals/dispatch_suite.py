@@ -86,7 +86,8 @@ def dispatch_harness(
         store().set("sandbox_tree", await _lines("find /work /opt -type f -not -path '*/node_modules/*' | sort"))
 
         cmd = suite.harness_command(
-            cap=cap, role_models=suite.parse_role_models(role_models), stub=stub,
+            cap=meta.get("cap", cap),  # a concurrency-sweep sample carries its own cap
+            role_models=suite.parse_role_models(role_models), stub=stub,
             stub_delay_ms=stub_delay_ms, stub_evaluator=stub_evaluator, stub_serve_model=stub_serve_model,
             watch=suite.hidden_check(meta).get("watch"),
         )
@@ -260,4 +261,44 @@ def dispatch_suite(
         cost_limit=cost_limit,
         time_limit=time_limit,
         metadata={"cap": cap, "cpus": cpus, "memory": memory, "stub": stub, "cost_limit": cost_limit, "time_limit": time_limit, "role_models": role_models},
+    )
+
+
+@task
+def concurrency_sweep(
+    caps: str = ",".join(map(str, suite.DEFAULT_SWEEP_CAPS)),
+    cpus: int = suite.DEFAULT_CPUS,
+    memory: str = suite.DEFAULT_MEMORY,
+    epochs: int = suite.DEFAULT_SWEEP_EPOCHS,
+    stub: bool = False,
+    cost_limit: float = suite.DEFAULT_COST_LIMIT,
+    time_limit: int = suite.DEFAULT_TIME_LIMIT,
+    stub_delay_ms: int = 0,
+) -> Task:
+    """On demand, outside the routine run and its budget: the fan-out samples (suite.SWEEP_SAMPLES) once per cap
+    (suite.sweep_samples), each run by the harness under its own cap, on one sandbox spec (`cpus`, `memory`).
+    Run it through sweep.py, which also writes the table. Each run has the same per-sample limits as the suite."""
+    register_prices()
+    cap_list = [int(c) for c in caps.split(",") if c.strip()]
+    dataset = [
+        Sample(
+            id=s["id"],
+            input=f"Run dispatch {s['args']['dispatch']['id']} at cap {s['cap']}: {s['description']}",
+            target=s["expected_status"],
+            metadata={
+                "fixture": s["fixture"], "expected_status": s["expected_status"], "check": s.get("check", {}), "args": s["args"],
+                "sample": s["sample"], "cap": s["cap"],
+            },
+        )
+        for s in suite.sweep_samples(cap_list)
+    ]
+    return Task(
+        dataset=dataset,
+        solver=[sample_meta(), as_solver(dispatch_harness(stub=stub, timeout=time_limit, stub_delay_ms=stub_delay_ms))],
+        scorer=[outcome_correct_scorer(), status_truthful_scorer()],
+        sandbox=("docker", str(compose_file(cpus, memory))),
+        epochs=epochs,
+        cost_limit=cost_limit,
+        time_limit=time_limit,
+        metadata={"caps": cap_list, "cpus": cpus, "memory": memory, "stub": stub, "cost_limit": cost_limit, "time_limit": time_limit},
     )
