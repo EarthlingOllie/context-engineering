@@ -12,6 +12,16 @@ skills/<skill-name>/<anything else>    supporting files the skill references
 
 Skills are namespaced by the plugin, so `skills/my-skill/SKILL.md` is invoked as `/skills:my-skill` (and Claude can also pick it up from its `description`).
 
+## Skills
+
+| Skill | What it does | Origin |
+|---|---|---|
+| `forge-diff` | Works through a set of findings, fixing each test-first. | This repo |
+| `root-cause-analysis` | Root cause analysis with hypotheses tested in isolated worktrees. | This repo |
+| `test-driven-development` | Red, green, mutate, refactor workflow. | This repo |
+| `test-end-to-end` | User stories for every path through the diff, filled in as Playwright tests. | This repo |
+| `code-review` | Two-axis review of the diff since a fixed point: Standards and Spec, run as parallel sub-agents. Evaluator roles can name it. | Copied from [mattpocock/skills](https://github.com/mattpocock/skills) v1.2.3 under the MIT licence (notice in `skills/code-review/LICENSE`), adjusted only to work without the rest of that plugin |
+
 ## Add a skill
 
 1. Create `skills/<skill-name>/SKILL.md` with `name` and `description` frontmatter.
