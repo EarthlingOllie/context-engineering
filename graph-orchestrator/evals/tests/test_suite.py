@@ -26,6 +26,11 @@ class Pins(unittest.TestCase):
         self.assertIn(suite.MODEL, suite.DECLARED_MODELS)
         self.assertEqual(set(suite.PRICES), set(suite.DECLARED_MODELS))
 
+    def test_the_roles_a_model_can_be_forced_on_are_the_plugin_label_roles(self):
+        labels = (suite.PLUGIN / "src" / "labels.ts").read_text()
+        roles = re.search(r"export type LabelRole = ([^;]+);", labels).group(1)
+        self.assertEqual(sorted(suite.ROLES), sorted(re.findall(r'"([a-z]+)"', roles)))
+
     def test_sample_1_runs_every_role_on_the_main_model(self):
         (s1,) = [s for s in suite.load_samples() if s["id"] == "01-single-docs"]
         text = json.dumps(s1)

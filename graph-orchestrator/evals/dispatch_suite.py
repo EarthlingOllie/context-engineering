@@ -3,7 +3,8 @@
 The solver copies the shipped bundle (workflows/dispatch.js, read as is), this
 repo's skills plugin, the harness source and the fixture's sandbox tree into a
 Docker sandbox; records the sandbox file tree; opens the sandbox agent bridge
-with every model a role may request declared; and runs the Node harness, whose
+with every model a role may request declared; and runs the Node harness
+(every role on the pinned model unless `role_models` forces one elsewhere), whose
 Agent SDK talks to the bridge, so every model call is an Inspect model call.
 It then records the harness result file, the trace and the files the agents
 wrote. The hidden check never enters the sandbox while the agents run: the
@@ -64,7 +65,8 @@ async def _lines(cmd: str) -> list[str]:
 
 @agent
 def dispatch_harness(
-    stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: int = suite.DEFAULT_TIME_LIMIT, stub_delay_ms: int = 0, stub_evaluator: str = "pass"
+    stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: int = suite.DEFAULT_TIME_LIMIT, stub_delay_ms: int = 0, stub_evaluator: str = "pass",
+    role_models: str = "", stub_serve_model: str = "",
 ) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         sbx = sandbox()
@@ -83,16 +85,10 @@ def dispatch_harness(
         # The sandbox as the agents will find it: the hidden check must not be in it.
         store().set("sandbox_tree", await _lines("find /work /opt -type f -not -path '*/node_modules/*' | sort"))
 
-        cmd = [
-            "node", "--experimental-strip-types", "--disable-warning=ExperimentalWarning", "/opt/harness/src/main.ts",
-            "--bundle", "/opt/plugin/workflows/dispatch.js",
-            "--args", "/work/args.json",
-            "--out", "/work/result.json",
-            "--cap", str(cap),
-            "--model", suite.MODEL,
-            "--skills", "/opt/skills",
-            "--cwd", "/work",
-        ] + (["--stub", "--stub-delay-ms", str(stub_delay_ms), "--stub-evaluator", stub_evaluator] if stub else [])
+        cmd = suite.harness_command(
+            cap=cap, role_models=suite.parse_role_models(role_models), stub=stub,
+            stub_delay_ms=stub_delay_ms, stub_evaluator=stub_evaluator, stub_serve_model=stub_serve_model,
+        )
         aliases = {name: f"anthropic/{name}" for name in suite.DECLARED_MODELS}
         async with sandbox_agent_bridge(state, model_aliases=None if stub else aliases) as bridge:
             env = {
@@ -207,8 +203,14 @@ def dispatch_suite(
     time_limit: int = suite.DEFAULT_TIME_LIMIT,
     stub_delay_ms: int = 0,
     stub_evaluator: str = "pass",
+    role_models: str = "",
+    stub_serve_model: str = "",
 ) -> Task:
+    """`role_models` ("evaluator=claude-haiku-5-5,...") forces roles onto other declared models through the harness,
+    to show the routing check; empty in the baseline. `stub_serve_model` makes the stub report every call as served
+    on that model (a dry run of the bridge's fallback)."""
     register_prices()
+    suite.parse_role_models(role_models)  # refuse an unknown role or undeclared model before any sandbox starts
     wanted = {s for s in samples.split(",") if s}
     dataset = [
         Sample(
@@ -222,12 +224,20 @@ def dispatch_suite(
     ]
     return Task(
         dataset=dataset,
-        solver=[sample_meta(), as_solver(dispatch_harness(stub=stub, cap=cap, timeout=time_limit, stub_delay_ms=stub_delay_ms, stub_evaluator=stub_evaluator))],
+        solver=[
+            sample_meta(),
+            as_solver(
+                dispatch_harness(
+                    stub=stub, cap=cap, timeout=time_limit, stub_delay_ms=stub_delay_ms, stub_evaluator=stub_evaluator,
+                    role_models=role_models, stub_serve_model=stub_serve_model,
+                )
+            ),
+        ],
         scorer=[outcome_correct_scorer(), status_truthful_scorer()],
         sandbox=("docker", str(compose_file(cpus, memory))),
         epochs=epochs,
         # Every sample stops at whichever comes first: its dollar limit or its wall-clock limit.
         cost_limit=cost_limit,
         time_limit=time_limit,
-        metadata={"cap": cap, "cpus": cpus, "memory": memory, "stub": stub, "cost_limit": cost_limit, "time_limit": time_limit},
+        metadata={"cap": cap, "cpus": cpus, "memory": memory, "stub": stub, "cost_limit": cost_limit, "time_limit": time_limit, "role_models": role_models},
     )

@@ -32,3 +32,21 @@ test("with a failing evaluator the stub ends sample 5 exhausted after its 2 roun
   const s9 = await runHarness({ bundleSource, args: sampleArgs("09-chain-stage-2-fails.json", mkdtempSync(join(tmpdir(), "stub-"))), engine: stubEngine({ evaluator: "fail" }), mainModel: "m", cap: 2 });
   assert.deepEqual(s9.return?.["stages"], ["w1-d9-s1:done", "w1-d9-s2:exhausted"]);
 });
+
+test("the stub reports each call as served on the model requested, or with `serveModel` on that model whatever was requested", async () => {
+  const args = sampleArgs("03-generator-evaluator-python.json", mkdtempSync(join(tmpdir(), "stub-")));
+  const honest = await runHarness({ bundleSource, args, engine: stubEngine(), mainModel: "claude-opus-5-5", cap: 2, roleModels: { evaluator: "claude-haiku-5-5" } });
+  assert.deepEqual(
+    honest.agents.map((a) => [a.role, a.model, (a.engine as { calls: Array<{ model: string }> }).calls.map((c) => c.model)]),
+    [
+      ["generator", "claude-opus-5-5", ["claude-opus-5-5"]],
+      ["evaluator", "claude-haiku-5-5", ["claude-haiku-5-5"]],
+      ["scribe", "claude-opus-5-5", ["claude-opus-5-5"]],
+    ],
+  );
+  const args2 = sampleArgs("03-generator-evaluator-python.json", mkdtempSync(join(tmpdir(), "stub-")));
+  const fallback = await runHarness({ bundleSource, args: args2, engine: stubEngine({ serveModel: "claude-opus-5-5" }), mainModel: "claude-opus-5-5", cap: 2, roleModels: { evaluator: "claude-haiku-5-5" } });
+  const ev = fallback.agents.find((a) => a.role === "evaluator")!;
+  assert.equal(ev.model, "claude-haiku-5-5");
+  assert.deepEqual((ev.engine as { calls: Array<{ model: string }> }).calls.map((c) => c.model), ["claude-opus-5-5"]);
+});

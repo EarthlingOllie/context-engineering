@@ -20,6 +20,7 @@ from scoring import (
     role_of,
     hidden_check_absent,
     load_saved_sample,
+    model_routing,
     outcome,
     outcome_correct,
     render_markdown,
@@ -143,6 +144,12 @@ class Row(unittest.TestCase):
                 "peak_concurrency": 1,
                 "models": ["anthropic/claude-opus-5-5"],
                 "on_pinned_model": True,
+                "models_by_role": {
+                    "worker": {"requested": ["claude-opus-5-5"], "served": []},
+                    "scribe": {"requested": ["claude-opus-5-5"], "served": []},
+                },
+                "misrouted": [],
+                "routing_ok": True,
                 "hidden_check_absent": True,
                 "harness_error": None,
                 "by_role": {
@@ -523,3 +530,71 @@ class PanelVerdict(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ModelRouting(unittest.TestCase):
+    """Ticket 09: per role, the model each agent was requested on and the model that served its calls."""
+
+    def rec(self, evaluator_served: list[str], evaluator_requested: str = "claude-haiku-5-5"):
+        rec = load_saved_sample(SAVED / "exhausted")
+        calls = lambda *ms: {"calls": [{"model": m, "usage": None} for m in ms]}  # noqa: E731
+        agents = rec.result["agents"]
+        agents[0]["engine"] = calls("claude-opus-5-5", "claude-opus-5-5")  # generator round 1
+        agents[1]["model"] = evaluator_requested
+        agents[1]["engine"] = calls(*evaluator_served)  # evaluator round 1
+        agents[2]["engine"] = calls("claude-opus-5-5")  # generator round 2
+        agents[3]["model"] = evaluator_requested
+        agents[3]["engine"] = calls(evaluator_requested)  # evaluator round 2
+        agents[4]["engine"] = None  # the scribe's engine reported nothing
+        return rec
+
+    def row(self, rec, limit_hit=None):
+        return sample_row(
+            sample_id="05-generator-evaluator-exhausted", epoch=1, rec=rec, check={"kind": "exhausted", "rounds": 2},
+            expected_status="exhausted", hidden_names=[], pinned_model=MODEL, prices=PRICES, limit_hit=limit_hit,
+        )
+
+    def test_requested_and_serving_model_are_recorded_per_role(self):
+        self.assertEqual(
+            model_routing(self.rec(["claude-haiku-5-5"]))["by_role"],
+            {
+                "generator": {"requested": ["claude-opus-5-5"], "served": ["claude-opus-5-5"]},
+                "evaluator": {"requested": ["claude-haiku-5-5"], "served": ["claude-haiku-5-5"]},
+                "scribe": {"requested": ["claude-opus-5-5"], "served": []},
+            },
+        )
+
+    def test_the_serving_model_is_read_from_the_engine_usage_when_no_call_was_recorded(self):
+        rec = self.rec(["claude-haiku-5-5"])
+        rec.result["agents"][1]["engine"] = {"result": {"modelUsage": {"anthropic/claude-haiku-5-5": {"inputTokens": 5}}}}
+        self.assertEqual(model_routing(rec)["by_role"]["evaluator"]["served"], ["claude-haiku-5-5"])
+
+    def test_a_role_served_on_the_model_it_requested_keeps_the_sample_correct(self):
+        r = self.row(self.rec(["claude-haiku-5-5"]))
+        self.assertEqual((r["routing_ok"], r["misrouted"], r["outcome_correct"], r["missing_facts"]), (True, [], True, []))
+        self.assertEqual(r["models_by_role"]["evaluator"], {"requested": ["claude-haiku-5-5"], "served": ["claude-haiku-5-5"]})
+
+    def test_a_sample_fails_when_any_call_is_served_by_another_model_than_requested(self):
+        r = self.row(self.rec(["claude-haiku-5-5", "claude-opus-5-5"]))
+        self.assertEqual(r["routing_ok"], False)
+        self.assertEqual(r["outcome_correct"], False)
+        self.assertEqual(r["status_truthful"], True)
+        self.assertEqual(r["misrouted"], [{"agent": 2, "role": "evaluator", "requested": "claude-haiku-5-5", "served": ["claude-opus-5-5"]}])
+        self.assertEqual(r["missing_facts"], ["model routing: evaluator agent 2 requested claude-haiku-5-5, served by claude-opus-5-5"])
+
+    def test_a_misrouted_sample_is_not_counted_as_a_false_pass(self):
+        r = self.row(self.rec(["claude-opus-5-5"]))
+        self.assertEqual((r["outcome_correct"], r["false_pass"]), (False, False))
+
+    def test_a_limit_hit_sample_is_not_scored_for_routing_but_still_shows_its_models(self):
+        r = self.row(self.rec(["claude-opus-5-5"]), limit_hit="cost")
+        self.assertIsNone(r["routing_ok"])
+        self.assertIsNone(r["outcome_correct"])
+        self.assertEqual(r["models_by_role"]["evaluator"]["served"], ["claude-haiku-5-5", "claude-opus-5-5"])
+
+    def test_the_markdown_scorecard_shows_requested_and_serving_model_per_role(self):
+        md = render_markdown(scorecard(HEADER, [self.row(self.rec(["claude-opus-5-5"]))]))
+        self.assertIn("| sample | epoch | role | requested | served | routed |", md)
+        self.assertIn("| 05-generator-evaluator-exhausted | 1 | generator | claude-opus-5-5 | claude-opus-5-5 | yes |", md)
+        self.assertIn("| 05-generator-evaluator-exhausted | 1 | evaluator | claude-haiku-5-5 | claude-haiku-5-5, claude-opus-5-5 | no |", md)
+        self.assertIn("| 05-generator-evaluator-exhausted | 1 | scribe | claude-opus-5-5 | - | yes |", md)

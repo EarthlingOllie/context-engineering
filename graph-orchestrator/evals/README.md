@@ -33,13 +33,13 @@ What a run may spend and what hardware it simulates. Defaults are in `suite.py` 
 
 Every sample runs under both limits. A sample that exceeds its cost or time limit is stopped by Inspect, and its scorecard row has `limit_hit` set to `cost` or `time`, with `outcome_correct` and `status_truthful` left empty (`limit-hit (cost)` in the Markdown): it is not scored, so it never counts as a failure of the plugin. The cap, CPU count, memory and both limits are recorded in the scorecard header.
 
-Other options: `--stub` (canned engine, mockllm, no model call) with `--stub-delay-ms` and `--stub-evaluator pass|fail`, `--samples <ids>`, `--log-dir`, `--out-dir`, and `--from-log <file>` to rebuild a scorecard from a saved log without running.
+Other options: `--role-model ROLE=MODEL` (see Model routing), `--stub` (canned engine, mockllm, no model call) with `--stub-delay-ms`, `--stub-evaluator pass|fail` and `--stub-serve-model MODEL`, `--samples <ids>`, `--log-dir`, `--out-dir`, and `--from-log <file>` to rebuild a scorecard from a saved log without running.
 
 Raw Inspect logs go to `logs/` and generated files to `out/`; both are git-ignored, because logs hold full transcripts. Baseline scorecards, when frozen, are committed under `baselines/`.
 
 ## Scorecard
 
-Header: `plugin_commit` (with `-dirty` if the plugin or skills have uncommitted changes), `engine_version`, `inspect_version`, `model`, `concurrency_cap`, `cpus`, `memory`, `epochs`, `cost_limit`, `time_limit`, plus `stub`, `created_at` and the log file name.
+Header: `plugin_commit` (with `-dirty` if the plugin or skills have uncommitted changes), `engine_version`, `inspect_version`, `model`, `concurrency_cap`, `cpus`, `memory`, `epochs`, `cost_limit`, `time_limit`, plus `stub`, `role_models` (roles forced onto another model; `{}` in the baseline), `created_at` and the log file name.
 
 One row per sample and epoch:
 
@@ -60,6 +60,7 @@ One row per sample and epoch:
 | `peak_concurrency` | the most agents that ran at once, from their start and end times; never above `concurrency_cap` |
 | `models`, `on_pinned_model` | the models that served the sample, and whether all are the pinned model |
 | `hidden_check_absent` | no hidden-check file was in the sandbox before the agents ran |
+| `models_by_role`, `misrouted`, `routing_ok` | per role, the models its agents were requested on and the models that served their calls (each call's model in the engine record, else the engine's per-model usage); every agent with a call served by another model than it requested; and whether there was none. A misrouted call fails the sample: `outcome_correct` is false and `missing_facts` names the agent, whatever the hidden check said (not counted as a false pass). The Markdown scorecard shows it as a "Model routing" table |
 | `by_role` | per role (`generator`, `evaluator`, `worker`, `partition`, `reducer`, `judge`, `debater`, `scribe`): agents, dollars and input / output / cache-read / cache-write tokens. The role is read from the agent's label; tokens from its engine record (the SDK's per-model usage); dollars are those tokens at `suite.PRICES`, the prices Inspect gets, not the engine's own estimate. Empty dollars for a role served by an unpriced model. The Markdown scorecard shows it as a "Cost by role" table |
 
 The card also holds `false_passes`: per sample, its false passes over its scored epochs (limit-hit rows are not scored), and the suite total. The Markdown scorecard has a `false pass` column per row and a "False passes" table, one line per sample (`2 of 3`) and a `suite total` line.
@@ -101,6 +102,22 @@ Prints one line per sample and metric: the baseline value, the fix value, the di
 ## Pins
 
 `suite.py` pins the model (`claude-opus-5-5`, every role), Inspect (`inspect_ai==0.3.292`, also in `requirements.txt`) and the engine (`@anthropic-ai/claude-agent-sdk` 0.3.332 = Claude Code 2.1.332, also in `sandbox/package.json`), and pytest (8.3.5, in `sandbox/requirements.txt`). `tests/test_suite.py` checks they agree. Prices per model are in `suite.py` and are registered with Inspect's `set_model_cost`; Inspect ships none. Opus, Sonnet and Haiku are all declared to the bridge, so a role that requests one is served by it.
+
+## Model routing
+
+The bridge serves only the model names declared to it and silently sends any other name to the main model, so `suite.DECLARED_MODELS` declares Opus, Sonnet and Haiku (each priced in `suite.PRICES`) and the scorer fails a sample when any call's serving model differs from the requested one (`scoring.model_routing`).
+
+The baseline and routine runs force no role: every role is requested on `claude-opus-5-5`. To see the check work, force one role onto another declared model through the harness, without changing the plugin:
+
+```sh
+python graph-orchestrator/evals/run.py --role-model evaluator=claude-haiku-5-5 --samples 03-generator-evaluator-python   # paid
+python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 --samples 05-generator-evaluator-exhausted \
+  --role-model evaluator=claude-haiku-5-5                                   # free: routed, correct
+python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 --samples 05-generator-evaluator-exhausted \
+  --role-model evaluator=claude-haiku-5-5 --stub-serve-model claude-opus-5-5  # free: the stub serves on Opus, the sample fails on routing
+```
+
+`--role-model` takes a role from `suite.ROLES` (the plugin's label roles) and a declared model, and may be repeated. In the sandbox the SDK engine also pins Claude Code's small fast model to the requested model, so its background calls do not show up as misrouted.
 
 ## Layout
 

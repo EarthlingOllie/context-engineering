@@ -28,6 +28,28 @@ ENGINE_VERSION = f"@anthropic-ai/claude-agent-sdk {SDK_VERSION} (Claude Code {CL
 # name would silently fall back to the main model (spec: Model routing).
 DECLARED_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
 
+# The roles an agent label names (src/labels.ts LabelRole; the "Grapher" label is the scribe).
+ROLES = ["worker", "generator", "evaluator", "partition", "reducer", "judge", "debater", "scribe"]
+
+
+def parse_role_models(pairs) -> dict[str, str]:
+    """`role=model` pairs (a list, or one comma-separated string) forcing a role onto a declared model, for the
+    routing check. The baseline passes none."""
+    if isinstance(pairs, str):
+        pairs = [p for p in pairs.split(",") if p.strip()]
+    out: dict[str, str] = {}
+    for pair in pairs or []:
+        role, sep, model = pair.strip().partition("=")
+        if not sep or not role or not model:
+            raise ValueError(f"a forced role model is role=model, got {pair!r}")
+        if role not in ROLES:
+            raise ValueError(f"unknown role {role!r}: one of {', '.join(ROLES)}")
+        if model not in DECLARED_MODELS:
+            raise ValueError(f"model {model!r} is not declared to the bridge: one of {', '.join(DECLARED_MODELS)}")
+        out[role] = model
+    return out
+
+
 # $/MTok, supplied to Inspect with set_model_cost (Inspect ships no Anthropic
 # prices). Source: the claude-api skill price table, cached 2026-11-03. Cache
 # write at 1.25x input and the Haiku cache prices are assumptions to confirm
@@ -140,3 +162,33 @@ def hidden_check(sample: dict) -> dict:
         copied = fixture_sandbox_files(fixture)
         check["unchanged"] = {p: copied[p].read_text() for p in check["unchanged"]}
     return check
+
+
+def harness_command(
+    *,
+    cap: int,
+    role_models: dict[str, str] | None = None,
+    stub: bool = False,
+    stub_delay_ms: int = 0,
+    stub_evaluator: str = "pass",
+    stub_serve_model: str = "",
+) -> list[str]:
+    """The Node harness command run in the sandbox. Every role is requested on MODEL unless `role_models` forces it
+    onto another declared model (the plugin is not changed)."""
+    cmd = [
+        "node", "--experimental-strip-types", "--disable-warning=ExperimentalWarning", "/opt/harness/src/main.ts",
+        "--bundle", "/opt/plugin/workflows/dispatch.js",
+        "--args", "/work/args.json",
+        "--out", "/work/result.json",
+        "--cap", str(cap),
+        "--model", MODEL,
+        "--skills", "/opt/skills",
+        "--cwd", "/work",
+    ]
+    for role, model in (role_models or {}).items():
+        cmd += ["--role-model", f"{role}={model}"]
+    if stub:
+        cmd += ["--stub", "--stub-delay-ms", str(stub_delay_ms), "--stub-evaluator", stub_evaluator]
+        if stub_serve_model:
+            cmd += ["--stub-serve-model", stub_serve_model]
+    return cmd

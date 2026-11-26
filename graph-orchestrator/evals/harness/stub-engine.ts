@@ -5,16 +5,22 @@
  * `evaluator: "fail"` always fails (so a dry run reaches `exhausted`); every
  * other role reports nothing useful. `delayMs` makes each non-scribe answer
  * take that long, so queueing under the cap shows in a dry run.
+ *
+ * Each answer's record holds one call, served on the model requested, the way
+ * the SDK engine records the model that served each call. `serveModel` serves
+ * every call on that model whatever was requested: a dry run of the bridge's
+ * silent fallback to the main model, so the routing check can be seen failing.
  */
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Engine } from "./runtime.ts";
 
-export type StubOptions = { delayMs?: number; evaluator?: "pass" | "fail" };
+export type StubOptions = { delayMs?: number; evaluator?: "pass" | "fail"; serveModel?: string };
 
 export function stubEngine(o: StubOptions = {}): Engine {
   const delayMs = o.delayMs ?? 0;
   return async (req) => {
+    const record = { stub: true, calls: [{ model: o.serveModel ?? req.model, usage: null }] };
     if (req.prompt.startsWith("ROLE: scribe")) {
       const file = /to the file (.+?), exactly as given/.exec(req.prompt)?.[1];
       if (!file) throw new Error("stub scribe: no trace file in the prompt");
@@ -22,17 +28,17 @@ export function stubEngine(o: StubOptions = {}): Engine {
       mkdirSync(dirname(file), { recursive: true });
       appendFileSync(file, lines.map((l) => l + "\n").join(""));
       const totalLines = readFileSync(file, "utf8").split("\n").filter(Boolean).length;
-      return { output: { appended: lines.length, totalLines }, record: { stub: true } };
+      return { output: { appended: lines.length, totalLines }, record };
     }
     if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
     if (req.label?.startsWith("Partition")) {
       const width = Number(/at most (\d+) independent sub-tasks/.exec(req.prompt)?.[1] ?? 1);
-      return { output: { subtasks: Array.from({ length: width }, (_, i) => `stub sub-task ${i + 1}`), blocked: false }, record: { stub: true } };
+      return { output: { subtasks: Array.from({ length: width }, (_, i) => `stub sub-task ${i + 1}`), blocked: false }, record };
     }
     if (/Evaluator/.test(req.label ?? "")) {
       const pass = o.evaluator !== "fail";
-      return { output: { pass, feedback: pass ? "" : "1. stub: the evaluator was set to fail", blocked: false }, record: { stub: true } };
+      return { output: { pass, feedback: pass ? "" : "1. stub: the evaluator was set to fail", blocked: false }, record };
     }
-    return { output: { result: "stub: no model call was made", artifacts: [], blocked: false }, record: { stub: true } };
+    return { output: { result: "stub: no model call was made", artifacts: [], blocked: false }, record };
   };
 }

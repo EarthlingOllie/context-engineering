@@ -3,6 +3,7 @@
     python graph-orchestrator/evals/run.py                      # paid: every role on claude-opus-5-5, 3 epochs
     python graph-orchestrator/evals/run.py --stub --epochs 1    # free dry run: canned engine, mockllm
     python graph-orchestrator/evals/run.py --from-log <file>    # rebuild a scorecard from a saved log
+    python graph-orchestrator/evals/run.py --role-model evaluator=claude-haiku-5-5   # routing check: one role forced to Haiku
 
 Writes out/scorecards/<plugin commit>-<UTC time>.json and .md (git-ignored);
 raw Inspect logs go to logs/ (git-ignored). See README.md.
@@ -88,6 +89,7 @@ def build_scorecard(log, commit: str) -> dict:
         "cost_limit": task_args.get("cost_limit", suite.DEFAULT_COST_LIMIT),
         "time_limit": task_args.get("time_limit", suite.DEFAULT_TIME_LIMIT),
         "stub": bool(task_args.get("stub", False)),
+        "role_models": suite.parse_role_models(task_args.get("role_models", "")),
         "created_at": log.eval.created,
         "log": Path(log.location).name if log.location else None,
     }
@@ -109,6 +111,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--stub", action="store_true", help="canned engine and mockllm: no model call, no cost")
     ap.add_argument("--stub-delay-ms", type=int, default=0, help="with --stub: each canned answer takes this long, so queueing under the cap shows")
     ap.add_argument("--stub-evaluator", choices=["pass", "fail"], default="pass", help="with --stub: every evaluator passes, or fails (samples 5 and 9 then end exhausted, and sample 11 returns FAIL)")
+    ap.add_argument(
+        "--role-model", action="append", default=[], metavar="ROLE=MODEL",
+        help="force a role onto another declared model through the harness (repeatable), e.g. evaluator=claude-haiku-5-5; the baseline forces none",
+    )
+    ap.add_argument("--stub-serve-model", default="", help="with --stub: report every call as served on this model (a dry run of the bridge falling back)")
     ap.add_argument("--epochs", type=int, default=suite.DEFAULT_EPOCHS)
     ap.add_argument("--cap", type=int, default=suite.DEFAULT_CAP)
     ap.add_argument("--cpus", type=int, default=suite.DEFAULT_CPUS)
@@ -145,6 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         task = dispatch_suite(
             stub=a.stub, cap=a.cap, cpus=a.cpus, memory=a.memory, epochs=a.epochs, samples=a.samples, cost_limit=a.cost_limit, time_limit=a.time_limit,
             stub_delay_ms=a.stub_delay_ms, stub_evaluator=a.stub_evaluator,
+            role_models=",".join(f"{r}={m}" for r, m in suite.parse_role_models(a.role_model).items()), stub_serve_model=a.stub_serve_model,
         )
         (log,) = inspect_eval(task, model="mockllm/model" if a.stub else f"anthropic/{suite.MODEL}", log_dir=a.log_dir)
         if log.location:

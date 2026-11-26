@@ -32,6 +32,8 @@ export function loadBundle(src: string): Bundle {
 export type HarnessResult = {
   meta: { name: unknown };
   mainModel: string;
+  /** Roles the harness forced onto another model (role -> model id); empty in the baseline. */
+  roleModels: Record<string, string>;
   cap: number;
   wallClockMs: number;
   return: Record<string, unknown> | null;
@@ -40,9 +42,10 @@ export type HarnessResult = {
   logs: LogRecord[];
 };
 
-export async function runHarness(o: { bundleSource: string; args: unknown; engine: Engine; mainModel: string; cap: number; now?: () => number }): Promise<HarnessResult> {
+export async function runHarness(o: { bundleSource: string; args: unknown; engine: Engine; mainModel: string; cap: number; roleModels?: Record<string, string>; now?: () => number }): Promise<HarnessResult> {
   const bundle = loadBundle(o.bundleSource);
-  const { runtime, agents, logs, now } = createRuntime({ engine: o.engine, mainModel: o.mainModel, cap: o.cap, ...(o.now ? { now: o.now } : {}) });
+  const roleModels = { ...(o.roleModels ?? {}) };
+  const { runtime, agents, logs, now } = createRuntime({ engine: o.engine, mainModel: o.mainModel, cap: o.cap, roleModels, ...(o.now ? { now: o.now } : {}) });
   const t0 = now();
   let ret: unknown = null;
   let error: string | null = null;
@@ -54,6 +57,7 @@ export async function runHarness(o: { bundleSource: string; args: unknown; engin
   return {
     meta: { name: bundle.meta["name"] },
     mainModel: o.mainModel,
+    roleModels,
     cap: Math.max(1, Math.floor(o.cap) || 1),
     wallClockMs: now() - t0,
     return: ret && typeof ret === "object" ? (ret as Record<string, unknown>) : null,

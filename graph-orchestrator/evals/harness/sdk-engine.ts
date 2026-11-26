@@ -31,7 +31,10 @@ export async function sdkEngine(o: { cwd: string; skillsPlugin: string | null; s
       allowDangerouslySkipPermissions: true,
       settingSources: [],
       ...(o.skillsPlugin ? { plugins: [{ type: "local", path: o.skillsPlugin }] } : {}),
-      env: { ...process.env },
+      // Claude Code sends some background calls to its small fast model (Haiku by
+      // default); pin those to the requested model too, so every call of the
+      // agent is one the routing check expects.
+      env: { ...process.env, ANTHROPIC_SMALL_FAST_MODEL: req.model, ANTHROPIC_DEFAULT_HAIKU_MODEL: req.model },
       ...(req.schema ? { outputFormat: { type: "json_schema", schema: req.schema } } : {}),
     };
     const record: EngineRecord = { init: null, calls: [], skillsInvoked: [], result: null };

@@ -21,6 +21,9 @@ export type HarnessAgentOptions = AgentOptions & { model?: string };
 export type AgentRecord = {
   n: number;
   label: string | null;
+  /** The role the label names (roleOf). */
+  role: string;
+  /** The model this agent was requested on: a harness-forced role model, else the plugin's, else the main model. */
   model: string;
   /** When agent() was called. */
   calledMs: number;
@@ -36,7 +39,22 @@ export type LogRecord = { atMs: number; message: string };
 
 export type HarnessRuntime = Runtime & { agent: (prompt: string, opts?: HarnessAgentOptions) => Promise<unknown> };
 
-export function createRuntime(o: { engine: Engine; mainModel: string; cap: number; now?: () => number }) {
+const ROLE_WORDS: Record<string, string> = { grapher: "scribe" };
+const STAGE_PREFIX = /^Link [\d.]+(?: · [^,]+)?, /;
+
+/** The role an agent label names (src/labels.ts); the same rule as scoring.role_of. */
+export function roleOf(label: string | null | undefined): string {
+  if (!label) return "unlabelled";
+  const word = label.replace(STAGE_PREFIX, "").split(/[ :(]/, 1)[0]!.toLowerCase();
+  return ROLE_WORDS[word] ?? word;
+}
+
+/**
+ * `roleModels` forces a role onto a model (role -> model id) from the harness,
+ * without changing the plugin: the routing check's demonstration. Empty in the
+ * baseline, where every role runs on `mainModel`.
+ */
+export function createRuntime(o: { engine: Engine; mainModel: string; cap: number; roleModels?: Record<string, string>; now?: () => number }) {
   const start = typeof performance !== "undefined" ? performance.now() : 0;
   const now = o.now ?? (() => Math.round(performance.now() - start));
   const cap = Math.max(1, Math.floor(o.cap) || 1);
@@ -61,8 +79,9 @@ export function createRuntime(o: { engine: Engine; mainModel: string; cap: numbe
   };
 
   const agent = async (prompt: string, opts: HarnessAgentOptions = {}): Promise<unknown> => {
-    const model = opts.model ?? o.mainModel;
-    const rec: AgentRecord = { n: agents.length + 1, label: opts.label ?? null, model, calledMs: now(), startMs: null, endMs: null, queuedMs: null, error: null, engine: null };
+    const role = roleOf(opts.label);
+    const model = o.roleModels?.[role] ?? opts.model ?? o.mainModel;
+    const rec: AgentRecord = { n: agents.length + 1, label: opts.label ?? null, role, model, calledMs: now(), startMs: null, endMs: null, queuedMs: null, error: null, engine: null };
     agents.push(rec);
     await acquire();
     rec.startMs = now();

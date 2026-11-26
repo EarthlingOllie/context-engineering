@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRuntime, type Engine, type EngineRequest } from "./runtime.ts";
+import { createRuntime, roleOf, type Engine, type EngineRequest } from "./runtime.ts";
 
 const SCHEMA = { type: "object", properties: { result: { type: "string" } }, required: ["result"] };
 
@@ -132,4 +132,33 @@ test("the cap holds across nested parallel() calls: never more than `cap` agents
     assert.equal(peak, cap, `cap ${cap}`);
     assert.equal(out.flat().filter((x) => x !== null).length, 9);
   }
+});
+
+test("roleOf reads the role from an agent label, chain-stage labels included, the same way the scorer does", () => {
+  assert.equal(roleOf("Generator (1 of 2): Add parse_duration"), "generator");
+  assert.equal(roleOf("Link 2 · Generator-evaluator, Evaluator (1 of 3): Add parse"), "evaluator");
+  assert.equal(roleOf("Link 1 · Single, Worker: Plan"), "worker");
+  assert.equal(roleOf("Grapher: logging current dispatch"), "scribe");
+  assert.equal(roleOf("Debater pro (round 1 of 2)"), "debater");
+  assert.equal(roleOf(undefined), "unlabelled");
+});
+
+test("a role forced to another model by the harness is requested on that model; every other role stays on the main model", async () => {
+  const { engine, seen } = recordingEngine();
+  const { runtime, agents } = createRuntime({ engine, mainModel: "claude-opus-5-5", cap: 2, roleModels: { evaluator: "claude-haiku-5-5" } });
+  await runtime.agent("g", { label: "Generator (1 of 2): g" });
+  await runtime.agent("e", { label: "Link 2 · Generator-evaluator, Evaluator (1 of 2): e" });
+  await runtime.agent("s", { label: "Grapher: logging current dispatch" });
+  assert.deepEqual(
+    seen.map((r) => r.model),
+    ["claude-opus-5-5", "claude-haiku-5-5", "claude-opus-5-5"],
+  );
+  assert.deepEqual(
+    agents.map((a) => [a.role, a.model]),
+    [
+      ["generator", "claude-opus-5-5"],
+      ["evaluator", "claude-haiku-5-5"],
+      ["scribe", "claude-opus-5-5"],
+    ],
+  );
 });

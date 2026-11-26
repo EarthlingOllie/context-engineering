@@ -346,6 +346,40 @@ def cost_by_role(rec: Recorded, prices: dict[str, dict] | None) -> dict[str, dic
     return out
 
 
+def _model_id(name) -> str:
+    """A model name without its provider prefix: "anthropic/claude-opus-5-5" is "claude-opus-5-5"."""
+    return str(name).split("/")[-1]
+
+
+def served_models(a: dict) -> list[str]:
+    """The models that served one agent's calls: each call's reported model (the engine records it per call), else
+    the models in the engine's per-model usage. Empty when the engine reported neither."""
+    eng = a.get("engine") if isinstance(a.get("engine"), dict) else {}
+    calls = [c.get("model") for c in eng.get("calls") or [] if isinstance(c, dict) and c.get("model")]
+    if calls:
+        return [_model_id(m) for m in calls]
+    return [_model_id(m) for m in ((eng.get("result") or {}).get("modelUsage") or {})]
+
+
+def model_routing(rec: Recorded) -> dict:
+    """Per role, the models its agents were requested on and the models that served their calls; and every agent
+    with a call served by another model than the one it requested (the bridge's silent fallback, spec: Model routing).
+    An agent whose engine reported no serving model is not counted as misrouted."""
+    by: dict[str, dict] = {}
+    misrouted = []
+    for a in rec.result.get("agents") or []:
+        role = a.get("role") or role_of(a.get("label"))
+        requested = _model_id(a.get("model"))
+        served = served_models(a)
+        r = by.setdefault(role, {"requested": set(), "served": set()})
+        r["requested"].add(requested)
+        r["served"].update(served)
+        wrong = sorted({m for m in served if m != requested})
+        if wrong:
+            misrouted.append({"agent": a.get("n"), "role": role, "requested": requested, "served": wrong})
+    return {"by_role": {k: {"requested": sorted(v["requested"]), "served": sorted(v["served"])} for k, v in by.items()}, "misrouted": misrouted}
+
+
 def sample_row(
     *,
     sample_id: str,
@@ -365,8 +399,16 @@ def sample_row(
     truthful = status_truthful(rec, expected_status)
     reported = _returned(rec).get("status")
     false_pass = reported == "done" and not correct
+    # A call served by another model than requested fails the sample, whatever its hidden check says.
+    routing = model_routing(rec)
+    routing_ok = not routing["misrouted"]
+    if not routing_ok:
+        correct = False
+        missing = list(missing) + [
+            f"model routing: {m['role']} agent {m['agent']} requested {m['requested']}, served by {', '.join(m['served'])}" for m in routing["misrouted"]
+        ]
     if limit_hit:
-        correct, missing, truthful, false_pass = None, [], None, None
+        correct, missing, truthful, false_pass, routing_ok = None, [], None, None, None
     u = usage_metrics(rec.usage)
     models = u.pop("models")
     wall = rec.result.get("wallClockMs")
@@ -388,6 +430,9 @@ def sample_row(
         "peak_concurrency": peak_concurrency(rec),
         "models": models,
         "on_pinned_model": bool(models) and all(m.split("/")[-1] == pinned_model for m in models),
+        "models_by_role": routing["by_role"],
+        "misrouted": routing["misrouted"],
+        "routing_ok": routing_ok,
         "hidden_check_absent": hidden_check_absent(rec.sandbox_tree, hidden_names),
         "harness_error": rec.result.get("error"),
         "by_role": cost_by_role(rec, prices),
@@ -452,4 +497,10 @@ def render_markdown(card: dict) -> str:
                 f"| {r['sample']} | {r['epoch']} | {role} | {c['agents']} | {dollars} | {c['input_tokens']} | {c['output_tokens']} "
                 f"| {c['cache_read_tokens']} | {c['cache_write_tokens']} |"
             )
+    routed = [(r, role, m) for r in card["rows"] for role, m in (r.get("models_by_role") or {}).items()]
+    if routed:
+        out += ["", "Model routing (a call served by another model than requested fails the sample)", "", "| sample | epoch | role | requested | served | routed |", "|---|---|---|---|---|---|"]
+        for r, role, m in routed:
+            bad = any(x["role"] == role for x in r.get("misrouted") or [])
+            out.append(f"| {r['sample']} | {r['epoch']} | {role} | {', '.join(m['requested'])} | {', '.join(m['served']) or '-'} | {'no' if bad else 'yes'} |")
     return "\n".join(out) + "\n"

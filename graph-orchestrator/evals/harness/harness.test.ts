@@ -5,7 +5,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { stubEngine as cannedStub } from "./stub-engine.ts";
 import { loadBundle, runHarness } from "./harness.ts";
 import type { Engine, EngineRequest } from "./runtime.ts";
 
@@ -213,4 +216,29 @@ test("sample 11 with every lens failing still names all three lenses: the line l
   };
   const result = await runHarness({ bundleSource, args: sampleArgs("11-panel-diff-defect.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
   assert.deepEqual(String(result.return?.["result"]).split("\n").map((l) => l.split(":")[0]), ["FAIL (0/3)", "[correctness] FAIL", "[security] FAIL", "[readability] FAIL"]);
+});
+
+test("the baseline configuration (no forced role) requests every role of every sample on the main model, and the result records no role model", async () => {
+  const dir = new URL("../samples/", import.meta.url);
+  for (const f of readdirSync(dir).filter((n) => n.endsWith(".json"))) {
+    const args = { ...(JSON.parse(readFileSync(new URL(f, dir), "utf8")) as { args: Record<string, unknown> }).args, scratch: mkdtempSync(join(tmpdir(), "base-")) };
+    const result = await runHarness({ bundleSource, args, engine: cannedStub(), mainModel: "claude-opus-5-5", cap: 2 });
+    assert.ok(result.agents.length > 0, f);
+    assert.deepEqual([...new Set(result.agents.map((a) => a.model))], ["claude-opus-5-5"], f);
+    assert.deepEqual(result.roleModels, {}, f);
+  }
+});
+
+test("a role forced through the harness option is recorded on the result and requested on its model, the plugin unchanged", async () => {
+  const args = { ...(JSON.parse(readFileSync(new URL("../samples/03-generator-evaluator-python.json", import.meta.url), "utf8")) as { args: Record<string, unknown> }).args, scratch: mkdtempSync(join(tmpdir(), "force-")) };
+  const result = await runHarness({ bundleSource, args, engine: cannedStub(), mainModel: "claude-opus-5-5", cap: 2, roleModels: { evaluator: "claude-haiku-5-5" } });
+  assert.deepEqual(result.roleModels, { evaluator: "claude-haiku-5-5" });
+  assert.deepEqual(
+    result.agents.map((a) => [a.role, a.model]),
+    [
+      ["generator", "claude-opus-5-5"],
+      ["evaluator", "claude-haiku-5-5"],
+      ["scribe", "claude-opus-5-5"],
+    ],
+  );
 });

@@ -112,6 +112,43 @@ class PythonSampleRows(unittest.TestCase):
         self.assertEqual(run.build_parser().parse_args(["--stub", "--stub-evaluator", "fail"]).stub_evaluator, "fail")
 
 
+class ForcedRoleModel(unittest.TestCase):
+    """Ticket 09: one role can be forced onto another declared model through a harness option; the baseline forces none."""
+
+    def test_the_baseline_runs_every_role_on_the_pinned_model(self):
+        a = run.build_parser().parse_args([])
+        self.assertEqual((a.role_model, a.stub_serve_model), ([], ""))
+        cmd = suite.harness_command(cap=2)
+        self.assertEqual(cmd[cmd.index("--model") + 1], "claude-opus-5-5")
+        self.assertNotIn("--role-model", cmd)
+
+    def test_a_role_forced_to_haiku_reaches_the_harness_command(self):
+        a = run.build_parser().parse_args(["--role-model", "evaluator=claude-haiku-5-5"])
+        rm = suite.parse_role_models(a.role_model)
+        self.assertEqual(rm, {"evaluator": "claude-haiku-5-5"})
+        cmd = suite.harness_command(cap=2, role_models=rm)
+        self.assertEqual(cmd[cmd.index("--model") + 1], "claude-opus-5-5")
+        self.assertEqual(cmd[cmd.index("--role-model") + 1], "evaluator=claude-haiku-5-5")
+
+    def test_only_a_known_role_and_a_declared_model_can_be_forced(self):
+        with self.assertRaisesRegex(ValueError, "not declared"):
+            suite.parse_role_models(["evaluator=claude-haiku-4"])
+        with self.assertRaisesRegex(ValueError, "unknown role"):
+            suite.parse_role_models(["critic=claude-haiku-5-5"])
+        with self.assertRaisesRegex(ValueError, "role=model"):
+            suite.parse_role_models(["evaluator"])
+
+    def test_the_stub_can_serve_every_call_on_one_model_to_show_the_check_failing(self):
+        a = run.build_parser().parse_args(["--stub", "--role-model", "evaluator=claude-haiku-5-5", "--stub-serve-model", "claude-opus-5-5"])
+        cmd = suite.harness_command(cap=2, role_models=suite.parse_role_models(a.role_model), stub=True, stub_serve_model=a.stub_serve_model)
+        self.assertEqual(cmd[cmd.index("--stub-serve-model") + 1], "claude-opus-5-5")
+
+    def test_the_forced_role_models_are_recorded_in_the_header(self):
+        card = run.build_scorecard(fake_log({"role_models": "evaluator=claude-haiku-5-5"}, [fake_sample()]), "abc123")
+        self.assertEqual(card["header"]["role_models"], {"evaluator": "claude-haiku-5-5"})
+        self.assertEqual(run.build_scorecard(fake_log({}, [fake_sample()]), "abc123")["header"]["role_models"], {})
+
+
 @unittest.skipUnless(HAS_INSPECT, "inspect_ai not installed")
 class EverySampleIsLimited(unittest.TestCase):
     def test_every_sample_has_a_wall_clock_and_a_cost_limit(self):
@@ -126,6 +163,14 @@ class EverySampleIsLimited(unittest.TestCase):
 
         t = dispatch_suite()
         self.assertEqual((t.cost_limit, t.time_limit, t.epochs), (30.0, 1800, 3))
+        self.assertEqual(t.metadata["role_models"], "")
+
+    def test_the_task_takes_a_forced_role_model_and_refuses_an_undeclared_one(self):
+        from dispatch_suite import dispatch_suite
+
+        self.assertEqual(dispatch_suite(role_models="evaluator=claude-haiku-5-5").metadata["role_models"], "evaluator=claude-haiku-5-5")
+        with self.assertRaisesRegex(ValueError, "not declared"):
+            dispatch_suite(role_models="evaluator=gpt-4o")
 
 
 if __name__ == "__main__":
