@@ -33,13 +33,18 @@ What a run may spend and what hardware it simulates. Defaults are in `suite.py` 
 
 Every sample runs under both limits. A sample that exceeds its cost or time limit is stopped by Inspect, and its scorecard row has `limit_hit` set to `cost` or `time`, with `outcome_correct` and `status_truthful` left empty (`limit-hit (cost)` in the Markdown): it is not scored, so it never counts as a failure of the plugin. The cap, CPU count, memory and both limits are recorded in the scorecard header.
 
-Other options: `--role-model ROLE=MODEL` (see Model routing), `--stub` (canned engine, mockllm, no model call) with `--stub-delay-ms`, `--stub-evaluator pass|fail` and `--stub-serve-model MODEL`, `--samples <ids>`, `--log-dir`, `--out-dir`, and `--from-log <file>` to rebuild a scorecard from a saved log without running.
+Other options: `--baseline` and `--cut-to-one-epoch` (see Baseline), `--role-model ROLE=MODEL` (see Model routing), `--stub` (canned engine, mockllm, no model call) with `--stub-delay-ms`, `--stub-evaluator pass|fail` and `--stub-serve-model MODEL`, `--samples <ids>`, `--log-dir`, `--out-dir`, and `--from-log <file>...` to rebuild a scorecard from saved logs (one run's) without running.
 
 Raw Inspect logs go to `logs/` and generated files to `out/`; both are git-ignored, because logs hold full transcripts. Baseline scorecards, when frozen, are committed under `baselines/`.
 
 ## Scorecard
 
-Header: `plugin_commit` (with `-dirty` if the plugin or skills have uncommitted changes), `engine_version`, `inspect_version`, `model`, `concurrency_cap`, `cpus`, `memory`, `epochs`, `cost_limit`, `time_limit`, plus `stub`, `role_models` (roles forced onto another model; `{}` in the baseline), `created_at` and the log file name.
+Header: `plugin_commit` (with `-dirty` if the plugin or skills have uncommitted changes), `engine_version`, `inspect_version`, `model`, `concurrency_cap`, `cpus`, `memory`, `epochs`, `cost_limit`, `time_limit`, plus `stub`, `role_models` (roles forced onto another model; `{}` in the baseline), the other pins (`sdk_version`, `claude_code_version`, `pytest_version`), `created_at` and the log file name. A run made with `--cut-to-one-epoch` also has `epochs_by_sample` (the samples run at another epoch count) and `logs` (both log files).
+
+Besides the rows, the card holds:
+
+- `spread`: per sample, the run-to-run spread over its epochs. For each measured metric (`dollars`, `wall_clock_s`, `queue_s`, the four token counts, `cache_write_share`, `agents`) its `min`, `max`, `spread` (max minus min, the noise band `compare.py` uses) and `n` (epochs with a value); `outcome_correct`, `status_truthful` and `false_pass` as counts over the scored epochs (`4/5`); and `limit_hits`. The Markdown scorecard shows it as a "Run-to-run spread" table.
+- `run_cost`: what the whole run actually cost (`dollars`, the sum over rows; unknown if any row is unpriced) and how long it took (`duration_s`, from Inspect's start and end times), against the routine `budget` (`suite.ROUTINE_BUDGET`, $30), with `over_budget` and, when over, `cut_to_one_epoch`: the samples to run at 1 epoch (see Baseline).
 
 One row per sample and epoch:
 
@@ -106,6 +111,45 @@ Generator roles name the `test-driven-development` skill and evaluator roles `co
 
 With `--stub`, the canned engine never blocks, so sample 2 reports `done` and is scored untruthful: that is the scorer working. The canned judge picks candidate `[1]` and a canned relay worker adds a `SESSION s: stub` line to the progress file, so in a dry run sample 12's hidden tests run on candidate 1 (which wrote nothing, so they fail: a false pass), sample 13's verdict names no option, and sample 14's progress file is rewritten every session but its hidden tests fail. Sample 10 ends `done` after round 1 with the evaluator passing (scored not correct: one round, facts missing), and `exhausted` after round 2 with `--stub-evaluator fail`. `--stub-delay-ms <n>` makes each canned answer take `n` ms, so a dry run shows queue time under the cap. The canned evaluator passes; `--stub-evaluator fail` makes it fail, so samples 5 and 9 reach `exhausted` and sample 11's panel returns `FAIL` in a dry run (with the canned evaluator passing, sample 11 returns `PASS` and is scored a false pass). In a dry run nothing builds `parse_duration`, so samples 3 and 8 report `done` and their hidden tests fail, and nothing fixes the planted bug, so sample 4 is a false pass: again the scorer working.
 
+## Baseline
+
+The baseline is the plugin as shipped, every role on `claude-opus-5-5`, every sample at 5 epochs (`suite.BASELINE_EPOCHS`), frozen and committed under `baselines/`, keyed by plugin commit: `baselines/<plugin commit>.json` and `.md`. Every later run is compared against it.
+
+Reproduce it (paid, one-off; it may exceed the routine budget), from a clean checkout of the plugin commit to freeze:
+
+```sh
+env -u ANTHROPIC_BASE_URL .venv/bin/python graph-orchestrator/evals/run.py --baseline
+git add graph-orchestrator/evals/baselines/<plugin commit>.json graph-orchestrator/evals/baselines/<plugin commit>.md
+```
+
+Compare a new run against it:
+
+```sh
+env -u ANTHROPIC_BASE_URL .venv/bin/python graph-orchestrator/evals/run.py     # the routine run: 3 epochs, writes out/scorecards/<commit>-<time>.json
+python3 graph-orchestrator/evals/compare.py graph-orchestrator/evals/baselines/<plugin commit>.json graph-orchestrator/evals/out/scorecards/<commit>-<time>.json
+```
+
+`--baseline` takes no `--stub`, `--role-model`, `--stub-serve-model`, `--samples`, `--epochs`, `--cut-to-one-epoch` or `--from-log`. It refuses to start if the plugin or the skills have uncommitted changes (`plugin_commit` ends in `-dirty`), and refuses to freeze, writing an ordinary scorecard to `out/scorecards/` instead, if the plugin commit changed during the run, the run did not finish, or a baseline for that commit is already frozen. So no plugin source changes between the plugin commit in the header and the run. `tests/test_baseline.py` checks every committed baseline: the full header (every pin), the frozen configuration, all 15 samples at epochs 1-5, the spread, a file named after its clean plugin commit, and no plugin source (`graph-orchestrator/` but `evals/`, and `skills/`) changed between that commit and the commit that added the file (`run.plugin_source_changes`).
+
+The spread a baseline records is what `compare.py` uses as each sample's noise band from then on, in place of the 10% default.
+
+**The routine budget.** A routine run (3 epochs) has a $30 budget (`suite.ROUTINE_BUDGET`) besides each sample's own limits; every scorecard records the run's actual cost and duration in `run_cost`. If the first routine run is over $30, debate, best-of-n and relay (`suite.CUT_TO_ONE_EPOCH`: samples 12, 13 and 14) are cut to 1 epoch before any sample is dropped: `run.py --cut-to-one-epoch` runs them as a second task at 1 epoch and the rest at `--epochs`, in one scorecard. The scorecard says when a run was over budget and names the command.
+
+**Status:** not yet frozen. The baseline run and the first 3-epoch routine run need the API key and are paid; no baseline is committed and no run cost has been measured. When they are, this paragraph records the routine run's actual cost and duration (its `run_cost`), whether it was over $30, and so whether routine runs use `--cut-to-one-epoch`.
+
+## Not measured by the suite
+
+These findings belong to the harness or the platform, which a sandbox does not reproduce: the suite's harness loads the bundle itself, runs no Workflow tool, no claude.ai sync, no container restarts and no auto-mode classifier. A scorecard says nothing about them, so a fix to one is never shown as fixed by a run. Each is verified by hand in a cloud session (claude.ai/code, the plugin installed from the commit under test):
+
+| Finding | What it is | How to verify by hand in a cloud session |
+|---|---|---|
+| REL-01 | the documented `scriptPath` launch of `workflows/dispatch.js` is refused ("scriptPath must be a script path this tool returned, or a file you can already read") | start the orchestrator on any small task and follow SKILL.md's launch as written; the first dispatch must launch without a refusal and without the orchestrator inventing a workaround (a SCRATCH copy, a wrapper, the registered workflow name) |
+| REL-03 | a container or worker restart kills running dispatches, and resume is ad hoc | start a long dispatch (a generator-evaluator of 3 rounds), restart the session's container mid-run; the orchestrator must find the dispatch `stopped`, relaunch it with `resumeFromRunId` and the finished agents must replay from cache, not run again |
+| REL-05 (notification half) | the task notification says "completed" for blocked, exhausted, failed and usage-limit runs | run a dispatch that ends `blocked` (sample 2's spec) and one that ends `exhausted` (sample 5's); read the notification and the workflow log: the real status must be visible outside the returned data (the scorecard's `status_truthful` measures only the returned status) |
+| REL-07 | sessions run a stale synced plugin build | after a commit to the plugin, start a new session and run a dispatch; the version the run reports (its return, scribe line and trace header) must be that commit's, not an older synced build |
+| REL-08 | subagent permission and classifier denials are absorbed silently or become unreviewed passes | in auto mode, run a generator-evaluator whose evaluator needs a tool that is denied (Bash under a policy that blocks it); the evaluator must fail the criterion and say which check could not run, never pass it |
+| QUA-05 (harness half) | the harness refuses subagent `.md` report writes | run a fan-out with a reducer that is asked for a merged `.md` report; if the Write is refused, the full content must still reach the returned result (`ARTIFACT REFUSED: <path>` on line 1), not be lost |
+
 ## Concurrency sweep
 
 On demand, and not part of the routine run or its budget: `run.py` never runs it, and it has its own command, log and output. It runs the two fan-out samples, `06-fan-out-reducer-docs` and `07-fan-out-partition-docs` (`suite.SWEEP_SAMPLES`), once per concurrency cap on one sandbox spec, and prints one table: per sample and cap, the wall clock, the queue time and the dollars.
@@ -167,6 +211,7 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 |---|---|
 | `run.py` | the one command: runs the suite and writes the scorecard |
 | `compare.py` | compares two scorecards per sample and metric, marking noise |
+| `baselines/` | frozen baseline scorecards, committed: `<plugin commit>.json` and `.md` (none yet) |
 | `sweep.py` | on demand: the concurrency sweep, samples 6 and 7 at each cap, one table |
 | `dispatch_suite.py` | the Inspect tasks (`dispatch_suite`, `concurrency_sweep`), their solver (sandbox set-up, bridge, harness) and scorers |
 | `scoring.py` | the scorers and scorecard, as pure functions over a recorded sample |
@@ -176,7 +221,7 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 | `fixtures/<name>/hidden/` | the hidden check; read by the scorer on the host, never in the sandbox while the agents run (hidden tests are copied in only after the dispatch) |
 | `harness/` | the Node harness: loads the built `workflows/dispatch.js` the way the Workflow harness does and supplies a real `Runtime` (`runtime.ts`), with the Agent SDK as its engine (`sdk-engine.ts`) or, for `--stub`, canned answers (`stub-engine.ts`); copied into the sandbox at run time |
 | `sandbox/` | the sandbox image (Python 3.12 with pytest from `sandbox/requirements.txt`, Node 22 copied from the Node image, the pinned Agent SDK); `run.py` writes its compose file to `out/` with the run's CPU count and memory |
-| `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`); the sweep (`test_sweep.py`); suite and sample tests, the catalog demand formula among them (`test_suite.py`); fixture tests (`test_python_fixture.py`, `test_typescript_fixture.py`, `test_python_bug_fixture.py`) |
+| `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`); spread, run cost, the budget cut, `--baseline` and committed baselines (`test_baseline.py`); the sweep (`test_sweep.py`); suite and sample tests, the catalog demand formula among them (`test_suite.py`); fixture tests (`test_python_fixture.py`, `test_typescript_fixture.py`, `test_python_bug_fixture.py`) |
 | `spike/` | ticket 01's throwaway spike |
 
 The harness changes nothing in the plugin: the bundle is read as text and run with `agent`, `parallel` and `log` as globals.

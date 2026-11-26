@@ -51,7 +51,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import json
 
-from suite import catalog_demand
+from suite import CUT_TO_ONE_EPOCH, ROUTINE_BUDGET, catalog_demand
 
 HEADER_FIELDS = ("plugin_commit", "engine_version", "inspect_version", "model", "concurrency_cap", "cpus", "memory", "epochs")
 
@@ -552,11 +552,49 @@ def false_passes(rows: list[dict]) -> dict:
     return {"by_sample": by, "total": sum(c["false_passes"] for c in by.values()), "scored": sum(c["scored"] for c in by.values())}
 
 
-def scorecard(header: dict, rows: list[dict]) -> dict:
+SPREAD_METRICS = (
+    "dollars", "wall_clock_s", "queue_s", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
+    "cache_write_share", "agents",
+)
+
+
+def spread(rows: list[dict]) -> dict:
+    """Per sample, the run-to-run spread over its epochs: for each measured metric its min, max, spread (max - min)
+    and the number of epochs with a value; outcome correctness, status truthfulness and false passes as counts over
+    the scored epochs ("2/3"); and the epochs stopped at a limit. compare.py uses the same max - min as its noise band."""
+    by: dict[str, list[dict]] = {}
+    for r in rows:
+        by.setdefault(r["sample"], []).append(r)
+    out: dict[str, dict] = {}
+    for sample, rs in by.items():
+        scored = [r for r in rs if r.get("outcome_correct") is not None]
+        d: dict = {"epochs": len(rs), "limit_hits": sum(1 for r in rs if r.get("limit_hit"))}
+        for m in ("outcome_correct", "status_truthful", "false_pass"):
+            d[m] = f"{sum(bool(r.get(m)) for r in scored)}/{len(scored)}"
+        for m in SPREAD_METRICS:
+            vs = [r[m] for r in rs if r.get(m) is not None]
+            d[m] = {"min": min(vs), "max": max(vs), "spread": round(max(vs) - min(vs), 6), "n": len(vs)} if vs else None
+        out[sample] = d
+    return out
+
+
+def run_cost(rows: list[dict], duration_s: float | None, budget: float = ROUTINE_BUDGET) -> dict:
+    """What the run actually cost and how long it took, against the routine budget. Over budget, the samples to cut
+    to 1 epoch before any is dropped (spec: Baseline and runs). The total is unknown (None) if any row is unpriced."""
+    ds = [r.get("dollars") for r in rows]
+    total = None if not ds or any(d is None for d in ds) else round(sum(ds), 6)
+    over = None if total is None else total > budget
+    return {"dollars": total, "duration_s": duration_s, "budget": budget, "over_budget": over, "cut_to_one_epoch": list(CUT_TO_ONE_EPOCH) if over else []}
+
+
+def scorecard(header: dict, rows: list[dict], duration_s: float | None = None) -> dict:
     missing = [k for k in HEADER_FIELDS if header.get(k) in (None, "")]
     if missing:
         raise ValueError(f"scorecard header is missing: {', '.join(missing)}")
-    return {"header": dict(header), "rows": list(rows), "false_passes": false_passes(rows)}
+    return {
+        "header": dict(header), "rows": list(rows), "false_passes": false_passes(rows), "spread": spread(rows),
+        "run_cost": run_cost(rows, duration_s),
+    }
 
 
 def _yn(v) -> str:
@@ -589,6 +627,30 @@ def render_markdown(card: dict) -> str:
     out += ["", "False passes (done reported while the hidden check failed)", "", "| sample | false passes |", "|---|---|"]
     out += [f"| {s} | {c['false_passes']} of {c['scored']} |" for s, c in fp["by_sample"].items()]
     out.append(f"| suite total | {fp['total']} of {fp['scored']} |")
+    sp = card.get("spread") or spread(card["rows"])
+
+    def rng(v, fmt: str) -> str:
+        return "-" if not v else f"{v['min']:{fmt}}-{v['max']:{fmt}} ({v['spread']:{fmt}})"
+
+    out += [
+        "", "Run-to-run spread per sample (min-max over its epochs, spread in brackets)", "",
+        "| sample | epochs | correct | truthful | false pass | $ | wall s | queue s | agents |", "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for s, d in sp.items():
+        out.append(
+            f"| {s} | {d['epochs']} | {d['outcome_correct']} | {d['status_truthful']} | {d['false_pass']} | {rng(d['dollars'], '.4f')} "
+            f"| {rng(d['wall_clock_s'], '.1f')} | {rng(d['queue_s'], '.1f')} | {rng(d['agents'], 'g')} |"
+        )
+    rc = card.get("run_cost")
+    if rc:
+        total = "unknown (an unpriced model ran)" if rc["dollars"] is None else f"${rc['dollars']:.2f}"
+        dur = "-" if rc["duration_s"] is None else f"{rc['duration_s']:.0f} s"
+        out += ["", f"Run cost: {total}, duration {dur}."]
+        if rc["over_budget"]:
+            out.append(
+                f"This run is over the ${rc['budget']:.2f} routine budget: run the routine suite with --cut-to-one-epoch "
+                f"({', '.join(rc['cut_to_one_epoch'])} at 1 epoch) before dropping any sample."
+            )
     roles = [(r, role, c) for r in card["rows"] for role, c in (r.get("by_role") or {}).items()]
     if roles:
         out += ["", "Cost by role", "", "| sample | epoch | role | agents | $ | in | out | cache read | cache write |", "|---|---|---|---|---|---|---|---|---|"]

@@ -14,6 +14,7 @@ PLUGIN = EVALS.parent  # graph-orchestrator/
 REPO = PLUGIN.parent
 SKILLS = REPO / "skills"  # this repo's skills plugin, installed in the sandbox at the commit under test
 SAMPLES = EVALS / "samples"
+BASELINES = EVALS / "baselines"  # frozen baseline scorecards, committed, one per plugin commit: <plugin commit>.json / .md
 FIXTURES = EVALS / "fixtures"
 
 # ---- pins: written into every scorecard header ----
@@ -67,6 +68,12 @@ DEFAULT_MEMORY = "8g"
 DEFAULT_EPOCHS = 3
 DEFAULT_COST_LIMIT = 30.0  # dollars per sample (Inspect cost_limit)
 DEFAULT_TIME_LIMIT = 1800  # wall-clock seconds per sample (Inspect time_limit)
+
+# ---- the baseline and the routine budget (spec: Baseline and runs; ticket 11) ----
+BASELINE_EPOCHS = 5  # the one-off frozen baseline; it may exceed the routine budget
+ROUTINE_BUDGET = 30.0  # dollars for a whole routine run; the scorecard's run_cost says whether a run was over it
+# Over budget: these run at 1 epoch (run.py --cut-to-one-epoch) before any sample is dropped.
+CUT_TO_ONE_EPOCH = ["12-best-of-n-python-bug", "13-debate-design", "14-relay-python-features"]
 
 
 def compose_yaml(cpus: int, memory: str) -> str:
