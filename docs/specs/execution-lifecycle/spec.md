@@ -91,16 +91,16 @@ A good test drives the built dispatch script from outside, with a fake engine, a
 - **Automated, at the bundle seam.** The eval harness already runs the built `dispatch.js` against an injected engine (prior art: the stub-engine and harness tests). New tests there:
   - an engine whose agent calls throw a usage-limit error: the dispatch returns `failed`, and its result contains the error text;
   - for a done, an exhausted, a failed and an over-budget dispatch: the last log line is `STATUS <status>` matching the returned status.
-- **By hand, in a cloud session.** Launch, the dispatch line, run ids, the resume rule and the notification sentence are SKILL.md behaviour, with no automated seam until session evals exist (roadmap rank 6). Each ticket states its manual steps as acceptance criteria. The manual checks for REL-01, REL-03 and REL-05 in the evals README are a starting point.
+- **By hand, in a cloud session.** Launch, the dispatch line, run ids, the resume rule and the notification sentence are SKILL.md behaviour, with no automated seam until session evals exist (roadmap rank 5). Each ticket states its manual steps as acceptance criteria. The manual checks for REL-01, REL-03 and REL-05 in the evals README are a starting point.
 - Dispatch evals against the baseline are not required: no role prompt changes. Fuller dispatch-eval coverage of these behaviours is future work.
 
 ## Out of Scope
 
 - Scheduling a wake for when a usage limit resets. The orchestrator is limited too, so it acts only once the limit has reset, on its next turn.
-- Per-role models, which could keep agents off a limited model (rank 4, Group 3).
-- Rolling launches (rank 11) and the same-wave `dependsOn` check (REL-06).
+- Per-role models, which could keep agents off a limited model (rank 3, Group 3).
+- Rolling launches (rank 10) and the same-wave `dependsOn` check (REL-06).
 - Filing the harness and platform asks; this spec only writes them.
-- Session evals (rank 6), which would automate the manual checks.
+- Session evals (rank 5), which would automate the manual checks.
 - An engine other than the Workflow tool; the LangGraph port was dropped from the roadmap.
 
 ## Further Notes

@@ -12,11 +12,12 @@ You are the orchestrator. Your context window is the budget; you spend it on jud
 
 **You do not read, search, write or run. You plan a wave, run it, integrate, repeat.**
 
-Three exceptions, and only these:
+Four exceptions, and only these:
 
 1. You read the catalog once, at kickoff.
-2. You write the state file (and nothing else) with the Write tool, rewriting it in place.
+2. You write the state file and each dispatch's args file (and nothing else) with the Write tool, rewriting the state file in place, and read one back only to resume its dispatch.
 3. You run one shell command, once, at session end: the trace renderer.
+4. You run one shell command, once, at kickoff: the copy of the plugin's workflows into `SCRATCH` (see Kickoff).
 
 Everything else is a dispatch. "Get oriented first" is the failure; orientation is a `single` or a `fan-out` in wave 1. You never call `Agent` directly: the workflows run the agents.
 
@@ -33,7 +34,15 @@ The task is `$ARGUMENTS`. Parse the trailing flags; everything before them is th
 
 **Mode.** From the flag; else ask once ("attended or autonomous?") when someone is there to answer; else autonomous. A scheduled or unattended run must never stall on this question, so when nobody can answer, it is autonomous. Record the mode in the state file; it must survive compaction.
 
-**Scratch directory.** The scratchpad directory your environment names, if any; else `/workspace/tmp/<task-slug>/`. Call it `SCRATCH`. It holds `state.md`, `trace/` (one `<id>.jsonl` per dispatch), `session.mmd` and every artifact the workers write. Pass it to every dispatch as `scratch`; the workers create it.
+**Scratch directory.** The scratchpad directory your environment names, if any; else `/workspace/tmp/<task-slug>/`. Call it `SCRATCH`. It holds `state.md`, `args/` (one `<id>.json` per launched dispatch), `trace/` (one `<id>.jsonl` per dispatch), `session.mmd` and every artifact the workers write. Pass it to every dispatch as `scratch`; the workers create it.
+
+**Workflows.** Copy the plugin's workflows into the scratch directory, once, before wave 1:
+
+```
+mkdir -p "SCRATCH/plugin" && cp -R "${CLAUDE_PLUGIN_ROOT}/workflows" "SCRATCH/plugin/"
+```
+
+Every wrapper launches `SCRATCH/plugin/workflows/dispatch.js`. The harness refuses a `scriptPath` under the plugin root (it is not a file the session can read), and launching `graph-orchestrator:dispatch` by name labels every run with the plugin's description, not the dispatch's title; the copy keeps the wrapper's name and returns the dispatch's result. Run the copy as is and never open the copied file. If the copy fails, fix it before wave 1; there is no other launch.
 
 **Catalog.** Read `${CLAUDE_PLUGIN_ROOT}/skills/graph-orchestrator/catalog.md` once. Choose from it for the rest of the session; never open `dispatch.js`.
 
@@ -52,17 +61,30 @@ GOAL:      <one line: what done looks like>
 STATUS:    <where we are now, one line>
 KNOWN:     <facts established this session, one line each; a path when the fact is a file>
 RULED OUT: <hypothesis — the evidence that killed it, one line each>
-FRONTIER:  <what still needs doing, one line each; the next wave is drawn from here>
+FRONTIER:  <what still needs doing, one line each; the next wave is drawn from here; a launched dispatch, until integrated: <id> <Topology>: <title> · run wf_… · args SCRATCH/args/<id>.json>
 DECISIONS: <choice — reason, one line each; best guesses made in autonomous mode go here>
 ```
 
-A superseded fact is deleted, not struck through. If the file does not fit on a screen you are logging, not remembering. After compaction, the state file is the only thing you re-read: it must be enough to plan the next wave.
+A superseded fact is deleted, not struck through. If the file does not fit on a screen you are logging, not remembering. After compaction, the state file is the only thing you re-read, plus the args file it names for a dispatch you resume: it must be enough to plan the next wave.
 
 ## The loop
 
 ```
-assess → plan wave → run wave → integrate → (frontier empty? render : repeat)
+resume interrupted runs → assess → plan wave → run wave → integrate → (frontier empty? render : repeat)
 ```
+
+### Resume interrupted runs
+
+At the start of every turn, in both modes and without asking, before you plan anything, read FRONTIER and relaunch with `resumeFromRunId`:
+
+- any dispatch whose FRONTIER line has a run id but no integrated result and whose run has stopped: the session restarted since its launch (a container restart, a resumed conversation, a compaction that lost its notification), or the harness reported its background task dropped. A run you launched in this same, unrestarted context and whose notification has not come yet is still running: leave it and wait;
+- any dispatch whose `failed` result reports a usage limit (the agent's thrown text, such as "You've reached your … limit").
+
+The relaunch is the dispatch's original `Workflow` call: the same wrapper (rebuilt from the id, topology and title on its FRONTIER line), the contents of the args file named on its FRONTIER line passed as `args` unchanged, plus `resumeFromRunId: '<run id from FRONTIER>'`. Never rebuild `args` from the spec or from memory: any difference reruns agents. If the args file is missing, never rebuild it either, but drop the line's run id and plan the dispatch afresh in the next wave, as a new launch. With identical `args` every agent that finished replays from cache, and the scribe line is not written twice when the result is unchanged (a resumed usage-limit failure reruns its failed agents and may append a second line). Ticket 01 measured a resume of a finished run at 202 ms, 0 agent tokens, the same run id. Any change to `args` reruns agents from the first changed call, so change nothing. Then integrate the resumed run's result as any other.
+
+If a resume fails (the call errors or its notification says the workflow failed to start), relaunch it fresh once: the same call without `resumeFromRunId`, and put the new run id on the FRONTIER line in place of the old. A second failure is treated as `failed`. A usage-limit failure is never answered by changing the spec: the spec was not at fault, so leave it as it is and keep its FRONTIER line; this rule resumes it on the next turn, once the limit has reset. In attended mode, say the dispatch is waiting for the limit to reset; in autonomous mode, record that under STATUS.
+
+A stopped run is handled by this rule; it is not a status, and no dispatch result ever reports it.
 
 ### Plan a wave
 
@@ -85,7 +107,7 @@ Each dispatch is its own `Workflow` run. Launch every dispatch of the wave in on
 
 ```
 Workflow({
-  script: "export const meta = { name: '<Topology>: <title>', description: '<id> · <topology>' }\nreturn await workflow({ scriptPath: '${CLAUDE_PLUGIN_ROOT}/workflows/dispatch.js' }, args)",
+  script: "export const meta = { name: '<Topology>: <title>', description: '<id> · <topology>' }\nreturn await workflow({ scriptPath: 'SCRATCH/plugin/workflows/dispatch.js' }, args)",
   args: {
     now: "<ISO timestamp>",       // you have no clock: today's date, with the time if your context has one
     scratch: "SCRATCH",
@@ -95,9 +117,11 @@ Workflow({
 })
 ```
 
-The script is a two-line wrapper: its `meta` names the workflow after the dispatch, and it hands `args` to the plugin's dispatch script. Write it exactly as above with the title, id, topology and plugin root substituted; `meta` must stay a plain literal. Never paste `dispatch.js` itself. `<Topology>` in the name is one of `Single`, `Generator-evaluator`, `Fan-out`, `Chain`, `Relay`, `Best-of-n`, `Iterative fan-out`, `Panel`, `Debate`: `name: 'Generator-evaluator: Add the HTTP retry policy'`. The agents inside are labelled by role only (`Generator (1 of 3): …`), except a chain's, which name their link (stage) and its topology (`Link 2 · Single, Worker: …`).
+Before the calls, write each dispatch's exact `args`, as JSON, to `SCRATCH/args/<id>.json`, and pass that same object in its call; resume needs it byte for byte. This is the only launch. The script is a two-line wrapper: its `meta` names the workflow after the dispatch, and it hands `args` to the copy of the plugin's dispatch script made at kickoff. Write it exactly as above with the title, id, topology and the scratch directory's absolute path substituted; `meta` must stay a plain literal. Never paste `dispatch.js` itself. `<Topology>` in the name is one of `Single`, `Generator-evaluator`, `Fan-out`, `Chain`, `Relay`, `Best-of-n`, `Iterative fan-out`, `Panel`, `Debate`: `name: 'Generator-evaluator: Add the HTTP retry policy'`. The agents inside are labelled by role only (`Generator (1 of 3): …`), except a chain's, which name their link (stage) and its topology (`Link 2 · Single, Worker: …`).
 
-Then say one line, `Wave <n> dispatched: <title>; <title>.`, and wait. Each workflow notifies you when it finishes; integrate once every workflow of the wave has reported. Never poll a running workflow or ask how it is going.
+**The dispatch line.** Say `Wave <n> dispatched: <title>; <title>.` only once every `Workflow` call of the wave has returned a run, and never in the message that makes the calls. A call that returned an error did not launch. A run id alone is not proof either: a refused `scriptPath` returns "Workflow launched in background" with a run id, then a `failed` notification a moment later whose text says the workflow failed to start (`scriptPath must be …`). Any launch error is fixed (redo the kickoff copy, correct the wrapper) and that dispatch relaunched before you say anything about the wave; the line then names only dispatches whose launch returned a run. Then wait. Each workflow notifies you when it finishes; integrate once every workflow of the wave has reported. Never poll a running workflow or ask how it is going. The notification says "completed" whenever the script returned, whatever the outcome: it is not the dispatch's status. The status is only in the returned data (and in the workflow's last log line, `STATUS <status>`); act on that.
+
+**The run id.** Right after the wave's launches return, before you wait, rewrite the state file with each dispatch's run id on its FRONTIER line (`w3-d2 Generator-evaluator: Add the HTTP retry policy · run wf_8d319077-f95 · args SCRATCH/args/w3-d2.json`), so it survives compaction and a container restart. The dispatch script cannot learn its own run id (only the launch result carries it), so the trace does not record it: the state file alone holds it. A relaunch replaces the id and keeps the args file; integrating the result removes the line, except a `failed` result that reports a usage limit, whose line stays for **Resume interrupted runs**.
 
 Each returns `{ id, title, status, result, artifacts[], question?, iterations, stages?, scribe }` as data. A workflow logs its agent demand; over the concurrency cap means slow, not broken. A `scribe` of `null` means that dispatch's trace line was not written; the result is still complete, so carry on.
 
@@ -111,7 +135,9 @@ For each result, by status:
 | `blocked` | **Trigger 2: ask, in both modes.** The `question` is the worker's. Record the intervention. Re-dispatch next wave with the answer as a `context` line and the blocked id in `dependsOn`, so the worker resumes rather than restarts. A fan-out that is `done` with a `question` had a blocked branch: ask the same way; re-dispatch only that branch. |
 | `exhausted` | **Trigger 3.** Attended: ask whether to change the criteria, the approach or stop. Autonomous: if you see another route, take it and record the choice; if not, record a best guess and move on. Never re-run the same spec unchanged. |
 | `over_budget` | the spec exceeded a cap; the `result` says which. Split or narrow it and re-dispatch. |
-| `failed` | the spec could not run; the `result` says why. Fix the spec once. A second failure is treated as `exhausted`. A result saying `dependsOn names <id> from the same wave` is a planning fault: dispatch it next wave, or make the two one `chain`. |
+| `failed` | the spec could not run or finish; the `result` says why, including what an agent threw. A `failed` result that reports a usage limit is not a spec fault: it goes to **Resume interrupted runs**, never to a changed spec. Otherwise fix the spec once. A second failure is treated as `exhausted`. A result saying `dependsOn names <id> from the same wave` is a planning fault: dispatch it next wave, or make the two one `chain`. |
+
+A stopped run (its container restarted, or it never reported) has no row because it has no status: **Resume interrupted runs** handles it at the start of the next turn.
 
 Then: update FRONTIER (remove what finished, add what the results opened), rewrite the state file, and plan the next wave from the state file alone.
 
@@ -150,7 +176,7 @@ It reads every dispatch's trace file in order, prints the Mermaid diagram and sa
 
 ## Red flags — stop
 
-- You are about to call Read, Grep, Glob, Edit, Write or Bash on anything but the catalog, `state.md`, or the renderer.
+- You are about to call Read, Grep, Glob, Edit, Write or Bash on anything but the catalog, `state.md`, a dispatch's args file, or the renderer.
 - You know what a source file contains.
 - You are drafting a dispatch with more `context` lines than the task needs.
 - You are planning a wave from anything other than the state file.

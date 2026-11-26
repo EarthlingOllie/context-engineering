@@ -5,7 +5,10 @@
  * dispatch's purpose; they run in parallel and cannot see each other. The run
  * executes the dispatch's topology, then asks one scribe agent to write the
  * dispatch's trace lines to its own file, <scratch>/trace/<id>.jsonl, so
- * parallel dispatches never write the same file.
+ * parallel dispatches never write the same file. Its last log line, after
+ * the scribe, is `STATUS <status>`: the harness's notification says
+ * "completed" for every run that returned, so this line is where a watcher
+ * sees the real outcome.
  */
 import type { DispatchArgs, DispatchResult, DispatchReturn, DispatchSpec, HumanEvent, Runtime, TraceEvent } from "./types.ts";
 import { agentLabel } from "./labels.ts";
@@ -94,5 +97,6 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
     rt.log(`${id}: scribe threw: ${err instanceof Error ? err.message : String(err)}; the trace lines were not written`);
   }
 
+  rt.log(`STATUS ${result.status}`);
   return { ...result, ...(spec.title ? { title: spec.title } : {}), scribe };
 }

@@ -31,6 +31,8 @@ export type TopologyContext = {
   wave: number;
   /** Chain stages record their own dispatch events here, tagged with `parent`. */
   stageEvents: TraceEvent[];
+  /** What role agent calls threw, in order: `runDispatch` puts it in a `failed` result. */
+  agentErrors?: string[];
 };
 
 /**
@@ -159,6 +161,18 @@ export function fail(spec: Partial<DispatchSpec> | null | undefined, message: st
   return { id, status: "failed", result: message, artifacts: [], iterations };
 }
 
+/**
+ * A `failed` result that says what an agent threw: the message, on one line,
+ * joins the result's first line, and the whole is cut to `maxLines`. A result
+ * that already carries the message (a chain stage's, say) is left as it is.
+ */
+export function withThrown(r: DispatchResult, thrown: string, maxLines: number): DispatchResult {
+  const message = thrown.replace(/\s+/g, " ").trim();
+  if (r.status !== "failed" || !message || r.result.includes(message)) return r;
+  const [first = "", ...rest] = String(r.result ?? "").split("\n");
+  return { ...r, result: cutLines([`${first} (an agent threw: ${message})`, ...rest].join("\n"), maxLines) };
+}
+
 export function overBudget(spec: DispatchSpec, message: string): DispatchResult {
   return { id: spec.id, status: "over_budget", result: message, artifacts: [], iterations: 0 };
 }
@@ -166,7 +180,8 @@ export function overBudget(spec: DispatchSpec, message: string): DispatchResult 
 /**
  * One role agent call. Returns the parsed structured output or null. An agent
  * that throws is logged and counts as returning nothing, so the topology's
- * null path answers with what it had accumulated so far (artifacts, iterations).
+ * null path answers with what it had accumulated so far (artifacts, iterations);
+ * its message is kept on the context for the `failed` result to report.
  */
 export async function callRole(
   ctx: TopologyContext,
@@ -181,7 +196,9 @@ export async function callRole(
   try {
     out = await ctx.rt.agent(prompt, { label, schema });
   } catch (err) {
-    ctx.rt.log(`${spec.id}: ${label} threw: ${err instanceof Error ? err.message : String(err)}`);
+    const message = err instanceof Error ? err.message : String(err);
+    ctx.rt.log(`${spec.id}: ${label} threw: ${message}`);
+    (ctx.agentErrors ??= []).push(message);
     return null;
   }
   if (!out || typeof out !== "object") return null;

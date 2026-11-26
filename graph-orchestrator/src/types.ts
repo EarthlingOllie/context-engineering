@@ -65,9 +65,10 @@ export type PanelParams = {
 };
 
 /**
- * `failed` is not part of the orchestrator-facing signature; it is what the
- * wave returns instead of throwing when a spec cannot run at all (unknown
- * topology, malformed params, an agent that returned nothing).
+ * `failed` is part of the orchestrator-facing signature (CONTEXT.md,
+ * Signature): what a dispatch returns instead of throwing when it cannot run
+ * or finish (unknown topology, malformed params, an agent that returned
+ * nothing or threw; a thrown message is carried in the result).
  */
 export type DispatchStatus = "done" | "blocked" | "exhausted" | "over_budget" | "failed";
 

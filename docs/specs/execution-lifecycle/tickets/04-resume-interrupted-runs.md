@@ -7,9 +7,18 @@
 **Status:** ready-for-agent
 
 - [ ] SKILL.md: the run id goes on the dispatch's FRONTIER line right after launch, so it survives compaction
+- [ ] SKILL.md: each dispatch's exact `args` go to `SCRATCH/args/<id>.json` at launch, that path sits beside the run id on the FRONTIER line, and the resume passes that file's contents unchanged; a missing args file means the dispatch is planned afresh
 - [ ] SKILL.md: the start-of-turn resume rule, covering dispatches with no integrated result and usage-limit failures, in both modes, without asking
 - [ ] SKILL.md: if a resume fails, relaunch fresh once; a second failure is treated as `failed`
 - [ ] SKILL.md: a usage-limit failure is never answered by changing the spec
 - [ ] The integrate table points stopped runs and usage-limit failures to the rule
 - [ ] If ticket 01 found the script can learn its run id, the trace's dispatch line records it; otherwise this ticket notes that the state file alone holds it
 - [ ] By hand in a cloud session: a three-round generator-evaluator is interrupted by a container restart mid-run; on its next turn the orchestrator relaunches it with `resumeFromRunId`, finished agents replay from cache, and the dispatch completes
+
+## Notes
+
+- Run id: ticket 01 found the dispatch script cannot learn its own run id (item 6: no script global carries it; it first appears in the launch's tool result). So the trace's dispatch line does not record it, and the state file alone holds the run id, on the dispatch's FRONTIER line (SKILL.md "The run id.").
+- Resume: ticket 01 measured a same-args `resumeFromRunId` relaunch of a finished run at 202 ms, 2 of 2 agents replayed from cache, 0 agent tokens, the same run id, no second scribe line. SKILL.md's rule therefore resumes with the original wrapper and identical `args`.
+- Args: the review of w6 (finding B1) found the FRONTIER line held only the run id, so after a compaction or a restart the orchestrator could not rebuild the original `args`, and any difference reruns agents. SKILL.md now writes each dispatch's exact `args` to `SCRATCH/args/<id>.json` at launch, records that path beside the run id on the FRONTIER line, and resumes by passing that file's contents unchanged with `resumeFromRunId`.
+- Live check of that rule (2026-11-26, a fresh scratch directory): a launch per the new SKILL.md rule showed "Single: Count spec tickets", run `wf_4a5340e6-dfd`, `done`; a resume with the identical inline script and args plus `resumeFromRunId` gave 2 of 2 agents replayed from cache, 0 agent tokens, 123 ms, the same run id.
+- Known issue, open since release 0.3.2 — AC7 is unchecked, because the manual check (a three-round generator-evaluator interrupted by a container restart mid-run, then resumed) has not been run, and 0.3.2 shipped with it open by the user's decision. The live check above covers resuming a finished run only, not a restart mid-run.

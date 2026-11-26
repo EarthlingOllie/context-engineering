@@ -274,6 +274,12 @@ function fail(spec, message, iterations = 0) {
   const id = spec && typeof spec === "object" && spec.id ? String(spec.id) : "?";
   return { id, status: "failed", result: message, artifacts: [], iterations };
 }
+function withThrown(r, thrown, maxLines) {
+  const message = thrown.replace(/\s+/g, " ").trim();
+  if (r.status !== "failed" || !message || r.result.includes(message)) return r;
+  const [first = "", ...rest] = String(r.result ?? "").split("\n");
+  return { ...r, result: cutLines([`${first} (an agent threw: ${message})`, ...rest].join("\n"), maxLines) };
+}
 function overBudget(spec, message) {
   return { id: spec.id, status: "over_budget", result: message, artifacts: [], iterations: 0 };
 }
@@ -283,7 +289,9 @@ async function callRole(ctx, spec, role, prompt, roleLabel, schema = ROLE_SCHEMA
   try {
     out = await ctx.rt.agent(prompt, { label, schema });
   } catch (err) {
-    ctx.rt.log(`${spec.id}: ${label} threw: ${err instanceof Error ? err.message : String(err)}`);
+    const message = err instanceof Error ? err.message : String(err);
+    ctx.rt.log(`${spec.id}: ${label} threw: ${message}`);
+    (ctx.agentErrors ?? (ctx.agentErrors = [])).push(message);
     return null;
   }
   if (!out || typeof out !== "object") return null;
@@ -1194,11 +1202,16 @@ async function runDispatch(ctx, raw) {
   if (!isTopology(raw.topology)) return fail(raw, `unknown topology "${String(raw.topology)}"; valid: ${TOPOLOGIES.join(", ")}`);
   const spec = normaliseSpec(raw);
   if (!spec.task) return fail(spec, "dispatch spec has no task");
+  const errors = ctx.agentErrors ?? (ctx.agentErrors = []);
+  const before = errors.length;
+  let r;
   try {
-    return await REGISTRY[spec.topology].run(ctx, spec);
+    r = await REGISTRY[spec.topology].run(ctx, spec);
   } catch (err) {
-    return fail(spec, `topology threw: ${err instanceof Error ? err.message : String(err)}`);
+    r = fail(spec, `topology threw: ${err instanceof Error ? err.message : String(err)}`);
   }
+  const thrown = errors[before];
+  return thrown === void 0 ? r : withThrown(r, thrown, spec.returns.maxLines);
 }
 
 // src/run.ts
@@ -1267,6 +1280,7 @@ async function runWorkflow(args, rt) {
   } catch (err) {
     rt.log(`${id}: scribe threw: ${err instanceof Error ? err.message : String(err)}; the trace lines were not written`);
   }
+  rt.log(`STATUS ${result.status}`);
   return { ...result, ...spec.title ? { title: spec.title } : {}, scribe };
 }
 
