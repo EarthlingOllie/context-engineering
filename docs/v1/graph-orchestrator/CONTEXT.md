@@ -37,7 +37,7 @@ The work the orchestrator believes still needs doing. An empty frontier ends the
 _Avoid_: Backlog, queue
 
 **Signature**:
-The fixed contract every topology accepts from and returns to the orchestrator: a dispatch spec in; a status (done, blocked, exhausted, over budget), an inline result, artifact paths and an iteration count out.
+The fixed contract every topology accepts from and returns to the orchestrator: a dispatch spec in; a status (done, blocked, exhausted, over budget, failed), an inline result, artifact paths and an iteration count out.
 _Avoid_: Interface, API
 
 **Return Contract**:
