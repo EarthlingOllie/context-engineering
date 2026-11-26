@@ -27,11 +27,10 @@ Finding ids (REL-01, QUA-04 and so on) refer to the session analysis in `docs/v1
 | 15 | **A run-verification skill** (new spec). | Agreed as a later spec while scoping the dispatch evals; its design has not been discussed yet. | ? | Dispatch evals done | n/a |
 | 16 | **Skill evals** (new spec). Evaluate the skills in this repo themselves, with skills and the plugin installed from this one marketplace. | The skills shape every role's work but are not measured. | L | Dispatch evals done | n/a |
 | 17 | **Comparison arm.** Run the same tasks on plain Claude Code and on `lead-orchestrator`. | Shows whether the plugin is worth its overhead, not only whether a fix helps. | M | Session evals | Session evals |
-| 18 | **Port to LangGraph TypeScript** (new spec). Replace the Workflow-script engine: the topologies run on `@langchain/langgraph`. The orchestrator stays a Claude Code plugin skill, which invokes the LangGraph program instead of the Workflow tool. Supersedes the dual-engine design drafted in session dQHS (2026-11-14, `design/langgraph-design.md`, not committed), which kept Workflow as default; its shim spike, resume tests and migration phases may still apply. Spike 01 (designed, local part passes) checks LangGraph inside a Workflow script with the UI intact. Then recover or redo that note as a spec, and decide what a node runs (the API directly, or the Agent SDK): that sets tools, permissions and cache control. | Graphs, state and routing as a maintained library instead of hand-written loops, and a graph definition that can later run outside Claude Code (the standalone program). To keep the Workflow UI, LangGraph runs inside the Workflow script (`docs/specs/langgraph-port/spike-01-langgraph-in-workflow.md`), so REL-01 still applies and resume stays the harness's `resumeFromRunId`; LangGraph checkpoints have no filesystem there. Decides how much Workflow-specific work below is worth doing. | L | Dispatch evals done (baseline to compare the new engine against); ranks 1–2 | Dispatch evals: new-engine scorecard against the frozen baseline |
-| 19 | **Run evals from GitHub Actions**, manually triggered. | Lets the suite run where Docker and the keys are known to be present. | S | Baseline frozen | n/a |
-| 20 | **Set up an issue tracker for specs and tickets** (`/setup-matt-pocock-skills`), then publish the dispatch-evals spec and tickets there. | Specs and tickets are repo files only for now. | S | Nothing | n/a |
-| 21 | **A model grader for prose results.** | Only if the planted-fact checks prove too blunt for research dispatches. | M | Baseline | n/a |
-| 22 | **Close the gaps in the session analysis**: sessions eLKq and gFUT were only partly checked, and the early waves of d6Vc and dKG5 are known at ticket level only. | Low value: nothing found so far, and gFUT predates the plugin. | S | Nothing | n/a |
+| 18 | **Run evals from GitHub Actions**, manually triggered. | Lets the suite run where Docker and the keys are known to be present. | S | Baseline frozen | n/a |
+| 19 | **Set up an issue tracker for specs and tickets** (`/setup-matt-pocock-skills`), then publish the dispatch-evals spec and tickets there. | Specs and tickets are repo files only for now. | S | Nothing | n/a |
+| 20 | **A model grader for prose results.** | Only if the planted-fact checks prove too blunt for research dispatches. | M | Baseline | n/a |
+| 21 | **Close the gaps in the session analysis**: sessions eLKq and gFUT were only partly checked, and the early waves of d6Vc and dKG5 are known at ticket level only. | Low value: nothing found so far, and gFUT predates the plugin. | S | Nothing | n/a |
 
 ## Groups
 
@@ -39,25 +38,22 @@ The same work, grouped by goal and dependency rather than ranked. Rank 7's findi
 
 | Group | Goal | Items | Measured by |
 |---|---|---|---|
-| **1. Execution and lifecycle** | Dispatches launch, survive restarts and report their real status. | Ranks 2, 14, 18; REL-03, REL-05 | By hand in a cloud session; dispatch evals for rank 18 |
+| **1. Execution and lifecycle** | Dispatches launch, survive restarts and report their real status. | Ranks 2, 14; REL-03, REL-05 | By hand in a cloud session |
 | **2. Verification integrity** | No pass without a check that ran. | Ranks 1, 5 (both parts), 10; REL-08, QUA-02, QUA-05 | Dispatch evals; session evals for rank 5 part 2 and QUA-02 |
 | **3. Cost** | Spend less per dispatch without bringing back false passes. | Ranks 4, 9, 12; COST-05 | Dispatch evals; session evals for COST-05 |
 | **4. Orchestrator behaviour** | The main loop plans, waits, asks and uses context well. | Ranks 3, 11, 13; REL-06, QUA-03, QUA-07, QUA-09, QUA-10, SPD-02, SPD-03 | Session evals; by hand until they exist |
-| **5. Observability and evals** | Every run is recorded truthfully and can be measured cheaply. | Ranks 6, 8, 15, 16, 17, 19, 20, 21, 22; QUA-08, REL-07 | n/a (this is the measuring) |
+| **5. Observability and evals** | Every run is recorded truthfully and can be measured cheaply. | Ranks 6, 8, 15, 16, 17, 18, 19, 20, 21; QUA-08, REL-07 | n/a (this is the measuring) |
 
 **Notes per group.**
-- **Execution and lifecycle.** Each finding has a plugin part and a platform part (rank 14); do both together. Rank 18 is this group's decision point. Because LangGraph runs inside the Workflow script to keep the UI, it does not remove REL-01, REL-05 or rank 14; it changes the dispatch code, not the harness. Do rank 2 now (small, P0, current sessions hit it); hold the larger harness asks until rank 18 is decided.
+- **Execution and lifecycle.** Each finding has a plugin part and a platform part (rank 14); do both together.
 - **Verification integrity.** Rank 1 and QUA-05 change the same line (`iterative-fan-out.ts:139`); do them together. REL-08 sets pass=false on a denied tool, and QUA-02 labels such work UNVERIFIED; land them as a pair.
 - **Cost.** Dispatch-evals ticket 09 → rank 4 → rank 9. Rank 12 runs in parallel, but needs rank 8's per-call usage to confirm the cause.
 - **Orchestrator behaviour.** Mostly SKILL.md rules, and mostly blocked on session evals for measurement, not for implementation. QUA-03 and QUA-04 (rank 3) are one rule at `SKILL.md:122`. QUA-10 relies on QUA-07. REL-06's pre-launch check is interim; revisit it with rank 11. Rank 13 also needs dispatch-evals ticket 12.
-- **Observability and evals.** Rank 6 is the hub of the roadmap: it gates group 4 and rank 17. Rank 15 has no design yet, so its place is provisional. Rank 20 is a process chore that fits no group well.
+- **Observability and evals.** Rank 6 is the hub of the roadmap: it gates group 4 and rank 17. Rank 15 has no design yet, so its place is provisional. Rank 19 is a process chore that fits no group well.
 
 **Links across groups.**
 - QUA-08 (group 5) depends on rank 9's scribe decision (group 3): without a scribe in `single`, the worker stamps the time.
-- Rank 1 (group 2) gates rank 18 (group 1).
 - Rank 6 (group 5) gates most of group 4.
 - SPD-03 (group 4) ties to rank 12 (group 3): long waits outlast the cache lifetime.
-
-**Effect of replacing the engine (rank 18).** The orchestrator stays a Claude Code skill, so group 4 is unaffected. Changes to the current dispatch code (QUA-08, REL-07, REL-06's refusal in `run.ts`, rank 9's scribe, rank 10) become interim: do them only if rank 18 is far off, else build them into the new engine. Rank 1's fix and the role prompts (REL-08, QUA-05, SPD-03) carry over. Rank 4 and rank 12 change shape if nodes call the API directly: model choice and cache control become the plugin's own. Rank 6's spike should launch the LangGraph program from headless Claude Code, not the Workflow tool, once rank 18 lands.
 
 **Corrections to rank 7.** Besides QUA-08 and REL-07, REL-05, REL-08, QUA-03, QUA-05 and SPD-03 also change dispatch code (`run.ts`, `roles.ts`, `render.ts`). The `roles.ts` changes alter agent prompts, so measure them with the dispatch evals against the baseline. QUA-05's `iterative-fan-out.ts:139` change is rank 1; rescope QUA-05 when rank 1 lands.
