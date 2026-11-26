@@ -13,3 +13,8 @@
 - [ ] The integrate table points stopped runs and usage-limit failures to the rule
 - [ ] If ticket 01 found the script can learn its run id, the trace's dispatch line records it; otherwise this ticket notes that the state file alone holds it
 - [ ] By hand in a cloud session: a three-round generator-evaluator is interrupted by a container restart mid-run; on its next turn the orchestrator relaunches it with `resumeFromRunId`, finished agents replay from cache, and the dispatch completes
+
+## Notes
+
+- Run id: ticket 01 found the dispatch script cannot learn its own run id (item 6: no script global carries it; it first appears in the launch's tool result). So the trace's dispatch line does not record it, and the state file alone holds the run id, on the dispatch's FRONTIER line (SKILL.md "The run id.").
+- Resume: ticket 01 measured a same-args `resumeFromRunId` relaunch of a finished run at 202 ms, 2 of 2 agents replayed from cache, 0 agent tokens, the same run id, no second scribe line. SKILL.md's rule therefore resumes with the original wrapper and identical `args`.

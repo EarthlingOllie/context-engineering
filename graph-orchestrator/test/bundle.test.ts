@@ -56,12 +56,12 @@ test("the script body runs under a harness-shaped scope and returns the dispatch
 
 test("the wrapper the orchestrator writes: a named meta and one nested workflow() call that passes args through", async () => {
   const wrapper = `export const meta = { name: 'Single: Add HTTP retry policy', description: 'w1-d1 · single' }
-return await workflow({ scriptPath: '/plugin/workflows/dispatch.js' }, args)`;
+return await workflow({ scriptPath: '/scratch/s1/plugin/workflows/dispatch.js' }, args)`;
   const { meta, body } = splitScript(wrapper.replace("description: 'w1-d1 · single' }", "description: 'w1-d1 · single',\n}"));
   assert.equal(meta["name"], "Single: Add HTTP retry policy");
   const run = new AsyncFunction("workflow", "args", body);
   const seen: unknown[] = [];
   const out = await run(async (ref: unknown, a: unknown) => (seen.push(ref, a), "child result"), { dispatch: { id: "w1-d1" } });
   assert.equal(out, "child result");
-  assert.deepEqual(seen, [{ scriptPath: "/plugin/workflows/dispatch.js" }, { dispatch: { id: "w1-d1" } }]);
+  assert.deepEqual(seen, [{ scriptPath: "/scratch/s1/plugin/workflows/dispatch.js" }, { dispatch: { id: "w1-d1" } }]);
 });

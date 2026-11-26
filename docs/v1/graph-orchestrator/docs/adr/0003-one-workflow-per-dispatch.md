@@ -5,14 +5,14 @@ status: accepted
 
 ADR-0002 put a whole wave into one Workflow run: `wave.js` took every dispatch spec of the wave and ran them in parallel inside that run. Whoever watched saw one workflow called `wave`, with each dispatch's agents told apart only by long labels ("Wave 1 · d2 Generator, round 1 of 3 — Add a retry policy to…").
 
-We now run each dispatch as its own Workflow run. The orchestrator launches all of a wave's dispatches in one message, one `Workflow` call each, so they run in parallel, and integrates once every one has reported. Each call is a two-line inline wrapper:
+We now run each dispatch as its own Workflow run. At kickoff the orchestrator copies the plugin's `workflows/` into the session scratch directory, once. It launches all of a wave's dispatches in one message, one `Workflow` call each, so they run in parallel, and integrates once every one has reported. Each call is a two-line inline wrapper pointing at that copy:
 
 ```
 export const meta = { name: '<title>', description: '<id> · <topology>' }
-return await workflow({ scriptPath: '<plugin root>/workflows/dispatch.js' }, args)
+return await workflow({ scriptPath: '<scratch>/plugin/workflows/dispatch.js' }, args)
 ```
 
-A workflow's displayed name is its `meta.name`, which must be a literal, so naming each run for its goal needs a script per dispatch. The wrapper costs the orchestrator two lines, where pasting the 60 KB bundle would cost its window. The topology code stays in one built file, `dispatch.js`, reached through the nested `workflow()` call. The spec gains a `title`: two to six plain words saying what the dispatch is for. It is the workflow's name and the first line of the dispatch's node in the diagram.
+A workflow's displayed name is its `meta.name`, which must be a literal, so naming each run for its goal needs a script per dispatch. The wrapper costs the orchestrator two lines, where pasting the 60 KB bundle would cost its window. The topology code stays in one built file, `dispatch.js`, reached through the nested `workflow()` call. (Amended after the execution-lifecycle spike, ticket 01: the wrapper first pointed at `dispatch.js` under the plugin root, which the harness refuses; see the open items below.) The spec gains a `title`: two to six plain words saying what the dispatch is for. It is the workflow's name and the first line of the dispatch's node in the diagram.
 
 ## Consequences
 
@@ -26,8 +26,8 @@ A workflow's displayed name is its `meta.name`, which must be a literal, so nami
 
 ## To verify in a live session
 
-These rest on the Workflow tool's documented behaviour; no live session has run them yet:
+These rest on the Workflow tool's documented behaviour; no live session has run them yet, except where marked:
 
 - Several `Workflow` calls in one message run concurrently, and each notifies on completion.
-- An inline `script` wrapper may call `workflow({ scriptPath })` on a plugin file, and the child's return comes back as the wrapper's.
-- A `meta.name` with spaces and capitals is accepted and shown as written.
+- ~~An inline `script` wrapper may call `workflow({ scriptPath })` on a plugin file, and the child's return comes back as the wrapper's.~~ **Closed by execution-lifecycle ticket 01 (2026-11-26).** A `scriptPath` under the plugin root is refused: "scriptPath must be a script path this tool returned, or a file you can already read" (run `wf_089aa526-a91`), and the refusal arrives as a `failed` notification just after the launch returned a run id. Launching by the registered name `graph-orchestrator:dispatch` returns the dispatch's result but labels the workflow with the plugin's description, not the dispatch's title (run `wf_c5438344-de0`). A copy of `dispatch.js` in the session scratch directory works: the workflow shows the wrapper's `meta.name` and the child's return comes back as the wrapper's (run `wf_7f6afc9b-0c8`). The launch is therefore the scratch copy shown above, which SKILL.md makes a fourth exception to its rule.
+- A `meta.name` with spaces and capitals is accepted and shown as written. (Observed in run `wf_7f6afc9b-0c8`: "Single: Map spec tickets frontier".)
