@@ -1,0 +1,11 @@
+{
+  "meta": {"name": "dispatch"}, "mainModel": "claude-opus-5-5", "cap": 2, "wallClockMs": 84250, "error": null, "stub": false,
+  "return": {"id": "w1-d1", "status": "done", "iterations": 1, "artifacts": ["/work/scratch/summary.md"],
+    "result": "/work/scratch/summary.md\nLedger moved to PostgreSQL 16 (ledger-service.md)\nSnapshots every 500 events per account (ledger-service.md)\nCard-network calls retry at most 4 times (retry-policy.md)\nIdempotency keys kept for 72 hours (retry-policy.md)\nSettlement cut-off 21:00 UTC (glossary.md)",
+    "title": "Summarise the payments docs", "scribe": {"appended": 1, "totalLines": 1}},
+  "agents": [
+    {"n": 1, "label": "Worker: Read every file under /work/docs and wr…", "model": "claude-opus-5-5", "calledMs": 2, "startMs": 2, "endMs": 61010, "queuedMs": 0, "error": null, "engine": null},
+    {"n": 2, "label": "Grapher: logging current dispatch", "model": "claude-opus-5-5", "calledMs": 61011, "startMs": 61011, "endMs": 84240, "queuedMs": 0, "error": null, "engine": null}
+  ],
+  "logs": [{"atMs": 1, "message": "w1-d1: single, up to 1 agent(s) + 1 scribe"}]
+}

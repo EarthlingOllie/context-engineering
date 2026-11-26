@@ -14,5 +14,5 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "build.mjs"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "evals/harness/**/*.ts", "build.mjs"]
 }

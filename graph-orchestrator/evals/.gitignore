@@ -1,0 +1,7 @@
+# Raw Inspect logs hold full transcripts: never committed.
+logs/
+# Generated per run: compose files and routine scorecards. Baseline scorecards go in baselines/.
+out/
+sandbox/ca.crt
+__pycache__/
+.venv/

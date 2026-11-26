@@ -1,0 +1,67 @@
+"""What the dispatch suite pins, and what goes into the sandbox.
+
+No Inspect import here, so the tests can check the pins and the copy rule
+without Inspect installed.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+EVALS = Path(__file__).resolve().parent
+PLUGIN = EVALS.parent  # graph-orchestrator/
+REPO = PLUGIN.parent
+SKILLS = REPO / "skills"  # this repo's skills plugin, installed in the sandbox at the commit under test
+SAMPLES = EVALS / "samples"
+FIXTURES = EVALS / "fixtures"
+
+# ---- pins: written into every scorecard header ----
+MODEL = "claude-opus-5-5"  # every role, in the baseline and routine runs
+INSPECT_VERSION = "0.3.292"  # = requirements.txt
+SDK_VERSION = "0.3.332"  # @anthropic-ai/claude-agent-sdk in sandbox/package.json
+CLAUDE_CODE_VERSION = "2.1.332"  # the engine that SDK version ships
+ENGINE_VERSION = f"@anthropic-ai/claude-agent-sdk {SDK_VERSION} (Claude Code {CLAUDE_CODE_VERSION})"
+
+# Every model id a role may request is declared to the bridge; an undeclared
+# name would silently fall back to the main model (spec: Model routing).
+DECLARED_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
+
+# $/MTok, supplied to Inspect with set_model_cost (Inspect ships no Anthropic
+# prices). Source: the claude-api skill price table, cached 2026-11-03. Cache
+# write at 1.25x input and the Haiku cache prices are assumptions to confirm
+# against the live pricing page before the baseline run.
+PRICES = {
+    "claude-opus-5-5": {"input": 4.0, "output": 20.0, "input_cache_write": 5.0, "input_cache_read": 0.20},
+    "claude-sonnet-5-5": {"input": 2.0, "output": 10.0, "input_cache_write": 2.5, "input_cache_read": 0.10},
+    "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "input_cache_write": 0.125, "input_cache_read": 0.01},
+}
+
+# ---- run parameter defaults (spec: Baseline and runs) ----
+DEFAULT_CAP = 2
+DEFAULT_CPUS = 4
+DEFAULT_MEMORY = "8g"
+DEFAULT_EPOCHS = 3
+
+
+def load_samples() -> list[dict]:
+    return [json.loads(p.read_text()) for p in sorted(SAMPLES.glob("*.json"))]
+
+
+def fixture_sandbox_files(fixture: str) -> dict[str, Path]:
+    """The files the solver copies into the sandbox for a fixture: sandbox path -> host file.
+
+    Only `fixtures/<name>/sandbox/` is copied, to `/work/`. `fixtures/<name>/hidden/`
+    holds the hidden check and is read on the host by the scorer only.
+    """
+    root = FIXTURES / fixture / "sandbox"
+    return {f"/work/{p.relative_to(root).as_posix()}": p for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def hidden_files(fixture: str) -> list[Path]:
+    root = FIXTURES / fixture / "hidden"
+    return sorted(p for p in root.rglob("*") if p.is_file())
+
+
+def hidden_facts(fixture: str) -> list[dict]:
+    return json.loads((FIXTURES / fixture / "hidden" / "planted_facts.json").read_text())
