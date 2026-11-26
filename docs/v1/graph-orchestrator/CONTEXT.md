@@ -48,6 +48,10 @@ _Avoid_: Backlog, queue
 The fixed contract every topology accepts from and returns to the orchestrator: a dispatch spec in; a status (done, blocked, exhausted, over budget, failed), an inline result, artifact paths and an iteration count out.
 _Avoid_: Interface, API
 
+**Unverified**:
+Work the orchestrator accepted although no evaluator passed it, because its dispatch ended blocked or exhausted. A label the orchestrator writes, not a signature status. An evaluator that cannot run a check it needs blocks rather than failing the work.
+_Avoid_: Unreviewed, accepted, best guess (that is the decision, not the label on its work)
+
 **Return Contract**:
 The shape and line limit a dispatch's result must satisfy. Results always return inline.
 _Avoid_: Output format, response schema
