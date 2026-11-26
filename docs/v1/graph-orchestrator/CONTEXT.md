@@ -29,7 +29,7 @@ One step of a chain. A stage is a dispatch, so it may be any topology.
 _Avoid_: Step, link
 
 **Wave**:
-The set of dispatches the orchestrator issues at once; each dispatch is its own workflow run, named for its purpose, and the wave is waited on in full before planning again (ADR-0003).
+The set of dispatches the orchestrator launches together; each dispatch is its own workflow run, named for its purpose (ADR-0003). A launch batch, not a barrier: work whose dependencies have all finished may launch as the next wave before the rest of the current wave reports (ADR-0006).
 _Avoid_: Batch, round
 
 **Run**:
