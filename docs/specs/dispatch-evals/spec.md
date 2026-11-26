@@ -1,6 +1,6 @@
 # Spec: dispatch evals and a baseline, run with Inspect AI
 
-Status: ready for implementation. Decisions were settled in a design interview on 2026-11-26; the reasons for the two least obvious ones are in ADR-0005. Vocabulary follows `CONTEXT.md` (Dispatch Eval, Session Eval, Baseline).
+Status: ready for implementation. Decisions were settled in a design interview on 2026-11-26; the reasons for the two least obvious ones are in ADR-0005 (`docs/v1/graph-orchestrator/docs/adr/`). Vocabulary follows `docs/v1/graph-orchestrator/CONTEXT.md` (Dispatch Eval, Session Eval, Baseline). Tickets are in `tickets/`; work deferred from this spec is in `docs/roadmap.md`.
 
 ## Problem Statement
 
@@ -162,4 +162,4 @@ A good test here checks behaviour at a seam with recorded or stubbed inputs, nev
 - `inspect_swe` has a `claude_code()` agent that runs Claude Code through the same bridge. It is the likely base for session evals. It has no plugin option, so the plugin would be installed into the sandbox by the task.
 - Inspect tracks working time poorly for bridged agents, because time spent in the engine's own tools is not seen. Wall clock comes from the harness, and every sample sets a wall-clock limit.
 - The 15 samples cost an unknown amount until the first run; the $30 budget is a ceiling, not an estimate.
-- Evidence for the findings referenced here is in `session-analysis-2026-11-18/`.
+- Evidence for the findings referenced here is in `docs/v1/graph-orchestrator/session-analysis-2026-11-18/`.
