@@ -3,7 +3,7 @@
 Work that has been discussed but is not covered by a spec and tickets yet, in priority order. Covered work is not repeated here:
 
 - **Dispatch evals and the baseline**: `docs/specs/dispatch-evals/` (spec and 12 tickets).
-- **Execution and lifecycle (Group 1)**: `docs/specs/execution-lifecycle/` (spec; tickets to follow).
+- **Execution and lifecycle (Group 1)**: `docs/specs/execution-lifecycle/` (spec and 6 tickets).
 
 Finding ids (REL-01, QUA-04 and so on) refer to the session analysis in `docs/v1/graph-orchestrator/session-analysis-2026-11-18/findings.md`, which holds the evidence, the proposed change and the file and line for each.
 
