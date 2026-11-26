@@ -1,0 +1,8 @@
+[
+  {"fact": "the payout batch runs at 06:00 UTC", "file": "payouts.md", "patterns": ["06:00", "utc"]},
+  {"fact": "the minimum payout is 10 EUR", "file": "payouts.md", "patterns": ["\\b10\\s*eur"]},
+  {"fact": "merchants have 14 days to submit chargeback evidence", "file": "chargebacks.md", "patterns": ["\\b14\\s*days"]},
+  {"fact": "each chargeback costs a 15 EUR fee", "file": "chargebacks.md", "patterns": ["\\b15\\s*eur"]},
+  {"fact": "a rejected payout is retried 3 times", "file": "payout-failures.md", "patterns": ["retr", "\\b3\\b|three"]},
+  {"fact": "after the third failure the payout is held and finance-ops paged", "file": "payout-failures.md", "patterns": ["hold|held", "finance.?ops"]}
+]

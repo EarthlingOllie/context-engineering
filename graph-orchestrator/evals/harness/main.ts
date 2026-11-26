@@ -3,13 +3,16 @@
  *
  *   node --experimental-strip-types /opt/harness/main.ts --bundle /opt/plugin/workflows/dispatch.js \
  *     --args /work/args.json --out /work/result.json --cap 2 --model claude-opus-5-5 \
- *     [--role-model evaluator=claude-haiku-5-5 ...] [--skills /opt/skills] [--cwd /work] \
+ *     [--role-model evaluator=claude-haiku-5-5 ...] [--watch /work/scratch/progress.md ...] [--skills /opt/skills] [--cwd /work] \
  *     [--stub [--stub-delay-ms 200] [--stub-evaluator pass|fail] [--stub-serve-model claude-opus-5-5]]
  *
  * --role-model forces one role onto another model without changing the
  * plugin (repeatable; the baseline passes none, so every role runs on
  * --model). --stub-serve-model makes the stub report every call as served on
  * that model, a dry run of the bridge falling back to the main model.
+ *
+ * --watch names a file (a relay's progress file) the harness hashes before
+ * and after every agent (repeatable).
  *
  * --stub replaces the engine with canned answers (stub-engine.ts) so the
  * pipeline can be dry-run with no model call. --stub-delay-ms makes each
@@ -38,6 +41,7 @@ const { values: opt } = parseArgs({
     "stub-evaluator": { type: "string", default: "pass" },
     "stub-serve-model": { type: "string" },
     "role-model": { type: "string", multiple: true, default: [] },
+    watch: { type: "string", multiple: true, default: [] },
   },
 });
 for (const k of ["bundle", "args", "out", "model"] as const) if (!opt[k]) throw new Error(`--${k} is required`);
@@ -60,6 +64,7 @@ const result = await runHarness({
   engine,
   mainModel: opt.model!,
   roleModels,
+  watch: opt.watch ?? [],
   cap: Number(opt.cap),
 });
 mkdirSync(dirname(opt.out!), { recursive: true });

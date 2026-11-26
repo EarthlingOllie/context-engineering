@@ -87,6 +87,56 @@ def compose_yaml(cpus: int, memory: str) -> str:
     )
 
 
+# ---- the catalog's demand formula (skills/graph-orchestrator/catalog.md, "Demand" per topology) ----
+_MAX_WIDTH, _MAX_SESSIONS, _MAX_GAP_ROUNDS, _MAX_LENSES, _MAX_PARTICIPANTS, _MAX_DEBATE_ROUNDS = 9, 10, 3, 6, 6, 4
+
+
+def catalog_demand(spec: dict) -> int:
+    """The agents a dispatch spec may use by the catalog's formula, with the catalog's defaults, the scribe not
+    counted; 0 when a cap would refuse the spec (it returns `over_budget` unrun). An upper bound for the topologies
+    that stop early (generator-evaluator, relay, best-of-n in vote mode); exact for a debate, whose every round runs."""
+    p = spec.get("params") or {}
+    roles = spec.get("roles") or {}
+    topology = spec.get("topology")
+
+    def split_width(default_width: int) -> tuple[int, int]:
+        """(width, 1 for a partition instruction else 0)."""
+        split = p.get("split")
+        if isinstance(split, list):
+            return len([x for x in split if str(x).strip()]), 0
+        return int(p.get("width", default_width)), 1
+
+    if topology == "single":
+        return 1
+    if topology == "generator-evaluator":
+        return 2 * int(p.get("max_iterations", 3))
+    if topology == "fan-out":
+        width, partition = split_width(3)
+        reducer = 1 if p.get("reducer") or "reducer" in roles else 0
+        return 0 if width > _MAX_WIDTH else width + partition + reducer
+    if topology == "chain":
+        stages = [catalog_demand(st) for st in p.get("stages") or []]
+        return 0 if 0 in stages else sum(stages)
+    if topology == "relay":
+        sessions, every = int(p.get("max_sessions", 3)), int(p.get("check_every", 1))
+        return 0 if sessions > _MAX_SESSIONS else sessions + -(-sessions // every)
+    if topology == "best-of-n":
+        n = len(p["variants"]) if isinstance(p.get("variants"), list) else int(p.get("n", 3))
+        return 0 if n > _MAX_WIDTH else n + 1
+    if topology == "iterative-fan-out":
+        width, partition = split_width(3)
+        rounds = int(p.get("max_rounds", 2))
+        return 0 if width > _MAX_WIDTH or rounds > _MAX_GAP_ROUNDS else rounds * width + rounds + 1 + partition
+    if topology == "panel":
+        lenses = len(p.get("lenses") or [])
+        reducer = 1 if p.get("reducer") or "reducer" in roles else 0
+        return 0 if lenses > _MAX_LENSES else lenses + reducer
+    if topology == "debate":
+        participants, rounds = len(p.get("participants") or []), int(p.get("rounds", 2))
+        return 0 if participants > _MAX_PARTICIPANTS or rounds > _MAX_DEBATE_ROUNDS else participants * rounds + 1
+    raise ValueError(f"unknown topology: {topology}")
+
+
 def load_samples() -> list[dict]:
     return [json.loads(p.read_text()) for p in sorted(SAMPLES.glob("*.json"))]
 
@@ -131,8 +181,24 @@ def hidden_test_files(fixture: str) -> list[Path]:
     return [FIXTURES / fixture / "hidden" / name for name in json.loads(check.read_text()).get("tests", [])]
 
 
+def chosen_candidate_tree(fixture: str, files: dict[str, str], candidate_dir: str) -> dict[str, Path | str]:
+    """What a `chosen_tests` check runs the hidden tests on: the fixture's sandbox tree as shipped (relative path ->
+    host file), with every file the agents wrote under the chosen candidate's dir (sandbox path -> text) laid over it
+    at its path relative to that dir. Starting from the fixture, not /work, keeps edits to the working tree out."""
+    tree: dict[str, Path | str] = {dest.removeprefix("/work/"): src for dest, src in fixture_sandbox_files(fixture).items()}
+    prefix = candidate_dir.rstrip("/") + "/"
+    for path, text in files.items():
+        if path.startswith(prefix):
+            tree[path[len(prefix):]] = text
+    return tree
+
+
 def hidden_facts(fixture: str) -> list[dict]:
     return json.loads((FIXTURES / fixture / "hidden" / "planted_facts.json").read_text())
+
+
+# Check kinds scored (at least in part) by the fixture's hidden tests, run in the sandbox after the dispatch.
+TESTED_KINDS = {"tests", "chosen_tests", "relay"}
 
 
 def hidden_check(sample: dict) -> dict:
@@ -142,7 +208,8 @@ def hidden_check(sample: dict) -> dict:
     a research fixture, its planted facts) gives the check; the sample's own
     `check` may refine or replace it (`source`: score the facts in the
     returned `result` only, or in the result and the files the agents wrote;
-    `kind`: a check on the dispatch's return alone, such as `exhausted`). A
+    `kind`: a check on the dispatch's return alone, such as `exhausted`, or one
+    that also runs the hidden tests, such as `chosen_tests`). A
     check's `unchanged` paths are resolved to the fixture's original text,
     which the files must still hold.
     """
@@ -155,9 +222,20 @@ def hidden_check(sample: dict) -> dict:
             break
     own = sample.get("check", {})
     check = {**base, **own} if own.get("kind", base["kind"]) == base["kind"] else dict(own)
+    if check["kind"] in TESTED_KINDS and base["kind"] == "tests":
+        # A check that also runs the fixture's hidden tests keeps their files and runner.
+        check = {**{k: base[k] for k in ("tests", "runner") if k in base}, **check}
     if check["kind"] == "facts":
         check.setdefault("source", "result+files")
         check["facts"] = hidden_facts(fixture)
+    if check["kind"] == "coverage":
+        check["facts"] = hidden_facts(fixture)
+    if check["kind"] == "contract_verdict":
+        # The verdict must fit the dispatch's own return contract.
+        check.setdefault("max_lines", sample["args"]["dispatch"]["returns"]["maxLines"])
+    if check["kind"] == "relay":
+        # The harness hashes the progress file before and after every agent, to show each session rewrote it.
+        check["watch"] = [check["progress"]]
     if "unchanged" in check:
         copied = fixture_sandbox_files(fixture)
         check["unchanged"] = {p: copied[p].read_text() for p in check["unchanged"]}
@@ -172,9 +250,11 @@ def harness_command(
     stub_delay_ms: int = 0,
     stub_evaluator: str = "pass",
     stub_serve_model: str = "",
+    watch: list[str] | None = None,
 ) -> list[str]:
     """The Node harness command run in the sandbox. Every role is requested on MODEL unless `role_models` forces it
-    onto another declared model (the plugin is not changed)."""
+    onto another declared model (the plugin is not changed). `watch` names files (a relay's progress file) the
+    harness hashes before and after every agent."""
     cmd = [
         "node", "--experimental-strip-types", "--disable-warning=ExperimentalWarning", "/opt/harness/src/main.ts",
         "--bundle", "/opt/plugin/workflows/dispatch.js",
@@ -187,6 +267,8 @@ def harness_command(
     ]
     for role, model in (role_models or {}).items():
         cmd += ["--role-model", f"{role}={model}"]
+    for path in watch or []:
+        cmd += ["--watch", path]
     if stub:
         cmd += ["--stub", "--stub-delay-ms", str(stub_delay_ms), "--stub-evaluator", stub_evaluator]
         if stub_serve_model:

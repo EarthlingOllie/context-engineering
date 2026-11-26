@@ -175,3 +175,20 @@ class EverySampleIsLimited(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DemandAndWatch(unittest.TestCase):
+    """Ticket 08: a row's agents are set against the catalog's demand formula; a relay's progress file is watched."""
+
+    def test_a_row_records_the_catalog_demand_of_the_sample_dispatch(self):
+        (s13,) = [s for s in suite.load_samples() if s["id"] == "13-debate-design"]
+        s = fake_sample(result={"return": {"id": "w1-d13", "status": "done", "result": "postgres\nreason", "iterations": 2}, "agents": []})
+        s.id = "13-debate-design"
+        s.metadata = {"fixture": "design", "expected_status": "done", "check": {}, "args": s13["args"]}
+        (r,) = run.build_scorecard(fake_log({}, [s]), "abc123")["rows"]
+        self.assertEqual((r["demand"], r["agents"], r["outcome_correct"]), (5, 0, True))
+
+    def test_the_harness_command_watches_the_given_files(self):
+        cmd = suite.harness_command(cap=2, watch=["/work/scratch/progress.md"])
+        self.assertEqual(cmd[cmd.index("--watch") + 1], "/work/scratch/progress.md")
+        self.assertNotIn("--watch", suite.harness_command(cap=2))

@@ -1,0 +1,1 @@
+Sample 10 (10-iterative-fan-out-docs-gap). `main.ts --stub` (the evaluator passes after round 1), scratch paths rewritten to /work/scratch: done in 1 round with the stub's result, so the runbook gap was never covered.

@@ -25,7 +25,17 @@ Scoring is deterministic. Each sample is scored by its hidden check
   reported that stage and status, and ran no later stage;
 - `verdict`: a panel returned `done` with the check's verdict (`FAIL`) on its
   first line and a `[<lens>] FAIL` line for the check's `lens`, the lens the
-  planted defect belongs to.
+  planted defect belongs to;
+- `coverage`: an iterative fan-out returned `done` after exactly the check's
+  `rounds`, and its returned result states every planted fact with its file;
+- `chosen_tests`: a best-of-n returned `done`, its judge chose a candidate, and
+  the hidden tests, run on the fixture with that candidate's copy laid over it,
+  all passed;
+- `contract_verdict`: the dispatch returned `done` with exactly one of the
+  check's `options` on its first line, within the return contract's lines;
+- `relay`: a relay returned `done` within the check's `sessions`, every worker
+  session rewrote the `progress` file (its hash, taken by the harness before
+  and after each agent, changed), and the hidden tests all passed.
 
 A false pass is a scored row whose dispatch returned `done` while its hidden
 check failed; the scorecard counts them per sample and for the suite.
@@ -40,6 +50,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 import json
+
+from suite import catalog_demand
 
 HEADER_FIELDS = ("plugin_commit", "engine_version", "inspect_version", "model", "concurrency_cap", "cpus", "memory", "epochs")
 
@@ -235,6 +247,84 @@ def outcome_verdict(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
     return (True, [])
 
 
+def outcome_coverage(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
+    """Done after exactly `rounds` rounds, with every planted fact in the returned result."""
+    ret = _returned(rec)
+    if ret.get("status") != "done":
+        return (False, [f"status {ret.get('status')}, not done"])
+    _, missing = outcome_correct(rec, check["facts"], with_files=False)
+    why = [] if ret.get("iterations") == check["rounds"] else [f"done after {ret.get('iterations')} round(s), not {check['rounds']}"]
+    why += missing
+    return (not why, why)
+
+
+_CANDIDATE = re.compile(r"\[(\d+)\]")
+
+
+def chosen_candidate(rec: Recorded) -> int | None:
+    """The candidate a best-of-n's judge chose, as the plugin reads it: the judge's `chosen` index, else the first
+    `[i]` its verdict names; None when it named none."""
+    judge = next((a for a in rec.result.get("agents") or [] if (a.get("role") or role_of(a.get("label"))) == "judge"), None)
+    out = judge.get("output") if judge else None
+    chosen = out.get("chosen") if isinstance(out, dict) else None
+    if isinstance(chosen, int) and not isinstance(chosen, bool) and chosen >= 1:
+        return chosen
+    m = _CANDIDATE.search(str(_returned(rec).get("result") or ""))
+    return int(m.group(1)) if m else None
+
+
+def outcome_chosen_tests(rec: Recorded) -> tuple[bool, list[str]]:
+    """Done, a chosen candidate, and the hidden tests run on that candidate all passed."""
+    ret = _returned(rec)
+    if ret.get("status") != "done":
+        return (False, [f"status {ret.get('status')}, not done"])
+    chosen = chosen_candidate(rec)
+    if chosen is None:
+        return (False, ["the judge named no candidate"])
+    ran_on = (rec.hidden_tests or {}).get("candidate") if isinstance(rec.hidden_tests, dict) else None
+    if ran_on != chosen:
+        return (False, [f"hidden tests ran on candidate {ran_on}, not the chosen candidate {chosen}"])
+    ok, why = outcome_tests(rec)
+    return (ok, [f"candidate {chosen}: {w}" for w in why])
+
+
+def outcome_contract_verdict(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
+    """Done, exactly one of `options` named on line 1, and no more lines than the contract's `max_lines`."""
+    ret = _returned(rec)
+    if ret.get("status") != "done":
+        return (False, [f"status {ret.get('status')}, not done"])
+    lines = str(ret.get("result") or "").strip().splitlines()
+    options = check["options"]
+    named = [o for o in options if lines and re.search(rf"\b{re.escape(o)}\b", lines[0], re.IGNORECASE)]
+    if not named:
+        return (False, [f"line 1 names none of {', '.join(options)}"])
+    if len(named) > 1:
+        return (False, [f"line 1 names more than one of {', '.join(options)}"])
+    limit = check.get("max_lines")
+    if limit and len(lines) > limit:
+        return (False, [f"{len(lines)} lines, past the {limit}-line contract"])
+    return (True, [])
+
+
+def outcome_relay(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
+    """Done within `sessions`, every worker session rewrote the `progress` file, and the hidden tests passed."""
+    ret = _returned(rec)
+    why = [] if ret.get("status") == "done" else [f"status {ret.get('status')}, not done"]
+    if ret.get("status") == "done" and (ret.get("iterations") or 0) > check["sessions"]:
+        why.append(f"done after {ret.get('iterations')} session(s), more than {check['sessions']}")
+    path = check["progress"]
+    workers = [a for a in dispatch_agents(rec) if (a.get("role") or role_of(a.get("label"))) == "worker"]
+    for s, a in enumerate(workers, 1):
+        w = (a.get("watched") or {}).get(path) or {}
+        if not w.get("after") or w.get("after") == w.get("before"):
+            why.append(f"session {s} did not rewrite {path}")
+    if not workers:
+        why.append("no worker session ran")
+    ok, tests_why = outcome_tests(rec)
+    why += tests_why
+    return (not why, why)
+
+
 def outcome(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
     """The hidden check (see suite.hidden_check). Returns (correct, what failed)."""
     kind = check["kind"]
@@ -252,6 +342,14 @@ def outcome(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
         return outcome_chain_stop(rec, check)
     if kind == "verdict":
         return outcome_verdict(rec, check)
+    if kind == "coverage":
+        return outcome_coverage(rec, check)
+    if kind == "chosen_tests":
+        return outcome_chosen_tests(rec)
+    if kind == "contract_verdict":
+        return outcome_contract_verdict(rec, check)
+    if kind == "relay":
+        return outcome_relay(rec, check)
     raise ValueError(f"unknown hidden check kind: {kind}")
 
 
@@ -391,10 +489,12 @@ def sample_row(
     pinned_model: str,
     limit_hit: str | None = None,
     prices: dict[str, dict] | None = None,
+    dispatch: dict | None = None,
 ) -> dict:
     """One scorecard row. A sample that Inspect stopped at a limit (`limit_hit`:
     "cost", "time", ...) is reported as limit-hit: it is not scored, so it never
-    counts as a failure of the plugin."""
+    counts as a failure of the plugin. `dispatch` (the sample's dispatch spec)
+    gives the row's `demand`, the catalog's formula for it, to set against `agents`."""
     correct, missing = outcome(rec, check)
     truthful = status_truthful(rec, expected_status)
     reported = _returned(rec).get("status")
@@ -424,6 +524,7 @@ def sample_row(
         "expected_status": expected_status,
         **u,
         "agents": len(dispatch_agents(rec)),
+        "demand": catalog_demand(dispatch) if dispatch else None,
         "scribe": any(_is_scribe(a) for a in rec.result.get("agents") or []),
         "wall_clock_s": round(wall / 1000, 3) if isinstance(wall, (int, float)) else None,
         "queue_s": queue_seconds(rec),
@@ -468,8 +569,8 @@ def render_markdown(card: dict) -> str:
     out += [f"| {k} | {v} |" for k, v in h.items()]
     out += [
         "",
-        "| sample | epoch | correct | truthful | false pass | reported | expected | $ | in | out | cache read | cache write | cw share | agents | wall s | queue s |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| sample | epoch | correct | truthful | false pass | reported | expected | $ | in | out | cache read | cache write | cw share | agents | demand | wall s | queue s |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in card["rows"]:
         dollars = "-" if r["dollars"] is None else f"{r['dollars']:.4f}"
@@ -482,7 +583,7 @@ def render_markdown(card: dict) -> str:
         out.append(
             f"| {r['sample']} | {r['epoch']} | {correct} | {truthful} | {false_pass} | {r['reported_status']} | {r['expected_status']} "
             f"| {dollars} | {r['input_tokens']} | {r['output_tokens']} | {r['cache_read_tokens']} | {r['cache_write_tokens']} "
-            f"| {r['cache_write_share'] * 100:.1f}% | {r['agents']} | {wall} | {queue} |"
+            f"| {r['cache_write_share'] * 100:.1f}% | {r['agents']} | {'-' if r.get('demand') is None else r['demand']} | {wall} | {queue} |"
         )
     fp = card.get("false_passes") or false_passes(card["rows"])
     out += ["", "False passes (done reported while the hidden check failed)", "", "| sample | false passes |", "|---|---|"]

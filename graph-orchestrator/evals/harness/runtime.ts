@@ -8,6 +8,8 @@
  * an engine that throws makes agent() throw; an engine with no output makes
  * agent() return null; a parallel() thunk that throws becomes null.
  */
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import type { AgentOptions, Runtime } from "../../src/types.ts";
 
 export type EngineRequest = { prompt: string; model: string; label?: string; schema?: Record<string, unknown> };
@@ -33,7 +35,20 @@ export type AgentRecord = {
   queuedMs: number | null;
   error: string | null;
   engine: unknown;
+  /** What agent() returned (the role's answer through its schema); null when it threw or returned nothing. */
+  output?: unknown;
+  /** Per watched path, its sha256 just before the engine started and just after it ended; null while the file is missing. */
+  watched?: Record<string, { before: string | null; after: string | null }>;
 };
+
+/** sha256 of a file's bytes, or null when it cannot be read. */
+export function fileHash(path: string): string | null {
+  try {
+    return createHash("sha256").update(readFileSync(path)).digest("hex");
+  } catch {
+    return null;
+  }
+}
 
 export type LogRecord = { atMs: number; message: string };
 
@@ -52,9 +67,11 @@ export function roleOf(label: string | null | undefined): string {
 /**
  * `roleModels` forces a role onto a model (role -> model id) from the harness,
  * without changing the plugin: the routing check's demonstration. Empty in the
- * baseline, where every role runs on `mainModel`.
+ * baseline, where every role runs on `mainModel`. `watch` names files (a
+ * relay's progress file) hashed before and after every agent.
  */
-export function createRuntime(o: { engine: Engine; mainModel: string; cap: number; roleModels?: Record<string, string>; now?: () => number }) {
+export function createRuntime(o: { engine: Engine; mainModel: string; cap: number; roleModels?: Record<string, string>; watch?: string[]; now?: () => number }) {
+  const watch = o.watch ?? [];
   const start = typeof performance !== "undefined" ? performance.now() : 0;
   const now = o.now ?? (() => Math.round(performance.now() - start));
   const cap = Math.max(1, Math.floor(o.cap) || 1);
@@ -86,9 +103,11 @@ export function createRuntime(o: { engine: Engine; mainModel: string; cap: numbe
     await acquire();
     rec.startMs = now();
     rec.queuedMs = rec.startMs - rec.calledMs;
+    if (watch.length) rec.watched = Object.fromEntries(watch.map((p) => [p, { before: fileHash(p), after: null }]));
     try {
       const res = await o.engine({ prompt, model, ...(opts.label !== undefined ? { label: opts.label } : {}), ...(opts.schema ? { schema: opts.schema } : {}) });
       rec.engine = res.record ?? null;
+      rec.output = res.output ?? null;
       return res.output ?? null;
     } catch (e) {
       rec.error = e instanceof Error ? e.message : String(e);
@@ -96,6 +115,7 @@ export function createRuntime(o: { engine: Engine; mainModel: string; cap: numbe
       if (record !== undefined) rec.engine = record;
       throw e;
     } finally {
+      for (const p of watch) rec.watched![p]!.after = fileHash(p);
       rec.endMs = now();
       release();
     }

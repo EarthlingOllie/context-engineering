@@ -162,3 +162,40 @@ test("a role forced to another model by the harness is requested on that model; 
     ],
   );
 });
+
+test("each agent's output is kept on its record, so a scorer can read what a role answered (a judge's chosen candidate)", async () => {
+  const { engine } = recordingEngine({ verdict: "[2] smallest diff", chosen: 2 });
+  const { runtime, agents } = createRuntime({ engine, mainModel: "m", cap: 1 });
+  await runtime.agent("pick", { label: "Judge: pick" });
+  assert.deepEqual(agents[0]!.output, { verdict: "[2] smallest diff", chosen: 2 });
+});
+
+test("watched files are hashed before and after every agent, null while missing, so a scorer can see which agent rewrote them", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const file = join(mkdtempSync(join(tmpdir(), "watch-")), "progress.md");
+  let n = 0;
+  const engine: Engine = async (req) => {
+    n++;
+    if (req.label?.startsWith("Worker")) writeFileSync(file, `session ${n}\n`);
+    return { output: { result: "ok" } };
+  };
+  const { runtime, agents } = createRuntime({ engine, mainModel: "m", cap: 1, watch: [file] });
+  await runtime.agent("s1", { label: "Worker (1 of 2): s1" });
+  await runtime.agent("check", { label: "Evaluator (1 of 2): check" });
+  await runtime.agent("s2", { label: "Worker (2 of 2): s2" });
+  const w = agents.map((a) => a.watched![file]!);
+  assert.equal(w[0]!.before, null);
+  assert.match(w[0]!.after!, /^[0-9a-f]{64}$/);
+  assert.deepEqual(w[1], { before: w[0]!.after, after: w[0]!.after });
+  assert.equal(w[2]!.before, w[0]!.after);
+  assert.notEqual(w[2]!.after, w[2]!.before);
+});
+
+test("with nothing watched an agent's record has no watched field", async () => {
+  const { engine } = recordingEngine();
+  const { runtime, agents } = createRuntime({ engine, mainModel: "m", cap: 1 });
+  await runtime.agent("a", { label: "Worker: a" });
+  assert.equal("watched" in agents[0]!, false);
+});

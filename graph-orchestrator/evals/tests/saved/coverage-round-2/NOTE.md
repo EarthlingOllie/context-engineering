@@ -1,0 +1,2 @@
+Sample 10 (10-iterative-fan-out-docs-gap). `main.ts --stub --stub-evaluator fail` (round 1: 2 workers and the evaluator; round 2: 1 worker and the evaluator; the reducer; the scribe), scratch paths rewritten to /work/scratch.
+Hand-edited: the return's status set to `done`, `iterations` 2 and `result` to the six planted facts with their files, as a real evaluator passing after round 2 would leave it.

@@ -1,0 +1,48 @@
+{
+  "id": "10-iterative-fan-out-docs-gap",
+  "description": "iterative fan-out over docs whose round-1 files refer to a runbook no round-1 sub-task names: the gap shows only after round 1, so full coverage needs round 2; the reducer's result is scored against the planted facts (coverage loop)",
+  "fixture": "docs-gap",
+  "expected_status": "done",
+  "check": {
+    "kind": "coverage",
+    "rounds": 2
+  },
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d10",
+      "title": "Collect the payouts facts",
+      "topology": "iterative-fan-out",
+      "task": "List every operational fact in the payouts docs under /work/docs, each with the file it comes from, following every document they refer to.",
+      "context": [
+        "The docs start with two short Markdown files under /work/docs: payouts.md and chargebacks.md. A document may refer to others under /work/docs."
+      ],
+      "roles": {
+        "worker": {
+          "instructions": "Read only the file your sub-task names. State each operational fact in it on its own line and cite the file in the form (file.md). Then add one line `REFERS TO: <path>` for each other document the file refers to."
+        },
+        "evaluator": {
+          "skill": "code-review",
+          "instructions": "A document is covered when a branch has listed its facts. For each document a branch says its file REFERS TO that no branch has covered yet, write one feedback line: `List every operational fact in /work/docs/<path>.` Pass only when no such document is left."
+        },
+        "reducer": {
+          "instructions": "Merge the branch results into one list: one fact per line, each ending with its source file in the form (file.md). Keep every fact from every round; drop duplicates and the REFERS TO lines."
+        }
+      },
+      "params": {
+        "split": [
+          "List every operational fact in /work/docs/payouts.md.",
+          "List every operational fact in /work/docs/chargebacks.md."
+        ],
+        "coverage_criteria": "Every document under /work/docs that a covered document refers to is itself covered, and every operational fact of every covered document is listed with its file.",
+        "max_rounds": 2
+      },
+      "returns": {
+        "shape": "one operational fact per line, each ending with its source file in the form (file.md)",
+        "maxLines": 12
+      },
+      "dependsOn": []
+    }
+  }
+}

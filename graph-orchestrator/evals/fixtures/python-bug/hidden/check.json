@@ -1,0 +1,4 @@
+{
+  "kind": "tests",
+  "tests": ["test_allocate_strict.py"]
+}

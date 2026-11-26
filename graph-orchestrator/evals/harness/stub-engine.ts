@@ -2,8 +2,10 @@
  * The canned engine behind `main.ts --stub`: no model call is made. The
  * scribe really writes the trace lines it was given; a partition agent gets as
  * many sub-tasks as it was allowed; an evaluator passes, or with
- * `evaluator: "fail"` always fails (so a dry run reaches `exhausted`); every
- * other role reports nothing useful. `delayMs` makes each non-scribe answer
+ * `evaluator: "fail"` always fails (so a dry run reaches `exhausted`); a judge
+ * picks candidate [1]; a debater holds its stance; a relay worker adds a
+ * `SESSION s: stub` line to its progress file, as a real session rewrites it;
+ * every other role reports nothing useful. `delayMs` makes each non-scribe answer
  * take that long, so queueing under the cap shows in a dry run.
  *
  * Each answer's record holds one call, served on the model requested, the way
@@ -34,6 +36,18 @@ export function stubEngine(o: StubOptions = {}): Engine {
     if (req.label?.startsWith("Partition")) {
       const width = Number(/at most (\d+) independent sub-tasks/.exec(req.prompt)?.[1] ?? 1);
       return { output: { subtasks: Array.from({ length: width }, (_, i) => `stub sub-task ${i + 1}`), blocked: false }, record };
+    }
+    if (req.label?.startsWith("Judge")) {
+      return { output: { verdict: "[1] stub: no model call was made", reasoning: "stub: the first candidate", chosen: 1, artifacts: [], blocked: false }, record };
+    }
+    if (req.label?.startsWith("Debater")) {
+      return { output: { position: "stub: no model call was made", blocked: false }, record };
+    }
+    const progress = /^PROGRESS: (.+):$/m.exec(req.prompt)?.[1];
+    const session = /^SESSION (\d+) of \d+:$/m.exec(req.prompt)?.[1];
+    if (progress && session && req.label?.startsWith("Worker")) {
+      mkdirSync(dirname(progress), { recursive: true });
+      appendFileSync(progress, `SESSION ${session}: stub\n`);
     }
     if (/Evaluator/.test(req.label ?? "")) {
       const pass = o.evaluator !== "fail";

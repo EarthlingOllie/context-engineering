@@ -29,7 +29,7 @@ from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util import sandbox, store
 
 import suite
-from scoring import Recorded, outcome, status_truthful
+from scoring import Recorded, chosen_candidate, outcome, status_truthful
 
 HARNESS = suite.EVALS / "harness"
 SCRATCH = "/work/scratch"
@@ -88,6 +88,7 @@ def dispatch_harness(
         cmd = suite.harness_command(
             cap=cap, role_models=suite.parse_role_models(role_models), stub=stub,
             stub_delay_ms=stub_delay_ms, stub_evaluator=stub_evaluator, stub_serve_model=stub_serve_model,
+            watch=suite.hidden_check(meta).get("watch"),
         )
         aliases = {name: f"anthropic/{name}" for name in suite.DECLARED_MODELS}
         async with sandbox_agent_bridge(state, model_aliases=None if stub else aliases) as bridge:
@@ -131,19 +132,37 @@ def dispatch_harness(
     return execute
 
 
+# Where a `chosen_tests` check lays the chosen candidate over the fixture and runs the hidden tests (not /work).
+CHOSEN_ROOT = "/tmp/chosen"
+
+
 async def run_hidden_tests(meta: dict) -> None:
-    """Scoring step, after the dispatch: copy the fixture's hidden tests into the sandbox and run them there."""
+    """Scoring step, after the dispatch: copy the fixture's hidden tests into the sandbox and run them there.
+
+    For a `chosen_tests` check (best-of-n), they run in CHOSEN_ROOT on the fixture as shipped with the files of
+    the candidate the judge chose laid over it (suite.chosen_candidate_tree); the run records that candidate."""
     check = suite.hidden_check(meta)
-    if check["kind"] != "tests":
+    if check["kind"] not in suite.TESTED_KINDS:
         return
     sbx = sandbox()
+    root, extra = "/work", {}
+    if check["kind"] == "chosen_tests":
+        chosen = chosen_candidate(Recorded(result=store().get("harness_result", {}) or {}))
+        extra = {"candidate": chosen}
+        if chosen is None:
+            store().set("hidden_tests", {"exit_code": None, "output": "no chosen candidate to test", **extra})
+            return
+        root = CHOSEN_ROOT
+        candidate_dir = f"{SCRATCH}/{meta['args']['dispatch']['id']}-c{chosen}"
+        for rel, src in suite.chosen_candidate_tree(meta["fixture"], store().get("files", {}) or {}, candidate_dir).items():
+            await sbx.write_file(f"{root}/{rel}", src.read_bytes() if isinstance(src, Path) else src)
     for f in suite.hidden_test_files(meta["fixture"]):
-        await sbx.write_file(f"{suite.HIDDEN_TESTS_DIR}/{f.name}", f.read_text())
+        await sbx.write_file(f"{root}/{suite.HIDDEN_TESTS_DIR.removeprefix('/work/')}/{f.name}", f.read_text())
     try:
-        res = await sbx.exec(suite.hidden_tests_cmd(check), cwd="/work", timeout=300)
-        store().set("hidden_tests", {"exit_code": res.returncode, "output": (res.stdout + res.stderr)[-4000:]})
+        res = await sbx.exec(suite.hidden_tests_cmd(check), cwd=root, timeout=300)
+        store().set("hidden_tests", {"exit_code": res.returncode, "output": (res.stdout + res.stderr)[-4000:], **extra})
     except Exception as e:  # noqa: BLE001  (timeout or sandbox error: scored as not run)
-        store().set("hidden_tests", {"exit_code": None, "output": f"hidden tests could not run: {e}"})
+        store().set("hidden_tests", {"exit_code": None, "output": f"hidden tests could not run: {e}", **extra})
 
 
 def recorded_from_store(usage: dict | None = None) -> Recorded:
@@ -160,7 +179,8 @@ def recorded_from_store(usage: dict | None = None) -> Recorded:
 
 @scorer(metrics=[accuracy()])
 def outcome_correct_scorer():
-    """The sample's hidden check (suite.hidden_check): planted facts, blocked with a question, over_budget, hidden tests, exhausted, a chain's stop or a panel's verdict."""
+    """The sample's hidden check (suite.hidden_check): planted facts, blocked with a question, over_budget, hidden tests, exhausted, a chain's stop,
+    a panel's verdict, an iterative fan-out's coverage, a best-of-n's chosen candidate, a verdict in the return contract or a relay's hand-over."""
 
     async def score(state: TaskState, target: Target) -> Score:
         ok, missing = outcome(recorded_from_store(), suite.hidden_check(state.metadata))

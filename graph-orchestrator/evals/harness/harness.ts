@@ -35,6 +35,8 @@ export type HarnessResult = {
   /** Roles the harness forced onto another model (role -> model id); empty in the baseline. */
   roleModels: Record<string, string>;
   cap: number;
+  /** Files hashed before and after every agent (AgentRecord.watched). */
+  watch: string[];
   wallClockMs: number;
   return: Record<string, unknown> | null;
   error: string | null;
@@ -42,10 +44,10 @@ export type HarnessResult = {
   logs: LogRecord[];
 };
 
-export async function runHarness(o: { bundleSource: string; args: unknown; engine: Engine; mainModel: string; cap: number; roleModels?: Record<string, string>; now?: () => number }): Promise<HarnessResult> {
+export async function runHarness(o: { bundleSource: string; args: unknown; engine: Engine; mainModel: string; cap: number; roleModels?: Record<string, string>; watch?: string[]; now?: () => number }): Promise<HarnessResult> {
   const bundle = loadBundle(o.bundleSource);
   const roleModels = { ...(o.roleModels ?? {}) };
-  const { runtime, agents, logs, now } = createRuntime({ engine: o.engine, mainModel: o.mainModel, cap: o.cap, roleModels, ...(o.now ? { now: o.now } : {}) });
+  const { runtime, agents, logs, now } = createRuntime({ engine: o.engine, mainModel: o.mainModel, cap: o.cap, roleModels, watch: o.watch ?? [], ...(o.now ? { now: o.now } : {}) });
   const t0 = now();
   let ret: unknown = null;
   let error: string | null = null;
@@ -59,6 +61,7 @@ export async function runHarness(o: { bundleSource: string; args: unknown; engin
     mainModel: o.mainModel,
     roleModels,
     cap: Math.max(1, Math.floor(o.cap) || 1),
+    watch: [...(o.watch ?? [])],
     wallClockMs: now() - t0,
     return: ret && typeof ret === "object" ? (ret as Record<string, unknown>) : null,
     error,

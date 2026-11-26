@@ -138,6 +138,7 @@ class Row(unittest.TestCase):
                 "cache_write_tokens": 30000,
                 "cache_write_share": 0.2475,
                 "agents": 1,
+                "demand": None,
                 "scribe": True,
                 "wall_clock_s": 84.25,
                 "queue_s": 0.0,
@@ -247,7 +248,7 @@ class FanOut(unittest.TestCase):
             {k: r[k] for k in ("outcome_correct", "status_truthful", "agents", "scribe", "wall_clock_s", "queue_s", "peak_concurrency")},
             {"outcome_correct": True, "status_truthful": True, "agents": 7, "scribe": True, "wall_clock_s": 80.5, "queue_s": 120.0, "peak_concurrency": 2},
         )
-        self.assertIn("| 7 | 80.5 | 120.0 |", render_markdown(scorecard(HEADER, [r])))
+        self.assertIn("| 7 | - | 80.5 | 120.0 |", render_markdown(scorecard(HEADER, [r])))
 
 
 HEADER = {
@@ -416,7 +417,7 @@ class Scorecard(unittest.TestCase):
         md = render_markdown(scorecard(HEADER, [row("done-correct")]))
         self.assertIn("| plugin_commit | 3234600 |", md)
         self.assertIn("| epochs | 3 |", md)
-        self.assertIn("| 01-single-docs | 1 | yes | yes | no | done | done | 0.5000 | 1200 | 800 | 90000 | 30000 | 24.8% | 1 | 84.2 | 0.0 |", md)
+        self.assertIn("| 01-single-docs | 1 | yes | yes | no | done | done | 0.5000 | 1200 | 800 | 90000 | 30000 | 24.8% | 1 | - | 84.2 | 0.0 |", md)
 
 
 TS_CHECK = {"kind": "tests", "runner": "node", "tests": ["paginate.hidden.test.ts"]}
@@ -598,3 +599,149 @@ class ModelRouting(unittest.TestCase):
         self.assertIn("| 05-generator-evaluator-exhausted | 1 | generator | claude-opus-5-5 | claude-opus-5-5 | yes |", md)
         self.assertIn("| 05-generator-evaluator-exhausted | 1 | evaluator | claude-haiku-5-5 | claude-haiku-5-5, claude-opus-5-5 | no |", md)
         self.assertIn("| 05-generator-evaluator-exhausted | 1 | scribe | claude-opus-5-5 | - | yes |", md)
+
+
+# ---- ticket 08: iterative fan-out, best-of-n, debate and relay ----
+import suite  # noqa: E402
+from scoring import chosen_candidate  # noqa: E402
+
+
+def _sample(sid: str) -> dict:
+    (s,) = [s for s in suite.load_samples() if s["id"] == sid]
+    return s
+
+
+def _row(name: str, sid: str, rec=None, **kw) -> dict:
+    s = _sample(sid)
+    return sample_row(
+        sample_id=sid, epoch=1, rec=rec or load_saved_sample(SAVED / name), check=suite.hidden_check(s), expected_status=s["expected_status"],
+        hidden_names=[p.name for p in suite.hidden_files(s["fixture"])], pinned_model=MODEL, prices=PRICES, dispatch=s["args"]["dispatch"], **kw,
+    )
+
+
+class IterativeCoverage(unittest.TestCase):
+    """Sample 10: full coverage only in round 2; the reducer's result scored against the planted facts."""
+
+    def test_done_in_round_2_with_every_planted_fact_in_the_result_is_correct(self):
+        r = _row("coverage-round-2", "10-iterative-fan-out-docs-gap")
+        self.assertEqual((r["outcome_correct"], r["missing_facts"], r["status_truthful"]), (True, [], True))
+
+    def test_done_in_round_1_did_not_need_the_second_round_so_the_gap_was_missed(self):
+        r = _row("coverage-round-1", "10-iterative-fan-out-docs-gap")
+        self.assertFalse(r["outcome_correct"])
+        self.assertEqual(r["missing_facts"][0], "done after 1 round(s), not 2")
+        self.assertTrue(r["false_pass"])
+
+    def test_the_runbook_facts_missing_from_the_result_fail_it(self):
+        rec = load_saved_sample(SAVED / "coverage-round-2")
+        rec.result["return"]["result"] = "\n".join(l for l in rec.result["return"]["result"].splitlines() if "payout-failures" not in l)
+        r = _row("", "10-iterative-fan-out-docs-gap", rec=rec)
+        self.assertEqual(r["missing_facts"], ["a rejected payout is retried 3 times", "after the third failure the payout is held and finance-ops paged"])
+
+    def test_exhausted_is_not_correct(self):
+        rec = load_saved_sample(SAVED / "coverage-round-2")
+        rec.result["return"]["status"] = "exhausted"
+        self.assertEqual(outcome(rec, suite.hidden_check(_sample("10-iterative-fan-out-docs-gap"))), (False, ["status exhausted, not done"]))
+
+
+class ChosenCandidate(unittest.TestCase):
+    """Sample 12: correct only when the candidate the judge chose passes the hidden tests."""
+
+    def test_the_chosen_candidate_is_the_judges_chosen_index(self):
+        self.assertEqual(chosen_candidate(load_saved_sample(SAVED / "best-of-n-chosen")), 1)
+
+    def test_without_chosen_the_first_index_named_in_the_verdict(self):
+        rec = load_saved_sample(SAVED / "best-of-n-chosen")
+        judge = next(a for a in rec.result["agents"] if a["role"] == "judge")
+        del judge["output"]["chosen"]
+        rec.result["return"]["result"] = "[3] /work/scratch/w1-d12-c3/feekit/allocate.py\nbeats [1]"
+        self.assertEqual(chosen_candidate(rec), 3)
+
+    def test_no_candidate_when_the_judge_named_none(self):
+        rec = load_saved_sample(SAVED / "best-of-n-chosen")
+        next(a for a in rec.result["agents"] if a["role"] == "judge")["output"] = {"verdict": "all fine"}
+        rec.result["return"]["result"] = "all fine"
+        self.assertIsNone(chosen_candidate(rec))
+        r = _row("", "12-best-of-n-python-bug", rec=rec)
+        self.assertEqual((r["outcome_correct"], r["missing_facts"]), (False, ["the judge named no candidate"]))
+
+    def test_the_chosen_candidate_passing_the_hidden_tests_is_correct(self):
+        r = _row("best-of-n-chosen", "12-best-of-n-python-bug")
+        self.assertEqual((r["outcome_correct"], r["missing_facts"], r["status_truthful"], r["false_pass"]), (True, [], True, False))
+
+    def test_the_chosen_candidate_failing_the_hidden_tests_is_a_false_pass(self):
+        rec = load_saved_sample(SAVED / "best-of-n-chosen")
+        rec.hidden_tests = {"exit_code": 1, "output": "35 failed, 37 passed in 0.10s\n", "candidate": 1}
+        r = _row("", "12-best-of-n-python-bug", rec=rec)
+        self.assertEqual((r["outcome_correct"], r["false_pass"]), (False, True))
+        self.assertEqual(r["missing_facts"], ["candidate 1: hidden tests: 35 failed, 37 passed (exit 1)"])
+
+    def test_hidden_tests_run_on_another_candidate_do_not_count(self):
+        rec = load_saved_sample(SAVED / "best-of-n-chosen")
+        rec.hidden_tests = {**rec.hidden_tests, "candidate": 2}
+        self.assertEqual(outcome(rec, suite.hidden_check(_sample("12-best-of-n-python-bug"))), (False, ["hidden tests ran on candidate 2, not the chosen candidate 1"]))
+
+
+class ContractVerdict(unittest.TestCase):
+    """Sample 13: scored by a verdict in the return contract; agents recorded against the catalog's demand."""
+
+    def test_one_option_on_line_1_within_the_line_limit_is_correct(self):
+        r = _row("debate-verdict", "13-debate-design")
+        self.assertEqual((r["outcome_correct"], r["missing_facts"]), (True, []))
+
+    def test_the_agent_count_is_recorded_against_the_demand_formula(self):
+        r = _row("debate-verdict", "13-debate-design")
+        self.assertEqual((r["agents"], r["demand"]), (5, 5))
+        md = render_markdown(scorecard(HEADER, [r]))
+        self.assertIn("| agents | demand |", md)
+        self.assertIn("| 5 | 5 |", md)
+
+    def test_no_option_or_both_options_on_line_1_is_not_a_verdict(self):
+        check = suite.hidden_check(_sample("13-debate-design"))
+        rec = load_saved_sample(SAVED / "debate-verdict")
+        rec.result["return"]["result"] = "[1] stub: no model call was made"
+        self.assertEqual(outcome(rec, check), (False, ["line 1 names none of postgres, redis"]))
+        rec.result["return"]["result"] = "postgres or redis, it depends"
+        self.assertEqual(outcome(rec, check), (False, ["line 1 names more than one of postgres, redis"]))
+
+    def test_a_verdict_past_the_line_limit_is_not_in_the_contract(self):
+        check = {**suite.hidden_check(_sample("13-debate-design")), "max_lines": 2}
+        rec = load_saved_sample(SAVED / "debate-verdict")
+        rec.result["return"]["result"] = "redis\nreason\nmore"
+        self.assertEqual(outcome(rec, check), (False, ["3 lines, past the 2-line contract"]))
+
+
+class RelayHandOver(unittest.TestCase):
+    """Sample 14: done within 3 sessions, the progress file rewritten in each, and the hidden tests pass."""
+
+    def test_done_with_the_progress_file_rewritten_and_the_hidden_tests_passing_is_correct(self):
+        r = _row("relay-done", "14-relay-python-features")
+        self.assertEqual((r["outcome_correct"], r["missing_facts"], r["status_truthful"]), (True, [], True))
+
+    def test_a_session_that_left_the_progress_file_as_it_was_fails_the_hand_over(self):
+        rec = load_saved_sample(SAVED / "relay-done")
+        w = rec.result["agents"][0]["watched"]["/work/scratch/progress.md"]
+        w["after"] = w["before"]
+        r = _row("", "14-relay-python-features", rec=rec)
+        self.assertEqual(r["missing_facts"], ["session 1 did not rewrite /work/scratch/progress.md"])
+
+    def test_a_run_without_the_progress_file_watched_is_not_correct(self):
+        rec = load_saved_sample(SAVED / "relay-done")
+        for a in rec.result["agents"]:
+            a.pop("watched", None)
+        self.assertIn("session 1 did not rewrite /work/scratch/progress.md", outcome(rec, suite.hidden_check(_sample("14-relay-python-features")))[1])
+
+    def test_exhausted_after_3_sessions_each_rewriting_the_file_is_still_not_done(self):
+        r = _row("relay-exhausted", "14-relay-python-features")
+        self.assertEqual(r["outcome_correct"], False)
+        self.assertEqual(r["missing_facts"][0], "status exhausted, not done")
+        self.assertNotIn("did not rewrite", " ".join(r["missing_facts"]))
+
+    def test_more_sessions_than_allowed_or_failing_hidden_tests_are_not_correct(self):
+        check = suite.hidden_check(_sample("14-relay-python-features"))
+        rec = load_saved_sample(SAVED / "relay-done")
+        rec.result["return"]["iterations"] = 4
+        self.assertEqual(outcome(rec, check)[1], ["done after 4 session(s), more than 3"])
+        rec = load_saved_sample(SAVED / "relay-done")
+        rec.hidden_tests = {"exit_code": 1, "output": "27 failed, 18 passed in 0.10s\n"}
+        self.assertEqual(outcome(rec, check)[1], ["hidden tests: 27 failed, 18 passed (exit 1)"])

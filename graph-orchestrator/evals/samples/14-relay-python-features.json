@@ -1,0 +1,46 @@
+{
+  "id": "14-relay-python-features",
+  "description": "relay through the Python fixture's feature list (the 7 rules of docs/FEATURE.md) over at most 3 fresh sessions, each handing over through the progress file; scored by the hidden tests, by finishing within 3 sessions and by the progress file being rewritten in every session (hand-over file)",
+  "fixture": "python",
+  "expected_status": "done",
+  "check": {
+    "kind": "relay",
+    "sessions": 3,
+    "progress": "/work/scratch/progress.md"
+  },
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d14",
+      "title": "Work through the parse_duration rules",
+      "topology": "relay",
+      "task": "Implement parse_duration(text) in /work/retrykit/duration.py rule by rule: the feature list is the 7 numbered rules of /work/docs/FEATURE.md.",
+      "context": [
+        "The package is /work/retrykit; its tests are under /work/tests and run with `python3 -m pytest` from /work.",
+        "/work/docs/FEATURE.md is the full specification; the visible tests in /work/tests/test_duration.py cover only its rule 1."
+      ],
+      "roles": {
+        "worker": {
+          "skill": "test-driven-development",
+          "instructions": "Take the next rules not yet done in the progress file, at least three per session unless fewer are left: a failing test for each, then the code that passes it. Edit only retrykit/ and tests/. Before you report, rewrite the progress file: one line per rule, `rule N: done` or `rule N: todo`, then `SESSION s: <what you did>` for this and every earlier session."
+        },
+        "evaluator": {
+          "skill": "code-review",
+          "instructions": "Run `python3 -m pytest` from /work and read the progress file. Pass only when every rule of docs/FEATURE.md is implemented and tested and the progress file marks all 7 done; otherwise list the rules still missing."
+        }
+      },
+      "params": {
+        "done_criteria": "Every one of the 7 rules in docs/FEATURE.md is implemented in retrykit/duration.py and has a test under tests/, `python3 -m pytest` passes from /work, and the progress file marks all 7 rules done.",
+        "progress": "/work/scratch/progress.md",
+        "max_sessions": 3,
+        "check_every": 1
+      },
+      "returns": {
+        "shape": "line1: rules done / 7; line2: the pytest summary line",
+        "maxLines": 3
+      },
+      "dependsOn": []
+    }
+  }
+}

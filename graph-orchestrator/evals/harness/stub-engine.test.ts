@@ -50,3 +50,35 @@ test("the stub reports each call as served on the model requested, or with `serv
   assert.equal(ev.model, "claude-haiku-5-5");
   assert.deepEqual((ev.engine as { calls: Array<{ model: string }> }).calls.map((c) => c.model), ["claude-opus-5-5"]);
 });
+
+test("the stub relay worker rewrites the progress file every session, which the harness sees through `watch`", async () => {
+  const scratch = mkdtempSync(join(tmpdir(), "stub-"));
+  const args = sampleArgs("14-relay-python-features.json", scratch) as unknown as { dispatch: { params: Record<string, unknown> } };
+  const progress = join(scratch, "progress.md");
+  args.dispatch.params["progress"] = progress;
+  const r = await runHarness({ bundleSource, args, engine: stubEngine({ evaluator: "fail" }), mainModel: "m", cap: 2, watch: [progress] });
+  assert.equal(r.return?.["status"], "exhausted");
+  assert.equal(r.return?.["iterations"], 3);
+  const workers = r.agents.filter((a) => a.role === "worker");
+  assert.equal(workers.length, 3);
+  for (const w of workers) assert.notEqual(w.watched![progress]!.after, w.watched![progress]!.before);
+  assert.equal(readFileSync(progress, "utf8"), "SESSION 1: stub\nSESSION 2: stub\nSESSION 3: stub\n");
+});
+
+test("the stub judge picks candidate 1 (sample 12) and the stub debate reaches a verdict after every round (sample 13)", async () => {
+  const s12 = await runHarness({ bundleSource, args: sampleArgs("12-best-of-n-python-bug.json", mkdtempSync(join(tmpdir(), "stub-"))), engine: stubEngine(), mainModel: "m", cap: 2 });
+  assert.equal(s12.return?.["status"], "done");
+  const judge = s12.agents.find((a) => a.role === "judge")!;
+  assert.equal((judge.output as { chosen: number }).chosen, 1);
+  const s13 = await runHarness({ bundleSource, args: sampleArgs("13-debate-design.json", mkdtempSync(join(tmpdir(), "stub-"))), engine: stubEngine(), mainModel: "m", cap: 2 });
+  assert.equal(s13.return?.["status"], "done");
+  assert.equal(s13.return?.["iterations"], 2);
+  assert.deepEqual(s13.agents.map((a) => a.role), ["debater", "debater", "debater", "debater", "judge", "scribe"]);
+});
+
+test("with a failing evaluator the stub iterative fan-out (sample 10) runs its second round and ends exhausted", async () => {
+  const r = await runHarness({ bundleSource, args: sampleArgs("10-iterative-fan-out-docs-gap.json", mkdtempSync(join(tmpdir(), "stub-"))), engine: stubEngine({ evaluator: "fail" }), mainModel: "m", cap: 2 });
+  assert.equal(r.return?.["status"], "exhausted");
+  assert.equal(r.return?.["iterations"], 2);
+  assert.ok(r.agents.some((a) => /round 2 of 2/.test(a.label ?? "")));
+});

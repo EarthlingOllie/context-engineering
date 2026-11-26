@@ -73,6 +73,7 @@ def build_scorecard(log, commit: str) -> dict:
             pinned_model=suite.MODEL,
             limit_hit=getattr(getattr(s, "limit", None), "type", None),
             prices=suite.PRICES,
+            dispatch=(s.metadata.get("args") or {}).get("dispatch"),
         )
         for s, rec in zip(samples, recs)
     ]

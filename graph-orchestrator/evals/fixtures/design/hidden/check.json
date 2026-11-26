@@ -1,0 +1,4 @@
+{
+  "kind": "contract_verdict",
+  "options": ["postgres", "redis"]
+}

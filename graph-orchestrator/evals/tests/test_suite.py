@@ -191,3 +191,115 @@ class TypeScriptSamples(unittest.TestCase):
         self.assertNotIn("reducer", d["params"])
         self.assertGreaterEqual(d["returns"]["maxLines"], 1 + len(lenses), "room for the verdict line and one line per failing lens")
         self.assertNotIn("token", json.dumps(d).lower(), "the sample must not point the reviewers at the defect")
+
+
+class RemainingTopologySamples(unittest.TestCase):
+    """Ticket 08: samples 10, 12, 13 and 14, so every topology in the catalog has a sample."""
+
+    def by_id(self):
+        return {s["id"]: s for s in suite.load_samples()}
+
+    def test_every_topology_in_the_catalog_has_a_sample(self):
+        catalog = (suite.PLUGIN / "skills" / "graph-orchestrator" / "catalog.md").read_text()
+        topologies = set(re.findall(r"^## ([a-z-]+)$", catalog, re.MULTILINE))
+        self.assertEqual(len(topologies), 9)
+        covered = {spec["topology"] for s in suite.load_samples() for spec in _specs(s["args"]["dispatch"])}
+        self.assertLessEqual(topologies, covered)
+
+    def test_the_suite_has_15_samples_numbered_1_to_15(self):
+        self.assertEqual([int(s["id"][:2]) for s in suite.load_samples()], list(range(1, 16)))
+
+    def test_samples_10_12_13_14_with_their_topology_fixture_and_expected_status(self):
+        got = {i: (s["fixture"], s["args"]["dispatch"]["topology"], s["expected_status"]) for i, s in self.by_id().items()}
+        self.assertEqual(got["10-iterative-fan-out-docs-gap"], ("docs-gap", "iterative-fan-out", "done"))
+        self.assertEqual(got["12-best-of-n-python-bug"], ("python-bug", "best-of-n", "done"))
+        self.assertEqual(got["13-debate-design"], ("design", "debate", "done"))
+        self.assertEqual(got["14-relay-python-features"], ("python", "relay", "done"))
+
+    def test_sample_10_covers_only_the_top_level_docs_in_round_1_so_the_runbook_shows_only_in_round_2(self):
+        s10 = self.by_id()["10-iterative-fan-out-docs-gap"]
+        d = s10["args"]["dispatch"]
+        files = sorted(suite.fixture_sandbox_files("docs-gap"))
+        self.assertIn("/work/docs/runbooks/payout-failures.md", files)
+        split = " ".join(d["params"]["split"])
+        self.assertNotIn("runbooks", split)
+        self.assertNotIn("payout-failures", json.dumps(d))
+        self.assertEqual(d["params"]["max_rounds"], 2)
+        c = suite.hidden_check(s10)
+        self.assertEqual((c["kind"], c["rounds"], len(c["facts"])), ("coverage", 2, 6))
+        self.assertTrue(any(f["file"] == "payout-failures.md" for f in c["facts"]))
+
+    def test_sample_12_runs_3_variants_and_is_scored_by_the_hidden_tests_on_the_chosen_candidate(self):
+        d = self.by_id()["12-best-of-n-python-bug"]["args"]["dispatch"]
+        self.assertEqual(len(d["params"]["variants"]), 3)
+        self.assertIn("judge", d["roles"])
+        c = suite.hidden_check(self.by_id()["12-best-of-n-python-bug"])
+        self.assertEqual((c["kind"], c["tests"]), ("chosen_tests", ["test_allocate_strict.py"]))
+
+    def test_sample_13_returns_one_of_the_options_and_its_demand_is_participants_times_rounds_plus_the_judge(self):
+        s13 = self.by_id()["13-debate-design"]
+        d = s13["args"]["dispatch"]
+        self.assertIn("judge", d["roles"])
+        c = suite.hidden_check(s13)
+        self.assertEqual(c["kind"], "contract_verdict")
+        self.assertEqual(sorted(c["options"]), sorted(p["name"] for p in d["params"]["participants"]))
+        self.assertEqual(c["max_lines"], d["returns"]["maxLines"])
+        self.assertEqual(suite.catalog_demand(d), len(d["params"]["participants"]) * d["params"]["rounds"] + 1)
+
+    def test_sample_14_relays_over_3_sessions_watching_its_progress_file_and_is_scored_by_the_hidden_tests(self):
+        s14 = self.by_id()["14-relay-python-features"]
+        p = s14["args"]["dispatch"]["params"]
+        self.assertEqual(p["max_sessions"], 3)
+        c = suite.hidden_check(s14)
+        self.assertEqual((c["kind"], c["sessions"], c["progress"], c["tests"]), ("relay", 3, p["progress"], ["test_duration_strict.py"]))
+        self.assertEqual(c["watch"], [p["progress"]])
+
+    def test_the_new_fixtures_keep_their_checks_out_of_the_sandbox(self):
+        for fixture in ("docs-gap", "python-bug", "design"):
+            hidden = {p.name for p in suite.hidden_files(fixture)}
+            self.assertTrue(hidden, fixture)
+            self.assertFalse(hidden & {p.name for p in suite.fixture_sandbox_files(fixture).values()}, fixture)
+
+
+class CatalogDemand(unittest.TestCase):
+    """The catalog's demand formula per topology (skills/graph-orchestrator/catalog.md), with the catalog's defaults."""
+
+    def test_each_topology_against_the_catalog(self):
+        d = suite.catalog_demand
+        self.assertEqual(d({"topology": "single"}), 1)
+        self.assertEqual(d({"topology": "generator-evaluator", "params": {"max_iterations": 3}}), 6)
+        self.assertEqual(d({"topology": "fan-out", "params": {"split": ["a", "b", "c"], "reducer": True}}), 4)
+        self.assertEqual(d({"topology": "fan-out", "params": {"split": "partition it", "width": 6}}), 7)
+        self.assertEqual(d({"topology": "relay", "params": {}}), 6)
+        self.assertEqual(d({"topology": "relay", "params": {"max_sessions": 6, "check_every": 2}}), 9)
+        self.assertEqual(d({"topology": "best-of-n", "params": {"variants": ["a", "b", "c"]}}), 4)
+        self.assertEqual(d({"topology": "iterative-fan-out", "params": {"split": [str(i) for i in range(6)], "max_rounds": 2}}), 15)
+        self.assertEqual(d({"topology": "iterative-fan-out", "params": {"split": "by dir", "width": 6, "max_rounds": 2}}), 16)
+        self.assertEqual(d({"topology": "panel", "params": {"lenses": [{}, {}, {}]}}), 3)
+        self.assertEqual(d({"topology": "panel", "params": {"lenses": [{}, {}], "reducer": True}}), 3)
+        self.assertEqual(d({"topology": "debate", "params": {"participants": [{}, {}], "rounds": 2}}), 5)
+        self.assertEqual(d({"topology": "chain", "params": {"stages": [{"topology": "single"}, {"topology": "generator-evaluator", "params": {"max_iterations": 3}}]}}), 7)
+
+    def test_a_spec_past_a_cap_demands_nothing(self):
+        self.assertEqual(suite.catalog_demand({"topology": "fan-out", "params": {"split": [str(i) for i in range(10)]}}), 0)
+
+
+class ReadmeSamples(unittest.TestCase):
+    def test_the_readme_lists_every_sample_with_its_topology_fixture_expected_status_and_target(self):
+        readme = (suite.EVALS / "README.md").read_text()
+        header = "| Sample | Topology | Fixture | Expected | Target | Hidden check |"
+        self.assertIn(header, readme)
+        rows = {}
+        for line in readme[readme.index(header):].splitlines()[2:]:
+            if not line.startswith("| `"):
+                break
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            rows[cells[0].strip("`")] = cells
+        samples = suite.load_samples()
+        self.assertEqual(sorted(rows), [s["id"] for s in samples])
+        for s in samples:
+            sid, topology, fixture, expected, target, _check = rows[s["id"]]
+            norm = lambda t: t.lower().replace("-", " ")  # noqa: E731
+            self.assertTrue(norm(topology).startswith(norm(s["args"]["dispatch"]["topology"])), sid)
+            self.assertEqual((fixture, expected), (s["fixture"], s["expected_status"]), sid)
+            self.assertTrue(target, sid)
