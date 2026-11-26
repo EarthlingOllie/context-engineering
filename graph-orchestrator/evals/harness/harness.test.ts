@@ -128,3 +128,54 @@ test("sample 6 (fan-out with an explicit list and a reducer) runs one branch per
   assert.equal(result.return?.["result"], "merged (glossary.md)");
   assert.deepEqual(result.agents.map((a) => a.label?.split(/[ :]/)[0]), ["Worker", "Worker", "Worker", "Reducer", "Grapher"]);
 });
+
+/** A stub engine that records each request and answers generator, evaluator, worker and scribe. */
+function roleEngine(evaluatorPasses: boolean) {
+  const seen: EngineRequest[] = [];
+  const engine: Engine = async (req) => {
+    seen.push(req);
+    if (req.label?.startsWith("Grapher")) return { output: { appended: 1, totalLines: 1 } };
+    if (/Evaluator/.test(req.label ?? "")) return { output: evaluatorPasses ? { pass: true, feedback: "", blocked: false } : { pass: false, feedback: "1. parse_duration('1m') must also return 90", blocked: false } };
+    return { output: { result: "retrykit/duration.py\n12 passed", artifacts: [], blocked: false } };
+  };
+  return { engine, seen };
+}
+const roleOf = (label: string | null) => (label ?? "").replace(/^Link [\d.]+(?: · [^,]+)?, /, "").split(/[ :]/)[0];
+
+test("sample 3 (generator-evaluator on the Python fixture): the generator prompt names test-driven-development and the evaluator prompt code-review", async () => {
+  const { engine, seen } = roleEngine(true);
+  const result = await runHarness({ bundleSource, args: sampleArgs("03-generator-evaluator-python.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.return?.["status"], "done");
+  assert.deepEqual(result.agents.map((a) => roleOf(a.label)), ["Generator", "Evaluator", "Grapher"]);
+  assert.match(seen[0]!.prompt, /SKILL: load and follow the skill `test-driven-development`/);
+  assert.match(seen[1]!.prompt, /SKILL: load and follow the skill `code-review`/);
+});
+
+test("sample 5 (unmeetable criteria, 2 rounds) returns exhausted after 2 generator and 2 evaluator runs", async () => {
+  const { engine } = roleEngine(false);
+  const result = await runHarness({ bundleSource, args: sampleArgs("05-generator-evaluator-exhausted.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.return?.["status"], "exhausted");
+  assert.equal(result.return?.["iterations"], 2);
+  assert.match(String(result.return?.["result"]), /-- exhausted after 2 round\(s\)/);
+  assert.deepEqual(result.agents.map((a) => roleOf(a.label)), ["Generator", "Evaluator", "Generator", "Evaluator", "Grapher"]);
+});
+
+test("sample 8 (chain: single then generator-evaluator) completes both stages, each role carrying its skill", async () => {
+  const { engine, seen } = roleEngine(true);
+  const result = await runHarness({ bundleSource, args: sampleArgs("08-chain-single-then-ge-python.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.return?.["status"], "done");
+  assert.deepEqual(result.return?.["stages"], ["w1-d8-s1:done", "w1-d8-s2:done"]);
+  assert.deepEqual(result.agents.map((a) => roleOf(a.label)), ["Worker", "Generator", "Evaluator", "Grapher"]);
+  assert.match(seen[1]!.prompt, /skill `test-driven-development`/);
+  assert.match(seen[2]!.prompt, /skill `code-review`/);
+});
+
+test("sample 9 (chain whose stage 2 cannot pass) stops at stage 2, reports it and its status, and never runs stage 3", async () => {
+  const { engine } = roleEngine(false);
+  const result = await runHarness({ bundleSource, args: sampleArgs("09-chain-stage-2-fails.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.return?.["status"], "exhausted");
+  assert.deepEqual(result.return?.["stages"], ["w1-d9-s1:done", "w1-d9-s2:exhausted"]);
+  assert.match(String(result.return?.["result"]), /^stage w1-d9-s2 exhausted: /);
+  assert.ok(!result.agents.some((a) => a.label?.startsWith("Link 3")));
+  assert.deepEqual(result.agents.map((a) => roleOf(a.label)), ["Worker", "Generator", "Evaluator", "Grapher"]);
+});

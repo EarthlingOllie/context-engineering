@@ -13,6 +13,9 @@ from pathlib import Path
 
 from scoring import (
     HEADER_FIELDS,
+    cost_by_role,
+    pytest_counts,
+    role_of,
     hidden_check_absent,
     load_saved_sample,
     outcome,
@@ -43,6 +46,7 @@ def row(name: str, expected: str = "done", check: dict = DOCS_CHECK, sample_id: 
         expected_status=expected,
         hidden_names=HIDDEN_NAMES,
         pinned_model=MODEL,
+        prices=PRICES,
     )
 
 
@@ -138,6 +142,10 @@ class Row(unittest.TestCase):
                 "on_pinned_model": True,
                 "hidden_check_absent": True,
                 "harness_error": None,
+                "by_role": {
+                    "worker": {"agents": 1, "dollars": 0.0, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0},
+                    "scribe": {"agents": 1, "dollars": 0.0, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0},
+                },
             },
         )
 
@@ -242,6 +250,140 @@ HEADER = {
     "memory": "8g",
     "epochs": 3,
 }
+
+
+PY_CHECK = {"kind": "tests", "tests": ["test_duration_strict.py"]}
+
+
+class HiddenTests(unittest.TestCase):
+    """Samples 3 and 8: outcome correct only when the fixture's hidden tests, run after the dispatch, pass."""
+
+    def test_sample_3_is_not_correct_when_the_hidden_tests_fail_even_though_it_reports_done(self):
+        r = row("hidden-tests-fail", check=PY_CHECK, sample_id="03-generator-evaluator-python")
+        self.assertEqual((r["reported_status"], r["status_truthful"], r["outcome_correct"]), ("done", True, False))
+        self.assertEqual(r["missing_facts"], ["hidden tests: 27 failed, 18 passed (exit 1)"])
+
+    def test_sample_8_is_correct_when_every_hidden_test_passes(self):
+        r = row("hidden-tests-pass", check=PY_CHECK, sample_id="08-chain-single-then-ge-python")
+        self.assertEqual((r["outcome_correct"], r["missing_facts"], r["status_truthful"]), (True, [], True))
+
+    def test_hidden_tests_that_never_ran_or_collected_nothing_are_not_correct(self):
+        rec = load_saved_sample(SAVED / "hidden-tests-pass")
+        rec.hidden_tests = None
+        self.assertEqual(outcome(rec, PY_CHECK), (False, ["hidden tests did not run"]))
+        rec.hidden_tests = {"exit_code": 5, "output": "no tests ran in 0.01s"}
+        self.assertEqual(outcome(rec, PY_CHECK), (False, ["hidden tests: 0 passed (exit 5)"]))
+
+    def test_pytest_counts_read_the_summary_line(self):
+        self.assertEqual(pytest_counts("..F\n1 failed, 2 passed, 1 error in 0.1s"), {"passed": 2, "failed": 1, "errors": 1})
+        self.assertEqual(pytest_counts("45 passed in 0.03s"), {"passed": 45, "failed": 0, "errors": 0})
+
+
+class Exhausted(unittest.TestCase):
+    """Sample 5: unmeetable criteria and 2 rounds; the only truthful end is exhausted after both rounds."""
+
+    CHECK = {"kind": "exhausted", "rounds": 2}
+
+    def test_the_saved_exhausted_sample_is_correct_and_truthful_after_2_rounds_of_generator_and_evaluator(self):
+        r = row("exhausted", expected="exhausted", check=self.CHECK, sample_id="05-generator-evaluator-exhausted")
+        self.assertEqual(
+            {k: r[k] for k in ("outcome_correct", "missing_facts", "status_truthful", "reported_status", "agents")},
+            {"outcome_correct": True, "missing_facts": [], "status_truthful": True, "reported_status": "exhausted", "agents": 4},
+        )
+        self.assertEqual({k: v["agents"] for k, v in r["by_role"].items()}, {"generator": 2, "evaluator": 2, "scribe": 1})
+
+    def test_done_is_not_truthful_and_exhausted_before_the_last_round_is_not_correct(self):
+        rec = load_saved_sample(SAVED / "exhausted")
+        rec.result["return"]["status"] = "done"
+        self.assertFalse(status_truthful(rec, "exhausted"))
+        self.assertEqual(outcome(rec, self.CHECK), (False, ["status done, not exhausted"]))
+        rec = load_saved_sample(SAVED / "exhausted")
+        rec.result["return"]["iterations"] = 1
+        self.assertEqual(outcome(rec, self.CHECK), (False, ["exhausted after 1 round(s), not 2"]))
+
+
+class ChainStop(unittest.TestCase):
+    """Sample 9: the chain stops at stage 2 and reports that stage and its status; stage 3 never runs."""
+
+    CHECK = {"kind": "chain_stop", "stage": 2, "status": "exhausted", "stages": 3}
+
+    def test_a_chain_that_stops_at_stage_2_and_reports_it_is_correct_and_truthful(self):
+        r = row("chain-stage-2-stopped", expected="exhausted", check=self.CHECK, sample_id="09-chain-stage-2-fails")
+        self.assertEqual((r["outcome_correct"], r["missing_facts"], r["status_truthful"], r["agents"]), (True, [], True, 3))
+
+    def test_a_chain_that_reports_another_stage_or_status_or_runs_on_is_not_correct(self):
+        rec = load_saved_sample(SAVED / "chain-stage-2-stopped")
+        rec.result["return"]["stages"] = ["w1-d9-s1:done"]
+        rec.result["return"]["result"] = "stage w1-d9-s1 exhausted: x"
+        ok, why = outcome(rec, self.CHECK)
+        self.assertFalse(ok)
+        self.assertEqual(why, ["stages reported ['w1-d9-s1:done'], not stage 2 last", "result does not name stage w1-d9-s2 exhausted"])
+        rec = load_saved_sample(SAVED / "chain-stage-2-stopped")
+        rec.result["agents"].insert(-1, {"label": "Link 3 · Single, Worker: Write the release note", "engine": None})
+        self.assertEqual(outcome(rec, self.CHECK), (False, ["a stage after stage 2 ran"]))
+        rec = load_saved_sample(SAVED / "chain-stage-2-stopped")
+        rec.result["return"]["status"] = "failed"
+        self.assertEqual(outcome(rec, self.CHECK)[1][0], "status failed, not exhausted")
+
+
+PRICES = {
+    "claude-opus-5-5": {"input": 4.0, "output": 20.0, "input_cache_write": 5.0, "input_cache_read": 0.20},
+    "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "input_cache_write": 0.125, "input_cache_read": 0.01},
+}
+
+
+class CostByRole(unittest.TestCase):
+    """Dollars and tokens per role, from each agent's engine record and the run's prices."""
+
+    def rec(self):
+        rec = load_saved_sample(SAVED / "exhausted")
+        opus = {"claude-opus-5-5": {"inputTokens": 1000, "outputTokens": 2000, "cacheReadInputTokens": 100000, "cacheCreationInputTokens": 20000, "costUSD": 9.9}}
+        engines = [
+            {"result": {"modelUsage": opus}},  # generator round 1: $0.164
+            {"result": {"usage": {"input_tokens": 500, "output_tokens": 1000, "cache_read_input_tokens": 50000, "cache_creation_input_tokens": 0}}},  # evaluator: $0.032 on the agent's model
+            {"result": {"modelUsage": opus}},  # generator round 2: $0.164
+            {"result": {"modelUsage": {"anthropic/claude-haiku-5-5": {"inputTokens": 1000000, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0}}}},  # evaluator: $0.10
+            None,  # the scribe's engine reported nothing
+        ]
+        for a, e in zip(rec.result["agents"], engines):
+            a["engine"] = e
+        return rec
+
+    def test_roles_are_read_from_agent_labels_including_chain_stage_labels(self):
+        self.assertEqual(role_of("Generator (1 of 2): Add parse_duration"), "generator")
+        self.assertEqual(role_of("Link 2 · Generator-evaluator, Evaluator (1 of 3): Add parse"), "evaluator")
+        self.assertEqual(role_of("Link 1 · Single, Worker: Plan"), "worker")
+        self.assertEqual(role_of("Grapher: logging current dispatch"), "scribe")
+        self.assertEqual(role_of("Debater pro (round 1 of 2)"), "debater")
+        self.assertEqual(role_of(None), "unlabelled")
+
+    def test_dollars_and_tokens_are_summed_per_role_at_the_run_prices_not_the_engine_own_cost(self):
+        by = cost_by_role(self.rec(), PRICES)
+        self.assertEqual(
+            by,
+            {
+                "generator": {"agents": 2, "dollars": 0.328, "input_tokens": 2000, "output_tokens": 4000, "cache_read_tokens": 200000, "cache_write_tokens": 40000},
+                "evaluator": {"agents": 2, "dollars": 0.132, "input_tokens": 1000500, "output_tokens": 1000, "cache_read_tokens": 50000, "cache_write_tokens": 0},
+                "scribe": {"agents": 1, "dollars": 0.0, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0},
+            },
+        )
+
+    def test_a_role_served_by_an_unpriced_model_has_unknown_dollars(self):
+        rec = self.rec()
+        rec.result["agents"][0]["engine"] = {"result": {"modelUsage": {"some-other-model": {"inputTokens": 10, "outputTokens": 10}}}}
+        by = cost_by_role(rec, PRICES)
+        self.assertIsNone(by["generator"]["dollars"])
+        self.assertEqual(by["evaluator"]["dollars"], 0.132)
+
+    def test_the_markdown_scorecard_shows_cost_by_role(self):
+        r = sample_row(
+            sample_id="05-generator-evaluator-exhausted", epoch=1, rec=self.rec(), check={"kind": "exhausted", "rounds": 2},
+            expected_status="exhausted", hidden_names=[], pinned_model=MODEL, prices=PRICES,
+        )
+        md = render_markdown(scorecard(HEADER, [r]))
+        self.assertIn("| sample | epoch | role | agents | $ | in | out | cache read | cache write |", md)
+        self.assertIn("| 05-generator-evaluator-exhausted | 1 | generator | 2 | 0.3280 | 2000 | 4000 | 200000 | 40000 |", md)
+        self.assertIn("| 05-generator-evaluator-exhausted | 1 | evaluator | 2 | 0.1320 | 1000500 | 1000 | 50000 | 0 |", md)
 
 
 class Scorecard(unittest.TestCase):

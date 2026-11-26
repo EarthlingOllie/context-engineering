@@ -1,0 +1,68 @@
+{
+  "id": "08-chain-single-then-ge-python",
+  "description": "chain on the Python fixture: a single that plans the tests, then a generator-evaluator that builds parse_duration; scored by the hidden tests (the 64% spend pattern)",
+  "fixture": "python",
+  "expected_status": "done",
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d8",
+      "title": "Plan and add parse_duration",
+      "topology": "chain",
+      "task": "Add parse_duration(text) to /work/retrykit/duration.py as /work/docs/FEATURE.md specifies.",
+      "context": [
+        "The package is /work/retrykit; its tests are under /work/tests and run with `python3 -m pytest` from /work.",
+        "/work/docs/FEATURE.md is the full specification; the visible tests in /work/tests/test_duration.py cover only its rule 1."
+      ],
+      "roles": {},
+      "params": {
+        "stages": [
+          {
+            "title": "Plan the parse_duration tests",
+            "topology": "single",
+            "task": "Read /work/docs/FEATURE.md and /work/retrykit, and write /work/scratch/plan.md: one line per rule, each with an input that tests it and the expected result.",
+            "roles": {
+              "worker": {
+                "instructions": "Change nothing outside /work/scratch."
+              }
+            },
+            "params": {},
+            "returns": {
+              "shape": "line1: the path of plan.md; line2: the number of rules",
+              "maxLines": 3
+            }
+          },
+          {
+            "title": "Add parse_duration",
+            "topology": "generator-evaluator",
+            "task": "Add parse_duration(text) to /work/retrykit/duration.py as /work/docs/FEATURE.md specifies. Follow the plan in /work/scratch/plan.md.",
+            "roles": {
+              "generator": {
+                "skill": "test-driven-development",
+                "instructions": "Write a failing test for each rule in docs/FEATURE.md before the code that passes it. Edit only retrykit/ and tests/."
+              },
+              "evaluator": {
+                "skill": "code-review",
+                "instructions": "Check the code against every rule in docs/FEATURE.md, not only the visible tests, and run `python3 -m pytest` from /work."
+              }
+            },
+            "params": {
+              "max_iterations": 3,
+              "pass_criteria": "parse_duration follows every rule in docs/FEATURE.md, and `python3 -m pytest` passes from /work."
+            },
+            "returns": {
+              "shape": "line1: the files you changed; line2: the pytest summary line",
+              "maxLines": 4
+            }
+          }
+        ]
+      },
+      "returns": {
+        "shape": "line1: the files you changed; line2: the pytest summary line",
+        "maxLines": 4
+      },
+      "dependsOn": []
+    }
+  }
+}

@@ -33,7 +33,7 @@ What a run may spend and what hardware it simulates. Defaults are in `suite.py` 
 
 Every sample runs under both limits. A sample that exceeds its cost or time limit is stopped by Inspect, and its scorecard row has `limit_hit` set to `cost` or `time`, with `outcome_correct` and `status_truthful` left empty (`limit-hit (cost)` in the Markdown): it is not scored, so it never counts as a failure of the plugin. The cap, CPU count, memory and both limits are recorded in the scorecard header.
 
-Other options: `--stub` (canned engine, mockllm, no model call) and `--stub-delay-ms`, `--samples <ids>`, `--log-dir`, `--out-dir`, and `--from-log <file>` to rebuild a scorecard from a saved log without running.
+Other options: `--stub` (canned engine, mockllm, no model call) with `--stub-delay-ms` and `--stub-evaluator pass|fail`, `--samples <ids>`, `--log-dir`, `--out-dir`, and `--from-log <file>` to rebuild a scorecard from a saved log without running.
 
 Raw Inspect logs go to `logs/` and generated files to `out/`; both are git-ignored, because logs hold full transcripts. Baseline scorecards, when frozen, are committed under `baselines/`.
 
@@ -46,7 +46,7 @@ One row per sample and epoch:
 | Field | Meaning |
 |---|---|
 | `outcome_correct` | the sample's hidden check passed (see Samples) |
-| `missing_facts` | what the hidden check found missing: planted facts not found, or why a blocked or over-budget sample failed its check |
+| `missing_facts` | what the hidden check found missing: planted facts not found, or why a blocked, over-budget, hidden-tests, exhausted or chain-stop check failed (`hidden tests: 27 failed, 18 passed (exit 1)`) |
 | `status_truthful` | `reported_status` equals `expected_status` |
 | `limit_hit` | `cost` or `time` when Inspect stopped the sample at a limit (then not scored); empty otherwise |
 | `dollars` | Inspect's `total_cost` summed over models, from the prices the task supplies; empty if a model that ran has no price |
@@ -59,6 +59,7 @@ One row per sample and epoch:
 | `peak_concurrency` | the most agents that ran at once, from their start and end times; never above `concurrency_cap` |
 | `models`, `on_pinned_model` | the models that served the sample, and whether all are the pinned model |
 | `hidden_check_absent` | no hidden-check file was in the sandbox before the agents ran |
+| `by_role` | per role (`generator`, `evaluator`, `worker`, `partition`, `reducer`, `judge`, `debater`, `scribe`): agents, dollars and input / output / cache-read / cache-write tokens. The role is read from the agent's label; tokens from its engine record (the SDK's per-model usage); dollars are those tokens at `suite.PRICES`, the prices Inspect gets, not the engine's own estimate. Empty dollars for a role served by an unpriced model. The Markdown scorecard shows it as a "Cost by role" table |
 
 ## Samples
 
@@ -67,12 +68,20 @@ One row per sample and epoch:
 | `01-single-docs` | single | docs | done | every planted fact stated with its file cited, in the result or a file under `/work/scratch` |
 | `02-single-blocked` | single | blocked | blocked | `blocked`, with a question about the cut-off, and `config/settlement.toml` unchanged: the value exists only outside the sandbox, so a guess fails |
 | `06-fan-out-reducer-docs` | fan-out, explicit list of 3, reducer | docs | done | the planted facts in the returned result only, which is the reducer's |
+| `03-generator-evaluator-python` | generator-evaluator, 3 rounds | python | done | the fixture's hidden tests (`hidden/test_duration_strict.py`, every rule of `docs/FEATURE.md`) all pass; the visible tests cover rule 1 only |
+| `05-generator-evaluator-exhausted` | generator-evaluator, 2 rounds, contradictory pass criteria | python | exhausted | `exhausted` after both rounds (`iterations` 2) |
 | `07-fan-out-partition-docs` | fan-out, partitioned into 6 | docs | done | the planted facts; the row's `queue_s`, `wall_clock_s` and `peak_concurrency` show the queueing under the cap |
-| `15-fan-out-over-budget` | fan-out, explicit list of 10 | docs | over_budget | `over_budget` with no dispatch agent run; the row shows 0 agents and, in a dry run, $0. In a paid run the scribe still runs, so `dollars` holds its cost alone until cost by role separates it |
+| `08-chain-single-then-ge-python` | chain: single (plan the tests), then generator-evaluator (build it) | python | done | the hidden tests, as sample 3 |
+| `09-chain-stage-2-fails` | chain of 3: single, generator-evaluator with contradictory criteria and 1 round, single | python | exhausted | stopped at stage 2: `stages` ends with `<id>-s2:exhausted`, the result begins `stage <id>-s2 exhausted`, and no `Link 3` agent ran |
+| `15-fan-out-over-budget` | fan-out, explicit list of 10 | docs | over_budget | `over_budget` with no dispatch agent run; the row shows 0 agents and, in a dry run, $0. In a paid run the scribe still runs, so `dollars` holds its cost alone; `by_role` shows it under `scribe` |
 
-A sample's hidden check comes from its fixture (`hidden/planted_facts.json`, or `hidden/expected_block.json` for the blocked fixture), refined by the sample's own `check` (`source: result` scores the returned result only; `kind: over_budget`). See `suite.hidden_check`. The scorer tests cover each kind over saved samples: `tests/saved/blocked-task` and `tests/saved/over-budget` among them.
+A sample's hidden check comes from its fixture (`hidden/planted_facts.json`, `hidden/expected_block.json` for the blocked fixture, `hidden/check.json` for the Python fixture), refined or replaced by the sample's own `check` (`source: result` scores the returned result only; `kind: over_budget`, `exhausted` or `chain_stop` checks the dispatch's return). See `suite.hidden_check`. The scorer tests cover each kind over saved samples: `tests/saved/blocked-task`, `over-budget`, `exhausted`, `chain-stage-2-stopped`, `hidden-tests-pass` and `hidden-tests-fail` among them (each new one has a `NOTE.md` saying how it was made).
 
-With `--stub`, the canned engine never blocks, so sample 2 reports `done` and is scored untruthful: that is the scorer working. `--stub-delay-ms <n>` makes each canned answer take `n` ms, so a dry run shows queue time under the cap.
+The Python fixture (`fixtures/python/`) is a small package, `retrykit`, with pytest, a feature to build (`parse_duration`, specified in `docs/FEATURE.md`) and visible tests for its first rule only. Its hidden tests stay on the host while the agents run; after the dispatch returns and its files are recorded, the solver copies them to `/work/hidden_check/` and runs `python3 -m pytest -q -p no:cacheprovider hidden_check` from `/work`, and the scorer reads that run. `fixtures/python/reference/` (host only) holds a naive and a full implementation; `tests/test_python_fixture.py` checks the naive one passes the visible tests and fails the hidden ones, and the full one passes both.
+
+Generator roles name the `test-driven-development` skill and evaluator roles `code-review` (`tests/test_suite.py` checks every sample, chain stages included). Both are in this repo's skills plugin (`skills/`), which the solver copies into the sandbox at the commit under test and the engine loads as a local plugin.
+
+With `--stub`, the canned engine never blocks, so sample 2 reports `done` and is scored untruthful: that is the scorer working. `--stub-delay-ms <n>` makes each canned answer take `n` ms, so a dry run shows queue time under the cap. The canned evaluator passes; `--stub-evaluator fail` makes it fail, so samples 5 and 9 reach `exhausted` in a dry run. In a dry run nothing builds `parse_duration`, so samples 3 and 8 report `done` and their hidden tests fail: again the scorer working.
 
 ## Compare
 
@@ -84,7 +93,7 @@ Prints one line per sample and metric: the baseline value, the fix value, the di
 
 ## Pins
 
-`suite.py` pins the model (`claude-opus-5-5`, every role), Inspect (`inspect_ai==0.3.292`, also in `requirements.txt`) and the engine (`@anthropic-ai/claude-agent-sdk` 0.3.332 = Claude Code 2.1.332, also in `sandbox/package.json`). `tests/test_suite.py` checks they agree. Prices per model are in `suite.py` and are registered with Inspect's `set_model_cost`; Inspect ships none. Opus, Sonnet and Haiku are all declared to the bridge, so a role that requests one is served by it.
+`suite.py` pins the model (`claude-opus-5-5`, every role), Inspect (`inspect_ai==0.3.292`, also in `requirements.txt`) and the engine (`@anthropic-ai/claude-agent-sdk` 0.3.332 = Claude Code 2.1.332, also in `sandbox/package.json`), and pytest (8.3.5, in `sandbox/requirements.txt`). `tests/test_suite.py` checks they agree. Prices per model are in `suite.py` and are registered with Inspect's `set_model_cost`; Inspect ships none. Opus, Sonnet and Haiku are all declared to the bridge, so a role that requests one is served by it.
 
 ## Layout
 
@@ -97,9 +106,9 @@ Prints one line per sample and metric: the baseline value, the fix value, the di
 | `suite.py` | pins, prices, run-parameter defaults, the sandbox copy rule |
 | `samples/` | one JSON file per sample: dispatch args, fixture, expected status |
 | `fixtures/<name>/sandbox/` | copied to `/work/` in the sandbox |
-| `fixtures/<name>/hidden/` | the hidden check; read by the scorer on the host, never copied into the sandbox |
-| `harness/` | the Node harness: loads the built `workflows/dispatch.js` the way the Workflow harness does and supplies a real `Runtime` (`runtime.ts`), with the Agent SDK as its engine (`sdk-engine.ts`); copied into the sandbox at run time |
-| `sandbox/` | the sandbox image (Node 22, the pinned Agent SDK); `run.py` writes its compose file to `out/` with the run's CPU count and memory |
+| `fixtures/<name>/hidden/` | the hidden check; read by the scorer on the host, never in the sandbox while the agents run (hidden tests are copied in only after the dispatch) |
+| `harness/` | the Node harness: loads the built `workflows/dispatch.js` the way the Workflow harness does and supplies a real `Runtime` (`runtime.ts`), with the Agent SDK as its engine (`sdk-engine.ts`) or, for `--stub`, canned answers (`stub-engine.ts`); copied into the sandbox at run time |
+| `sandbox/` | the sandbox image (Python 3.12 with pytest from `sandbox/requirements.txt`, Node 22 copied from the Node image, the pinned Agent SDK); `run.py` writes its compose file to `out/` with the run's CPU count and memory |
 | `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`) |
 | `spike/` | ticket 01's throwaway spike |
 

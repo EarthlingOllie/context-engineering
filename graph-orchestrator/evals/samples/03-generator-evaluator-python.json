@@ -1,0 +1,39 @@
+{
+  "id": "03-generator-evaluator-python",
+  "description": "generator-evaluator on the Python fixture: build parse_duration to its spec; outcome correct only when the stricter hidden tests pass (core loop)",
+  "fixture": "python",
+  "expected_status": "done",
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d3",
+      "title": "Add parse_duration",
+      "topology": "generator-evaluator",
+      "task": "Add parse_duration(text) to /work/retrykit/duration.py as /work/docs/FEATURE.md specifies.",
+      "context": [
+        "The package is /work/retrykit; its tests are under /work/tests and run with `python3 -m pytest` from /work.",
+        "/work/docs/FEATURE.md is the full specification; the visible tests in /work/tests/test_duration.py cover only its rule 1."
+      ],
+      "roles": {
+        "generator": {
+          "skill": "test-driven-development",
+          "instructions": "Write a failing test for each rule in docs/FEATURE.md before the code that passes it. Edit only retrykit/ and tests/."
+        },
+        "evaluator": {
+          "skill": "code-review",
+          "instructions": "Check the code against every rule in docs/FEATURE.md, not only the visible tests, and run `python3 -m pytest` from /work."
+        }
+      },
+      "params": {
+        "max_iterations": 3,
+        "pass_criteria": "parse_duration follows every rule in docs/FEATURE.md, and `python3 -m pytest` passes from /work."
+      },
+      "returns": {
+        "shape": "line1: the files you changed; line2: the pytest summary line",
+        "maxLines": 4
+      },
+      "dependsOn": []
+    }
+  }
+}

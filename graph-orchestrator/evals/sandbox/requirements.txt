@@ -1,0 +1,2 @@
+# Python packages in the sandbox image (the Python fixture runs pytest).
+pytest==8.3.5

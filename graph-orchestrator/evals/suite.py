@@ -21,6 +21,7 @@ MODEL = "claude-opus-5-5"  # every role, in the baseline and routine runs
 INSPECT_VERSION = "0.3.292"  # = requirements.txt
 SDK_VERSION = "0.3.332"  # @anthropic-ai/claude-agent-sdk in sandbox/package.json
 CLAUDE_CODE_VERSION = "2.1.332"  # the engine that SDK version ships
+PYTEST_VERSION = "8.3.5"  # sandbox/requirements.txt: runs the Python fixture's visible and hidden tests
 ENGINE_VERSION = f"@anthropic-ai/claude-agent-sdk {SDK_VERSION} (Claude Code {CLAUDE_CODE_VERSION})"
 
 # Every model id a role may request is declared to the bridge; an undeclared
@@ -83,6 +84,19 @@ def hidden_files(fixture: str) -> list[Path]:
     return sorted(p for p in root.rglob("*") if p.is_file())
 
 
+# Where the scorer puts a fixture's hidden tests in the sandbox, after the dispatch has finished.
+HIDDEN_TESTS_DIR = "/work/hidden_check"
+HIDDEN_TESTS_CMD = ["python3", "-m", "pytest", "-q", "-p", "no:cacheprovider", "hidden_check"]  # run from /work
+
+
+def hidden_test_files(fixture: str) -> list[Path]:
+    """The hidden test files a `tests` check names (fixtures/<name>/hidden/check.json); none for other fixtures."""
+    check = FIXTURES / fixture / "hidden" / "check.json"
+    if not check.exists():
+        return []
+    return [FIXTURES / fixture / "hidden" / name for name in json.loads(check.read_text()).get("tests", [])]
+
+
 def hidden_facts(fixture: str) -> list[dict]:
     return json.loads((FIXTURES / fixture / "hidden" / "planted_facts.json").read_text())
 
@@ -90,17 +104,23 @@ def hidden_facts(fixture: str) -> list[dict]:
 def hidden_check(sample: dict) -> dict:
     """The hidden check a sample is scored by, read on the host.
 
-    The fixture's `hidden/expected_block.json` (or, for a research fixture, its
-    planted facts) gives the check; the sample's own `check` may refine it
-    (`source`: score the facts in the returned `result` only, or in the
-    result and the files the agents wrote). A check's `unchanged` paths are
-    resolved to the fixture's original text, which the files must still hold.
+    The fixture's `hidden/check.json` or `hidden/expected_block.json` (or, for
+    a research fixture, its planted facts) gives the check; the sample's own
+    `check` may refine or replace it (`source`: score the facts in the
+    returned `result` only, or in the result and the files the agents wrote;
+    `kind`: a check on the dispatch's return alone, such as `exhausted`). A
+    check's `unchanged` paths are resolved to the fixture's original text,
+    which the files must still hold.
     """
     fixture = sample["fixture"]
     root = FIXTURES / fixture / "hidden"
-    block = root / "expected_block.json"
-    base = json.loads(block.read_text()) if block.exists() else {"kind": "facts"}
-    check = {**base, **sample.get("check", {})}
+    base = {"kind": "facts"}
+    for name in ("check.json", "expected_block.json"):
+        if (root / name).exists():
+            base = json.loads((root / name).read_text())
+            break
+    own = sample.get("check", {})
+    check = {**base, **own} if own.get("kind", base["kind"]) == base["kind"] else dict(own)
     if check["kind"] == "facts":
         check.setdefault("source", "result+files")
         check["facts"] = hidden_facts(fixture)

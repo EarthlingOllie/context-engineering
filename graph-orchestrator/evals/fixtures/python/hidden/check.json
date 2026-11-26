@@ -1,0 +1,4 @@
+{
+  "kind": "tests",
+  "tests": ["test_duration_strict.py"]
+}

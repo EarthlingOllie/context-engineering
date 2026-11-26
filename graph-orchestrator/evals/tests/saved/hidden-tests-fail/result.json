@@ -1,0 +1,69 @@
+{
+  "meta": {
+    "name": "dispatch"
+  },
+  "mainModel": "claude-opus-5-5",
+  "cap": 2,
+  "wallClockMs": 2,
+  "return": {
+    "id": "w1-d3",
+    "status": "done",
+    "result": "stub: no model call was made",
+    "artifacts": [],
+    "iterations": 1,
+    "title": "Add parse_duration",
+    "scribe": {
+      "appended": 1,
+      "totalLines": 1
+    }
+  },
+  "error": null,
+  "agents": [
+    {
+      "n": 1,
+      "label": "Generator (1 of 3): Add parse_duration(text) to /work/retry…",
+      "model": "claude-opus-5-5",
+      "calledMs": 1,
+      "startMs": 1,
+      "endMs": 1,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true
+      }
+    },
+    {
+      "n": 2,
+      "label": "Evaluator (1 of 3): Add parse_duration(text) to /work/retry…",
+      "model": "claude-opus-5-5",
+      "calledMs": 1,
+      "startMs": 1,
+      "endMs": 1,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true
+      }
+    },
+    {
+      "n": 3,
+      "label": "Grapher: logging current dispatch",
+      "model": "claude-opus-5-5",
+      "calledMs": 1,
+      "startMs": 1,
+      "endMs": 2,
+      "queuedMs": 0,
+      "error": null,
+      "engine": {
+        "stub": true
+      }
+    }
+  ],
+  "logs": [
+    {
+      "atMs": 0,
+      "message": "w1-d3: generator-evaluator, up to 6 agent(s) + 1 scribe"
+    }
+  ],
+  "stub": true
+}

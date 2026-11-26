@@ -6,8 +6,9 @@ Docker sandbox; records the sandbox file tree; opens the sandbox agent bridge
 with every model a role may request declared; and runs the Node harness, whose
 Agent SDK talks to the bridge, so every model call is an Inspect model call.
 It then records the harness result file, the trace and the files the agents
-wrote. The hidden check never enters the sandbox: the scorers read it on the
-host.
+wrote. The hidden check never enters the sandbox while the agents run: the
+scorers read it on the host, and a fixture's hidden tests are copied in and
+run only after the dispatch has finished and its files have been recorded.
 
 Run it through run.py, which also writes the scorecard. Directly:
     inspect eval graph-orchestrator/evals/dispatch_suite.py@dispatch_suite --model anthropic/claude-opus-5-5
@@ -62,7 +63,9 @@ async def _lines(cmd: str) -> list[str]:
 
 
 @agent
-def dispatch_harness(stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: int = suite.DEFAULT_TIME_LIMIT, stub_delay_ms: int = 0) -> Agent:
+def dispatch_harness(
+    stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: int = suite.DEFAULT_TIME_LIMIT, stub_delay_ms: int = 0, stub_evaluator: str = "pass"
+) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         sbx = sandbox()
         meta = store().get("sample_meta")
@@ -89,7 +92,7 @@ def dispatch_harness(stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: 
             "--model", suite.MODEL,
             "--skills", "/opt/skills",
             "--cwd", "/work",
-        ] + (["--stub", "--stub-delay-ms", str(stub_delay_ms)] if stub else [])
+        ] + (["--stub", "--stub-delay-ms", str(stub_delay_ms), "--stub-evaluator", stub_evaluator] if stub else [])
         aliases = {name: f"anthropic/{name}" for name in suite.DECLARED_MODELS}
         async with sandbox_agent_bridge(state, model_aliases=None if stub else aliases) as bridge:
             env = {
@@ -126,9 +129,24 @@ def dispatch_harness(stub: bool = False, cap: int = suite.DEFAULT_CAP, timeout: 
                 except Exception:  # noqa: BLE001  (deleted)
                     pass
             store().set("after", after)
+            await run_hidden_tests(meta)
             return bridge.state
 
     return execute
+
+
+async def run_hidden_tests(meta: dict) -> None:
+    """Scoring step, after the dispatch: copy the fixture's hidden tests into the sandbox and run them there."""
+    if suite.hidden_check(meta)["kind"] != "tests":
+        return
+    sbx = sandbox()
+    for f in suite.hidden_test_files(meta["fixture"]):
+        await sbx.write_file(f"{suite.HIDDEN_TESTS_DIR}/{f.name}", f.read_text())
+    try:
+        res = await sbx.exec(suite.HIDDEN_TESTS_CMD, cwd="/work", timeout=300)
+        store().set("hidden_tests", {"exit_code": res.returncode, "output": (res.stdout + res.stderr)[-4000:]})
+    except Exception as e:  # noqa: BLE001  (timeout or sandbox error: scored as not run)
+        store().set("hidden_tests", {"exit_code": None, "output": f"hidden tests could not run: {e}"})
 
 
 def recorded_from_store(usage: dict | None = None) -> Recorded:
@@ -139,12 +157,13 @@ def recorded_from_store(usage: dict | None = None) -> Recorded:
         sandbox_tree=store().get("sandbox_tree", []) or [],
         usage=usage or {},
         after=store().get("after", {}) or {},
+        hidden_tests=store().get("hidden_tests"),
     )
 
 
 @scorer(metrics=[accuracy()])
 def outcome_correct_scorer():
-    """The sample's hidden check, read on the host (suite.hidden_check): planted facts, blocked with a question, or over_budget."""
+    """The sample's hidden check (suite.hidden_check): planted facts, blocked with a question, over_budget, hidden tests, exhausted or a chain's stop."""
 
     async def score(state: TaskState, target: Target) -> Score:
         ok, missing = outcome(recorded_from_store(), suite.hidden_check(state.metadata))
@@ -186,6 +205,7 @@ def dispatch_suite(
     cost_limit: float = suite.DEFAULT_COST_LIMIT,
     time_limit: int = suite.DEFAULT_TIME_LIMIT,
     stub_delay_ms: int = 0,
+    stub_evaluator: str = "pass",
 ) -> Task:
     register_prices()
     wanted = {s for s in samples.split(",") if s}
@@ -201,7 +221,7 @@ def dispatch_suite(
     ]
     return Task(
         dataset=dataset,
-        solver=[sample_meta(), as_solver(dispatch_harness(stub=stub, cap=cap, timeout=time_limit, stub_delay_ms=stub_delay_ms))],
+        solver=[sample_meta(), as_solver(dispatch_harness(stub=stub, cap=cap, timeout=time_limit, stub_delay_ms=stub_delay_ms, stub_evaluator=stub_evaluator))],
         scorer=[outcome_correct_scorer(), status_truthful_scorer()],
         sandbox=("docker", str(compose_file(cpus, memory))),
         epochs=epochs,

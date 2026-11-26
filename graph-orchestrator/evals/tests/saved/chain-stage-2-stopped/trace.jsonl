@@ -1,0 +1,3 @@
+{"type":"dispatch","wave":1,"id":"w1-d9-s1","title":"Plan the parse_duration tests","topology":"single","iterations":1,"status":"done","dependsOn":[],"parent":"w1-d9"}
+{"type":"dispatch","wave":1,"id":"w1-d9-s2","title":"Add parse_duration for legacy callers","topology":"generator-evaluator","iterations":1,"status":"exhausted","dependsOn":[],"parent":"w1-d9"}
+{"type":"dispatch","wave":1,"id":"w1-d9","title":"Plan, add and announce parse_duration","topology":"chain","iterations":2,"status":"exhausted","dependsOn":[],"stages":["w1-d9-s1:done","w1-d9-s2:exhausted"],"at":"2026-11-26T00:00:00Z"}

@@ -89,6 +89,29 @@ class LimitHit(unittest.TestCase):
         self.assertIs(r["status_truthful"], False)
 
 
+class PythonSampleRows(unittest.TestCase):
+    def test_a_python_sample_is_scored_by_the_hidden_test_run_in_its_store_and_its_cost_is_priced_per_role(self):
+        result = {
+            "return": {"id": "w1-d3", "status": "done", "iterations": 1},
+            "agents": [
+                {"label": "Generator (1 of 3): Add parse_duration", "model": "claude-opus-5-5", "engine": {"result": {"modelUsage": {"claude-opus-5-5": {"inputTokens": 1000000, "outputTokens": 0}}}}},
+                {"label": "Grapher: logging current dispatch", "model": "claude-opus-5-5", "engine": None},
+            ],
+        }
+        s = fake_sample(result=result)
+        s.id = "03-generator-evaluator-python"
+        s.metadata = {"fixture": "python", "expected_status": "done", "check": {}}
+        s.store["hidden_tests"] = {"exit_code": 0, "output": "45 passed in 0.03s"}
+        (r,) = run.build_scorecard(fake_log({}, [s]), "abc123")["rows"]
+        self.assertEqual((r["outcome_correct"], r["status_truthful"]), (True, True))
+        self.assertEqual(r["by_role"]["generator"]["dollars"], 4.0)  # 1 MTok input at the suite's Opus price
+        self.assertEqual(r["by_role"]["scribe"]["agents"], 1)
+
+    def test_the_stub_evaluator_can_be_set_to_fail(self):
+        self.assertEqual(run.build_parser().parse_args([]).stub_evaluator, "pass")
+        self.assertEqual(run.build_parser().parse_args(["--stub", "--stub-evaluator", "fail"]).stub_evaluator, "fail")
+
+
 @unittest.skipUnless(HAS_INSPECT, "inspect_ai not installed")
 class EverySampleIsLimited(unittest.TestCase):
     def test_every_sample_has_a_wall_clock_and_a_cost_limit(self):

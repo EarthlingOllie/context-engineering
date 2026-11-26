@@ -18,6 +18,9 @@ class Pins(unittest.TestCase):
         pkg = json.loads((suite.EVALS / "sandbox" / "package.json").read_text())
         self.assertEqual(pkg["dependencies"]["@anthropic-ai/claude-agent-sdk"], suite.SDK_VERSION)
 
+    def test_pytest_is_pinned_in_the_sandbox_image(self):
+        self.assertIn(f"pytest=={suite.PYTEST_VERSION}\n", (suite.EVALS / "sandbox" / "requirements.txt").read_text())
+
     def test_the_model_is_pinned_declared_and_priced(self):
         self.assertEqual(suite.MODEL, "claude-opus-5-5")
         self.assertIn(suite.MODEL, suite.DECLARED_MODELS)
@@ -99,3 +102,59 @@ class HiddenChecks(unittest.TestCase):
     def test_the_blocked_fixture_keeps_its_check_out_of_the_sandbox(self):
         self.assertEqual(sorted(suite.fixture_sandbox_files("blocked")), ["/work/config/settlement.toml", "/work/docs/CR-212.md"])
         self.assertEqual({p.name for p in suite.hidden_files("blocked")}, {"expected_block.json"})
+
+
+def _specs(spec: dict):
+    """A dispatch spec and, for a chain, each of its stages (recursively)."""
+    yield spec
+    for st in (spec.get("params") or {}).get("stages") or []:
+        yield from _specs(st)
+
+
+class PythonSamples(unittest.TestCase):
+    def by_id(self):
+        return {s["id"]: s for s in suite.load_samples()}
+
+    def test_samples_3_5_8_9_exist_on_the_python_fixture_with_their_topology_and_expected_status(self):
+        got = {i: (s["fixture"], s["args"]["dispatch"]["topology"], s["expected_status"]) for i, s in self.by_id().items()}
+        self.assertEqual(got["03-generator-evaluator-python"], ("python", "generator-evaluator", "done"))
+        self.assertEqual(got["05-generator-evaluator-exhausted"], ("python", "generator-evaluator", "exhausted"))
+        self.assertEqual(got["08-chain-single-then-ge-python"], ("python", "chain", "done"))
+        self.assertEqual(got["09-chain-stage-2-fails"], ("python", "chain", "exhausted"))
+
+    def test_generator_roles_name_test_driven_development_and_evaluator_roles_name_code_review(self):
+        seen = set()
+        for s in suite.load_samples():
+            for spec in _specs(s["args"]["dispatch"]):
+                for role, entry in spec.get("roles", {}).items():
+                    if role == "generator":
+                        self.assertEqual(entry.get("skill"), "test-driven-development", f"{s['id']} {spec.get('id', '')}")
+                    if role == "evaluator":
+                        self.assertEqual(entry.get("skill"), "code-review", f"{s['id']} {spec.get('id', '')}")
+                    seen.add(role)
+        self.assertLessEqual({"generator", "evaluator"}, seen)
+
+    def test_both_named_skills_are_in_this_repo_skills_plugin_which_the_solver_installs_in_the_sandbox(self):
+        for name in ("test-driven-development", "code-review"):
+            self.assertTrue((suite.SKILLS / "skills" / name / "SKILL.md").is_file(), name)
+        self.assertTrue((suite.SKILLS / ".claude-plugin" / "plugin.json").is_file())
+
+    def test_sample_5_allows_2_rounds_and_sample_9_has_a_second_stage_that_cannot_pass(self):
+        s = self.by_id()
+        self.assertEqual(s["05-generator-evaluator-exhausted"]["args"]["dispatch"]["params"]["max_iterations"], 2)
+        stages = s["09-chain-stage-2-fails"]["args"]["dispatch"]["params"]["stages"]
+        self.assertEqual([st["topology"] for st in stages], ["single", "generator-evaluator", "single"])
+        self.assertEqual(stages[1]["params"]["max_iterations"], 1)
+        s8 = s["08-chain-single-then-ge-python"]["args"]["dispatch"]["params"]["stages"]
+        self.assertEqual([st["topology"] for st in s8], ["single", "generator-evaluator"])
+
+    def test_samples_3_and_8_are_scored_by_the_hidden_tests(self):
+        s = self.by_id()
+        for sid in ("03-generator-evaluator-python", "08-chain-single-then-ge-python"):
+            c = suite.hidden_check(s[sid])
+            self.assertEqual((c["kind"], c["tests"]), ("tests", ["test_duration_strict.py"]), sid)
+
+    def test_sample_5_is_checked_for_exhausted_after_2_rounds_and_sample_9_for_the_stage_it_stopped_at(self):
+        s = self.by_id()
+        self.assertEqual(suite.hidden_check(s["05-generator-evaluator-exhausted"]), {"kind": "exhausted", "rounds": 2})
+        self.assertEqual(suite.hidden_check(s["09-chain-stage-2-fails"]), {"kind": "chain_stop", "stage": 2, "status": "exhausted", "stages": 3})
