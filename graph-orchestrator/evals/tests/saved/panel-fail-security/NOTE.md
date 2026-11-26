@@ -1,0 +1,1 @@
+Sample 11 (11-panel-diff-defect), correct: FAIL naming the security lens. result.json, trace.jsonl: `main.ts --stub --stub-evaluator fail`, scratch paths rewritten to /work/scratch; the returned result was then edited by hand to what a panel returns when only the security lens fails (the stub fails every lens).

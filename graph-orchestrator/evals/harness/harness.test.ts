@@ -179,3 +179,38 @@ test("sample 9 (chain whose stage 2 cannot pass) stops at stage 2, reports it an
   assert.ok(!result.agents.some((a) => a.label?.startsWith("Link 3")));
   assert.deepEqual(result.agents.map((a) => roleOf(a.label)), ["Worker", "Generator", "Evaluator", "Grapher"]);
 });
+
+test("sample 4 (generator-evaluator, vague criteria, TypeScript fixture): an evaluator that passes ends the loop at once with done, the roles carrying their skills", async () => {
+  const { engine, seen } = roleEngine(true);
+  const result = await runHarness({ bundleSource, args: sampleArgs("04-generator-evaluator-false-pass.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.return?.["status"], "done");
+  assert.equal(result.return?.["iterations"], 1);
+  assert.deepEqual(result.agents.map((a) => roleOf(a.label)), ["Generator", "Evaluator", "Grapher"]);
+  assert.match(seen[0]!.prompt, /skill `test-driven-development`/);
+  assert.match(seen[1]!.prompt, /skill `code-review`/);
+  assert.match(seen[1]!.prompt, /The relevant tests pass\./);
+});
+
+test("sample 11 (panel of 3 lenses over the diff): one evaluator per lens, and a failing security lens is named in the FAIL verdict within the line limit", async () => {
+  const seen: EngineRequest[] = [];
+  const engine: Engine = async (req) => {
+    seen.push(req);
+    if (req.label?.startsWith("Grapher")) return { output: { appended: 1, totalLines: 1 } };
+    const security = /LENS: security/.test(req.prompt);
+    return { output: { pass: !security, feedback: security ? "1. the new log line writes the request headers, bearer token included" : "", blocked: false } };
+  };
+  const result = await runHarness({ bundleSource, args: sampleArgs("11-panel-diff-defect.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.equal(result.return?.["status"], "done");
+  assert.equal(result.return?.["result"], "FAIL (2/3)\n[security] FAIL: 1. the new log line writes the request headers, bearer token included");
+  assert.deepEqual(result.agents.map((a) => a.label?.split(" (")[0]), ["Evaluator correctness", "Evaluator security", "Evaluator readability", "Grapher: logging current dispatch"]);
+  assert.ok(seen.slice(0, 3).every((r) => /skill `code-review`/.test(r.prompt) && /0001-log-page-requests\.diff/.test(r.prompt)));
+});
+
+test("sample 11 with every lens failing still names all three lenses: the line limit leaves room for the verdict and each lens", async () => {
+  const engine: Engine = async (req) => {
+    if (req.label?.startsWith("Grapher")) return { output: { appended: 1, totalLines: 1 } };
+    return { output: { pass: false, feedback: "1. no", blocked: false } };
+  };
+  const result = await runHarness({ bundleSource, args: sampleArgs("11-panel-diff-defect.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
+  assert.deepEqual(String(result.return?.["result"]).split("\n").map((l) => l.split(":")[0]), ["FAIL (0/3)", "[correctness] FAIL", "[security] FAIL", "[readability] FAIL"]);
+});

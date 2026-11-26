@@ -1,0 +1,9 @@
+/opt/plugin/workflows/dispatch.js
+/work/README.md
+/work/args.json
+/work/package.json
+/work/review/0001-log-page-requests.diff
+/work/src/fetchPage.ts
+/work/src/paginate.ts
+/work/tests/fetchPage.test.ts
+/work/tests/paginate.test.ts

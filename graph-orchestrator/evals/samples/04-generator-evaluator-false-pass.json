@@ -1,0 +1,38 @@
+{
+  "id": "04-generator-evaluator-false-pass",
+  "description": "generator-evaluator on the TypeScript fixture with vague pass criteria over a planted bug the obviously relevant tests miss: correct only when the hidden test passes; done while it fails is a false pass (QUA-01)",
+  "fixture": "typescript",
+  "expected_status": "done",
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d4",
+      "title": "Fix the order history stopping early",
+      "topology": "generator-evaluator",
+      "task": "Customers say the order history sometimes stops a page early: the last few orders never show. Find the cause in /work/src and fix it.",
+      "context": [
+        "The library is /work/src (pagekit, paging helpers for the order-history API client); its tests are under /work/tests and run with `npm test` from /work (Node's test runner, no install step)."
+      ],
+      "roles": {
+        "generator": {
+          "skill": "test-driven-development",
+          "instructions": "Edit only src/ and tests/."
+        },
+        "evaluator": {
+          "skill": "code-review",
+          "instructions": "Run `npm test` from /work."
+        }
+      },
+      "params": {
+        "max_iterations": 3,
+        "pass_criteria": "The relevant tests pass."
+      },
+      "returns": {
+        "shape": "line1: the files you changed; line2: the test summary",
+        "maxLines": 4
+      },
+      "dependsOn": []
+    }
+  }
+}

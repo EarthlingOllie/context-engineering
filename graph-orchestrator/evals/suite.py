@@ -87,6 +87,18 @@ def hidden_files(fixture: str) -> list[Path]:
 # Where the scorer puts a fixture's hidden tests in the sandbox, after the dispatch has finished.
 HIDDEN_TESTS_DIR = "/work/hidden_check"
 HIDDEN_TESTS_CMD = ["python3", "-m", "pytest", "-q", "-p", "no:cacheprovider", "hidden_check"]  # run from /work
+# A `tests` check with `runner: node` (the TypeScript fixture) runs its files with Node's test runner, TAP output.
+NODE_TEST_CMD = ["node", "--experimental-strip-types", "--disable-warning=ExperimentalWarning", "--test", "--test-reporter=tap"]
+
+
+def hidden_tests_cmd(check: dict) -> list[str]:
+    """The command, run from /work, that runs a `tests` check's hidden tests: pytest (default) or Node's test runner."""
+    runner = check.get("runner", "pytest")
+    if runner == "pytest":
+        return list(HIDDEN_TESTS_CMD)
+    if runner == "node":
+        return NODE_TEST_CMD + [f"hidden_check/{name}" for name in check["tests"]]
+    raise ValueError(f"unknown hidden test runner: {runner}")
 
 
 def hidden_test_files(fixture: str) -> list[Path]:

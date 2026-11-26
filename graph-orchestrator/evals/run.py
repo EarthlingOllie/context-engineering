@@ -108,7 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--stub", action="store_true", help="canned engine and mockllm: no model call, no cost")
     ap.add_argument("--stub-delay-ms", type=int, default=0, help="with --stub: each canned answer takes this long, so queueing under the cap shows")
-    ap.add_argument("--stub-evaluator", choices=["pass", "fail"], default="pass", help="with --stub: every evaluator passes, or fails (samples 5 and 9 then end exhausted)")
+    ap.add_argument("--stub-evaluator", choices=["pass", "fail"], default="pass", help="with --stub: every evaluator passes, or fails (samples 5 and 9 then end exhausted, and sample 11 returns FAIL)")
     ap.add_argument("--epochs", type=int, default=suite.DEFAULT_EPOCHS)
     ap.add_argument("--cap", type=int, default=suite.DEFAULT_CAP)
     ap.add_argument("--cpus", type=int, default=suite.DEFAULT_CPUS)

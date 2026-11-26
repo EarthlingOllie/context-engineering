@@ -14,6 +14,8 @@ from pathlib import Path
 from scoring import (
     HEADER_FIELDS,
     cost_by_role,
+    false_passes,
+    hidden_test_counts,
     pytest_counts,
     role_of,
     hidden_check_absent,
@@ -124,6 +126,7 @@ class Row(unittest.TestCase):
                 "outcome_correct": True,
                 "missing_facts": [],
                 "status_truthful": True,
+                "false_pass": False,
                 "limit_hit": None,
                 "reported_status": "done",
                 "expected_status": "done",
@@ -213,7 +216,7 @@ class OverBudget(unittest.TestCase):
             {k: r[k] for k in ("outcome_correct", "status_truthful", "reported_status", "agents", "scribe", "dollars", "queue_s")},
             {"outcome_correct": True, "status_truthful": True, "reported_status": "over_budget", "agents": 0, "scribe": True, "dollars": 0, "queue_s": 0.0},
         )
-        self.assertIn("| 15-fan-out-over-budget | 1 | yes | yes | over_budget | over_budget | 0.0000 | 0 | 0 | 0 | 0 | 0.0% | 0 |", render_markdown(scorecard(HEADER, [r])))
+        self.assertIn("| 15-fan-out-over-budget | 1 | yes | yes | no | over_budget | over_budget | 0.0000 | 0 | 0 | 0 | 0 | 0.0% | 0 |", render_markdown(scorecard(HEADER, [r])))
 
     def test_over_budget_after_an_agent_ran_is_not_correct(self):
         rec = load_saved_sample(SAVED / "over-budget")
@@ -406,7 +409,116 @@ class Scorecard(unittest.TestCase):
         md = render_markdown(scorecard(HEADER, [row("done-correct")]))
         self.assertIn("| plugin_commit | 3234600 |", md)
         self.assertIn("| epochs | 3 |", md)
-        self.assertIn("| 01-single-docs | 1 | yes | yes | done | done | 0.5000 | 1200 | 800 | 90000 | 30000 | 24.8% | 1 | 84.2 | 0.0 |", md)
+        self.assertIn("| 01-single-docs | 1 | yes | yes | no | done | done | 0.5000 | 1200 | 800 | 90000 | 30000 | 24.8% | 1 | 84.2 | 0.0 |", md)
+
+
+TS_CHECK = {"kind": "tests", "runner": "node", "tests": ["paginate.hidden.test.ts"]}
+PANEL_CHECK = {"kind": "verdict", "verdict": "FAIL", "lens": "security"}
+
+
+class FalsePass(unittest.TestCase):
+    """Sample 4: a false pass is the dispatch returning done while its hidden check fails."""
+
+    def test_the_saved_sample_4_false_pass_is_done_truthful_not_correct_and_counted_as_a_false_pass(self):
+        r = row("ts-false-pass", check=TS_CHECK, sample_id="04-generator-evaluator-false-pass")
+        self.assertEqual(
+            {k: r[k] for k in ("reported_status", "status_truthful", "outcome_correct", "false_pass", "missing_facts")},
+            {"reported_status": "done", "status_truthful": True, "outcome_correct": False, "false_pass": True, "missing_facts": ["hidden tests: 2 failed, 1 passed (exit 1)"]},
+        )
+
+    def test_done_and_correct_is_not_a_false_pass_and_neither_is_another_status(self):
+        self.assertFalse(row("done-correct")["false_pass"])
+        self.assertFalse(row("blocked")["false_pass"])
+        self.assertFalse(row("exhausted", expected="exhausted", check={"kind": "exhausted", "rounds": 1})["false_pass"])
+
+    def test_sample_4_is_not_a_false_pass_once_the_hidden_check_passes(self):
+        rec = load_saved_sample(SAVED / "ts-false-pass")
+        rec.hidden_tests = {"exit_code": 0, "output": "1..3\n# tests 3\n# pass 3\n# fail 0\n# cancelled 0\n"}
+        r = sample_row(sample_id="04", epoch=1, rec=rec, check=TS_CHECK, expected_status="done", hidden_names=[], pinned_model=MODEL)
+        self.assertEqual((r["outcome_correct"], r["false_pass"]), (True, False))
+
+    def test_a_limit_hit_sample_is_not_scored_for_false_pass_either(self):
+        r = sample_row(
+            sample_id="04", epoch=1, rec=load_saved_sample(SAVED / "ts-false-pass"), check=TS_CHECK,
+            expected_status="done", hidden_names=[], pinned_model=MODEL, limit_hit="time",
+        )
+        self.assertIsNone(r["false_pass"])
+
+    def test_node_test_runner_counts_are_read_from_its_tap_summary(self):
+        self.assertEqual(hidden_test_counts("ok 1 - a\n1..3\n# tests 3\n# suites 0\n# pass 1\n# fail 2\n# cancelled 0\n# duration_ms 8\n"), {"passed": 1, "failed": 2, "errors": 0})
+        self.assertEqual(hidden_test_counts("# pass 2\n# fail 0\n# cancelled 1\n"), {"passed": 2, "failed": 0, "errors": 1})
+        self.assertEqual(hidden_test_counts("1 failed, 2 passed in 0.1s"), {"passed": 2, "failed": 1, "errors": 0})
+
+
+class FalsePassesInTheScorecard(unittest.TestCase):
+    def rows(self):
+        r4 = lambda epoch, name: {**row(name, check=TS_CHECK, sample_id="04-generator-evaluator-false-pass"), "epoch": epoch}  # noqa: E731
+        r11 = lambda epoch, name: {**row(name, check=PANEL_CHECK, sample_id="11-panel-diff-defect"), "epoch": epoch}  # noqa: E731
+        return [r4(1, "ts-false-pass"), r4(2, "ts-false-pass"), r11(1, "panel-fail-security"), r11(2, "panel-pass"), row("done-correct")]
+
+    def test_false_passes_are_counted_per_sample_over_its_scored_epochs_and_as_a_suite_total(self):
+        self.assertEqual(
+            false_passes(self.rows()),
+            {
+                "by_sample": {
+                    "04-generator-evaluator-false-pass": {"false_passes": 2, "scored": 2},
+                    "11-panel-diff-defect": {"false_passes": 1, "scored": 2},
+                    "01-single-docs": {"false_passes": 0, "scored": 1},
+                },
+                "total": 3,
+                "scored": 5,
+            },
+        )
+
+    def test_limit_hit_rows_are_not_scored(self):
+        lim = sample_row(
+            sample_id="04-generator-evaluator-false-pass", epoch=3, rec=load_saved_sample(SAVED / "ts-false-pass"), check=TS_CHECK,
+            expected_status="done", hidden_names=[], pinned_model=MODEL, limit_hit="cost",
+        )
+        got = false_passes([row("ts-false-pass", check=TS_CHECK, sample_id="04-generator-evaluator-false-pass"), lim])
+        self.assertEqual(got["by_sample"]["04-generator-evaluator-false-pass"], {"false_passes": 1, "scored": 1})
+
+    def test_the_scorecard_carries_the_false_pass_totals_and_the_markdown_shows_them_per_row_per_sample_and_for_the_suite(self):
+        card = scorecard(HEADER, self.rows())
+        self.assertEqual(card["false_passes"]["total"], 3)
+        md = render_markdown(card)
+        self.assertIn("| sample | epoch | correct | truthful | false pass |", md)
+        self.assertIn("| 04-generator-evaluator-false-pass | 1 | no | yes | yes | done | done |", md)
+        self.assertIn("| 11-panel-diff-defect | 1 | yes | yes | no | done | done |", md)
+        self.assertIn("False passes (done reported while the hidden check failed)", md)
+        self.assertIn("| 04-generator-evaluator-false-pass | 2 of 2 |", md)
+        self.assertIn("| 11-panel-diff-defect | 1 of 2 |", md)
+        self.assertIn("| suite total | 3 of 5 |", md)
+
+
+class PanelVerdict(unittest.TestCase):
+    """Sample 11: correct only on a FAIL verdict that names the defect's lens."""
+
+    def test_a_fail_verdict_naming_the_security_lens_is_correct(self):
+        r = row("panel-fail-security", check=PANEL_CHECK, sample_id="11-panel-diff-defect")
+        self.assertEqual((r["outcome_correct"], r["missing_facts"], r["status_truthful"], r["false_pass"]), (True, [], True, False))
+        self.assertEqual({k: v["agents"] for k, v in r["by_role"].items()}, {"evaluator": 3, "scribe": 1})
+
+    def test_a_pass_verdict_on_the_defective_diff_is_a_false_pass(self):
+        r = row("panel-pass", check=PANEL_CHECK, sample_id="11-panel-diff-defect")
+        self.assertEqual((r["outcome_correct"], r["missing_facts"], r["false_pass"]), (False, ["verdict PASS, not FAIL"], True))
+
+    def test_a_fail_verdict_that_does_not_name_the_defects_lens_is_not_correct(self):
+        rec = load_saved_sample(SAVED / "panel-fail-security")
+        rec.result["return"]["result"] = "FAIL (2/3)\n[readability] FAIL: 1. console.debug is called inline"
+        self.assertEqual(outcome(rec, PANEL_CHECK), (False, ["FAIL verdict does not name the security lens"]))
+
+    def test_a_lens_line_cut_off_by_the_line_limit_is_not_named(self):
+        rec = load_saved_sample(SAVED / "panel-fail-security")
+        rec.result["return"]["result"] = "FAIL (0/3)\n[correctness] FAIL: 1. x\n[readability] FAIL: 1. y"
+        self.assertFalse(outcome(rec, PANEL_CHECK)[0])
+        rec.result["return"]["result"] = "FAIL (2/3)\n[Security] fail: 1. the token is logged"
+        self.assertEqual(outcome(rec, PANEL_CHECK), (True, []))
+
+    def test_a_panel_that_did_not_return_done_is_not_correct(self):
+        rec = load_saved_sample(SAVED / "panel-fail-security")
+        rec.result["return"]["status"] = "blocked"
+        self.assertEqual(outcome(rec, PANEL_CHECK), (False, ["status blocked, not done"]))
 
 
 if __name__ == "__main__":

@@ -158,3 +158,31 @@ class PythonSamples(unittest.TestCase):
         s = self.by_id()
         self.assertEqual(suite.hidden_check(s["05-generator-evaluator-exhausted"]), {"kind": "exhausted", "rounds": 2})
         self.assertEqual(suite.hidden_check(s["09-chain-stage-2-fails"]), {"kind": "chain_stop", "stage": 2, "status": "exhausted", "stages": 3})
+
+
+class TypeScriptSamples(unittest.TestCase):
+    def by_id(self):
+        return {s["id"]: s for s in suite.load_samples()}
+
+    def test_samples_4_and_11_exist_on_the_typescript_fixture_with_their_topology_and_expected_status(self):
+        got = {i: (s["fixture"], s["args"]["dispatch"]["topology"], s["expected_status"]) for i, s in self.by_id().items()}
+        self.assertEqual(got["04-generator-evaluator-false-pass"], ("typescript", "generator-evaluator", "done"))
+        self.assertEqual(got["11-panel-diff-defect"], ("typescript", "panel", "done"))
+
+    def test_sample_4_has_vague_pass_criteria_and_is_scored_by_the_hidden_test(self):
+        s4 = self.by_id()["04-generator-evaluator-false-pass"]
+        self.assertEqual(s4["args"]["dispatch"]["params"]["pass_criteria"], "The relevant tests pass.")
+        self.assertEqual(suite.hidden_check(s4), {"kind": "tests", "runner": "node", "tests": ["paginate.hidden.test.ts"]})
+
+    def test_sample_11_reviews_the_diff_through_lenses_including_the_defects_and_must_fail_naming_it(self):
+        s11 = self.by_id()["11-panel-diff-defect"]
+        d = s11["args"]["dispatch"]
+        self.assertIn("/work/review/0001-log-page-requests.diff", d["task"])
+        self.assertIn("/work/review/0001-log-page-requests.diff", suite.fixture_sandbox_files("typescript"))
+        lenses = [l["name"] for l in d["params"]["lenses"]]
+        check = suite.hidden_check(s11)
+        self.assertEqual({k: check[k] for k in ("kind", "verdict", "lens")}, {"kind": "verdict", "verdict": "FAIL", "lens": "security"})
+        self.assertIn(check["lens"], lenses)
+        self.assertNotIn("reducer", d["params"])
+        self.assertGreaterEqual(d["returns"]["maxLines"], 1 + len(lenses), "room for the verdict line and one line per failing lens")
+        self.assertNotIn("token", json.dumps(d).lower(), "the sample must not point the reviewers at the defect")

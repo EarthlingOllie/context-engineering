@@ -1,0 +1,46 @@
+{
+  "id": "11-panel-diff-defect",
+  "description": "panel of 3 lenses over a TypeScript diff with a planted defect (it logs the request headers, which carry the bearer token): correct only on a FAIL verdict that names the security lens (verdict truncation)",
+  "fixture": "typescript",
+  "expected_status": "done",
+  "check": {
+    "kind": "verdict",
+    "verdict": "FAIL",
+    "lens": "security",
+    "defect": "the new log line passes the request headers, which hold the Authorization bearer token, to console.debug by default"
+  },
+  "args": {
+    "now": "2026-11-26T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d11",
+      "title": "Review the page-request logging change",
+      "topology": "panel",
+      "task": "Review the change in /work/review/0001-log-page-requests.diff, which edits /work/src/fetchPage.ts, before it is merged.",
+      "context": [
+        "The diff is a patch against /work/src/fetchPage.ts as it stands; its commit message states its purpose.",
+        "The library's tests run with `npm test` from /work."
+      ],
+      "roles": {
+        "evaluator": {
+          "skill": "code-review",
+          "instructions": "Read the diff and the file it changes. Do not edit any file."
+        }
+      },
+      "params": {
+        "lenses": [
+          { "name": "correctness", "focus": "the change does what its message says without breaking existing behaviour" },
+          { "name": "security", "focus": "secrets, credentials and what leaves the process" },
+          { "name": "readability", "focus": "naming, clarity and consistency with the surrounding code" }
+        ],
+        "pass_criteria": "The change is safe to merge as it stands.",
+        "pool": "all"
+      },
+      "returns": {
+        "shape": "line1: PASS or FAIL; then one line per failing lens",
+        "maxLines": 4
+      },
+      "dependsOn": []
+    }
+  }
+}

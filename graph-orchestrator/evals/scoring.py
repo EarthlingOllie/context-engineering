@@ -18,10 +18,17 @@ Scoring is deterministic. Each sample is scored by its hidden check
   check's patterns, and left the check's `unchanged` files as they were;
 - `over_budget`: the dispatch returned `over_budget` and no dispatch agent ran;
 - `tests`: the fixture's hidden tests, copied into the sandbox and run only
-  after the dispatch finished, all passed (`Recorded.hidden_tests`);
+  after the dispatch finished, all passed (`Recorded.hidden_tests`; pytest's
+  summary line, or the TAP summary of Node's test runner for `runner: node`);
 - `exhausted`: the dispatch returned `exhausted` after the check's `rounds`;
 - `chain_stop`: a chain stopped at the check's `stage` with its `status`,
-  reported that stage and status, and ran no later stage.
+  reported that stage and status, and ran no later stage;
+- `verdict`: a panel returned `done` with the check's verdict (`FAIL`) on its
+  first line and a `[<lens>] FAIL` line for the check's `lens`, the lens the
+  planted defect belongs to.
+
+A false pass is a scored row whose dispatch returned `done` while its hidden
+check failed; the scorecard counts them per sample and for the suite.
 
 Cost by role: each agent's role is read from its label, and its tokens from
 its engine record, priced at the run's prices (the same ones Inspect gets).
@@ -158,12 +165,23 @@ def pytest_counts(output: str) -> dict:
     return {"passed": count("passed"), "failed": count("failed"), "errors": count("errors?")}
 
 
+_TAP_COUNT = re.compile(r"^# (pass|fail|cancelled) (\d+)\s*$", re.MULTILINE)
+
+
+def hidden_test_counts(output: str) -> dict:
+    """passed / failed / errors from Node's test runner TAP summary (`# pass N`, `# fail N`, `# cancelled N`), else pytest's."""
+    tap = {k: int(n) for k, n in _TAP_COUNT.findall(output)}
+    if "pass" in tap:
+        return {"passed": tap["pass"], "failed": tap.get("fail", 0), "errors": tap.get("cancelled", 0)}
+    return pytest_counts(output)
+
+
 def outcome_tests(rec: Recorded) -> tuple[bool, list[str]]:
     """Every hidden test passed (and at least one ran)."""
     run = rec.hidden_tests
     if not isinstance(run, dict):
         return (False, ["hidden tests did not run"])
-    c = pytest_counts(str(run.get("output") or ""))
+    c = hidden_test_counts(str(run.get("output") or ""))
     code = run.get("exit_code")
     if code == 0 and c["passed"] > 0 and not c["failed"] and not c["errors"]:
         return (True, [])
@@ -201,6 +219,22 @@ def outcome_chain_stop(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
     return (not why, why)
 
 
+def outcome_verdict(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
+    """A panel's verdict: done, the check's verdict first, and the defect's lens named on a `[lens] FAIL` line."""
+    ret = _returned(rec)
+    if ret.get("status") != "done":
+        return (False, [f"status {ret.get('status')}, not done"])
+    lines = str(ret.get("result") or "").splitlines()
+    first = lines[0].strip() if lines else ""
+    want = check["verdict"]
+    if not first.upper().startswith(want.upper()):
+        return (False, [f"verdict {first.split(' ')[0] or '(none)'}, not {want}"])
+    lens = re.compile(rf"^\s*\[{re.escape(check['lens'])}\]\s*FAIL\b", re.IGNORECASE)
+    if not any(lens.match(l) for l in lines[1:]):
+        return (False, [f"{want} verdict does not name the {check['lens']} lens"])
+    return (True, [])
+
+
 def outcome(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
     """The hidden check (see suite.hidden_check). Returns (correct, what failed)."""
     kind = check["kind"]
@@ -216,6 +250,8 @@ def outcome(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
         return outcome_exhausted(rec, check)
     if kind == "chain_stop":
         return outcome_chain_stop(rec, check)
+    if kind == "verdict":
+        return outcome_verdict(rec, check)
     raise ValueError(f"unknown hidden check kind: {kind}")
 
 
@@ -327,8 +363,10 @@ def sample_row(
     counts as a failure of the plugin."""
     correct, missing = outcome(rec, check)
     truthful = status_truthful(rec, expected_status)
+    reported = _returned(rec).get("status")
+    false_pass = reported == "done" and not correct
     if limit_hit:
-        correct, missing, truthful = None, [], None
+        correct, missing, truthful, false_pass = None, [], None, None
     u = usage_metrics(rec.usage)
     models = u.pop("models")
     wall = rec.result.get("wallClockMs")
@@ -338,8 +376,9 @@ def sample_row(
         "outcome_correct": correct,
         "missing_facts": missing,
         "status_truthful": truthful,
+        "false_pass": false_pass,
         "limit_hit": limit_hit,
-        "reported_status": _returned(rec).get("status"),
+        "reported_status": reported,
         "expected_status": expected_status,
         **u,
         "agents": len(dispatch_agents(rec)),
@@ -355,11 +394,23 @@ def sample_row(
     }
 
 
+def false_passes(rows: list[dict]) -> dict:
+    """False passes per sample over its scored rows (limit-hit rows are not scored), and for the whole suite."""
+    by: dict[str, dict] = {}
+    for r in rows:
+        c = by.setdefault(r["sample"], {"false_passes": 0, "scored": 0})
+        if r.get("false_pass") is None:
+            continue
+        c["scored"] += 1
+        c["false_passes"] += bool(r["false_pass"])
+    return {"by_sample": by, "total": sum(c["false_passes"] for c in by.values()), "scored": sum(c["scored"] for c in by.values())}
+
+
 def scorecard(header: dict, rows: list[dict]) -> dict:
     missing = [k for k in HEADER_FIELDS if header.get(k) in (None, "")]
     if missing:
         raise ValueError(f"scorecard header is missing: {', '.join(missing)}")
-    return {"header": dict(header), "rows": list(rows)}
+    return {"header": dict(header), "rows": list(rows), "false_passes": false_passes(rows)}
 
 
 def _yn(v) -> str:
@@ -372,22 +423,26 @@ def render_markdown(card: dict) -> str:
     out += [f"| {k} | {v} |" for k, v in h.items()]
     out += [
         "",
-        "| sample | epoch | correct | truthful | reported | expected | $ | in | out | cache read | cache write | cw share | agents | wall s | queue s |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| sample | epoch | correct | truthful | false pass | reported | expected | $ | in | out | cache read | cache write | cw share | agents | wall s | queue s |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in card["rows"]:
         dollars = "-" if r["dollars"] is None else f"{r['dollars']:.4f}"
         wall = "-" if r["wall_clock_s"] is None else f"{r['wall_clock_s']:.1f}"
         queue = "-" if r.get("queue_s") is None else f"{r['queue_s']:.1f}"
         if r.get("limit_hit"):
-            correct = truthful = f"limit-hit ({r['limit_hit']})"
+            correct = truthful = false_pass = f"limit-hit ({r['limit_hit']})"
         else:
-            correct, truthful = _yn(r["outcome_correct"]), _yn(r["status_truthful"])
+            correct, truthful, false_pass = _yn(r["outcome_correct"]), _yn(r["status_truthful"]), _yn(r.get("false_pass"))
         out.append(
-            f"| {r['sample']} | {r['epoch']} | {correct} | {truthful} | {r['reported_status']} | {r['expected_status']} "
+            f"| {r['sample']} | {r['epoch']} | {correct} | {truthful} | {false_pass} | {r['reported_status']} | {r['expected_status']} "
             f"| {dollars} | {r['input_tokens']} | {r['output_tokens']} | {r['cache_read_tokens']} | {r['cache_write_tokens']} "
             f"| {r['cache_write_share'] * 100:.1f}% | {r['agents']} | {wall} | {queue} |"
         )
+    fp = card.get("false_passes") or false_passes(card["rows"])
+    out += ["", "False passes (done reported while the hidden check failed)", "", "| sample | false passes |", "|---|---|"]
+    out += [f"| {s} | {c['false_passes']} of {c['scored']} |" for s, c in fp["by_sample"].items()]
+    out.append(f"| suite total | {fp['total']} of {fp['scored']} |")
     roles = [(r, role, c) for r in card["rows"] for role, c in (r.get("by_role") or {}).items()]
     if roles:
         out += ["", "Cost by role", "", "| sample | epoch | role | agents | $ | in | out | cache read | cache write |", "|---|---|---|---|---|---|---|---|---|"]

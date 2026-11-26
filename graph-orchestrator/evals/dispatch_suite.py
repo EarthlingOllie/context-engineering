@@ -137,13 +137,14 @@ def dispatch_harness(
 
 async def run_hidden_tests(meta: dict) -> None:
     """Scoring step, after the dispatch: copy the fixture's hidden tests into the sandbox and run them there."""
-    if suite.hidden_check(meta)["kind"] != "tests":
+    check = suite.hidden_check(meta)
+    if check["kind"] != "tests":
         return
     sbx = sandbox()
     for f in suite.hidden_test_files(meta["fixture"]):
         await sbx.write_file(f"{suite.HIDDEN_TESTS_DIR}/{f.name}", f.read_text())
     try:
-        res = await sbx.exec(suite.HIDDEN_TESTS_CMD, cwd="/work", timeout=300)
+        res = await sbx.exec(suite.hidden_tests_cmd(check), cwd="/work", timeout=300)
         store().set("hidden_tests", {"exit_code": res.returncode, "output": (res.stdout + res.stderr)[-4000:]})
     except Exception as e:  # noqa: BLE001  (timeout or sandbox error: scored as not run)
         store().set("hidden_tests", {"exit_code": None, "output": f"hidden tests could not run: {e}"})
@@ -163,7 +164,7 @@ def recorded_from_store(usage: dict | None = None) -> Recorded:
 
 @scorer(metrics=[accuracy()])
 def outcome_correct_scorer():
-    """The sample's hidden check (suite.hidden_check): planted facts, blocked with a question, over_budget, hidden tests, exhausted or a chain's stop."""
+    """The sample's hidden check (suite.hidden_check): planted facts, blocked with a question, over_budget, hidden tests, exhausted, a chain's stop or a panel's verdict."""
 
     async def score(state: TaskState, target: Target) -> Score:
         ok, missing = outcome(recorded_from_store(), suite.hidden_check(state.metadata))

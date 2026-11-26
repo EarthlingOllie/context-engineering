@@ -1,0 +1,2 @@
+Sample 4 (04-generator-evaluator-false-pass), a false pass: done while the hidden check fails. result.json, trace.jsonl: `main.ts --stub` (evaluator passes, so the vague criteria are met at once and nothing is fixed), scratch paths rewritten to /work/scratch.
+hidden_tests.json: the solver's hidden-test run (suite.hidden_tests_cmd: `node --test --test-reporter=tap hidden_check/paginate.hidden.test.ts` from /work) on the fixture as shipped, whose planted bug the visible tests miss.
