@@ -122,7 +122,7 @@ async function runBestOfN(ctx: TopologyContext, spec: DispatchSpec): Promise<Dis
         ctx.rt.log(`${spec.id}: attempt ${index}/${n} returned nothing; dropped`);
         return { index, kind: "empty" };
       }
-      const { question, ...work } = readWorkOutput(out, returns.maxLines);
+      const { question, ...work } = readWorkOutput(out, returns.maxLines, ctx);
       return question ? { index, kind: "blocked", question } : { index, kind: "done", work };
     }),
   );
@@ -135,7 +135,7 @@ async function runBestOfN(ctx: TopologyContext, spec: DispatchSpec): Promise<Dis
   // 2. Every attempt dropped out.
   if (done.length === 0) {
     const notes = all.map((a) => `attempt ${a.index} ${a.kind === "blocked" ? `blocked: ${a.question}` : "returned nothing"}`).join("\n");
-    return withQuestion({ id: spec.id, status: blocked.length ? "blocked" : "failed", result: cutLines(notes, returns.maxLines), artifacts: [], iterations: 1 });
+    return withQuestion({ id: spec.id, status: blocked.length ? "blocked" : "failed", result: cutLines(notes, returns.maxLines, ctx), artifacts: [], iterations: 1 });
   }
 
   // 3. Vote: a strict majority of n wins with no judge.
@@ -173,7 +173,7 @@ async function runBestOfN(ctx: TopologyContext, spec: DispatchSpec): Promise<Dis
     JUDGE_SCHEMA,
   );
   if (!j) return withQuestion({ ...fail(spec, "best-of-n: judge returned nothing", 1), artifacts: candidateArtifacts });
-  const verdict = cutLines(str(j, "verdict"), returns.maxLines);
+  const verdict = cutLines(str(j, "verdict"), returns.maxLines, ctx);
   const jq = blockedQuestion(j, "judge");
   if (jq) return { id: spec.id, status: "blocked", result: verdict, artifacts: candidateArtifacts, question: question ? `${jq}\n${question}` : jq, iterations: 1 };
   if (!verdict.trim()) return withQuestion({ ...fail(spec, "best-of-n: judge returned nothing", 1), artifacts: candidateArtifacts });

@@ -165,6 +165,13 @@ class EverySampleIsLimited(unittest.TestCase):
         self.assertEqual((t.cost_limit, t.time_limit, t.epochs), (30.0, 1800, 3))
         self.assertEqual(t.metadata["role_models"], "")
 
+    def test_each_sample_carries_its_revision_into_the_log(self):
+        from dispatch_suite import dispatch_suite
+
+        revs = {str(s.id): s.metadata["revision"] for s in dispatch_suite().dataset}
+        self.assertEqual(revs, {s["id"]: suite.sample_revision(s) for s in suite.load_samples()})
+        self.assertEqual(revs["10-iterative-fan-out-docs-gap"], 2)
+
     def test_the_task_takes_a_forced_role_model_and_refuses_an_undeclared_one(self):
         from dispatch_suite import dispatch_suite
 

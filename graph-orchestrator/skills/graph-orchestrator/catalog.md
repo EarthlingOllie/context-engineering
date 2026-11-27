@@ -9,7 +9,9 @@ in:  { id, title, topology, task, context[], roles{}, params{}, returns{shape,ma
 out: { id, status: done|blocked|exhausted|over_budget|failed, result (inline, ≤ maxLines), artifacts[], question?, iterations }
 ```
 
-`failed` means the spec could not run at all (unknown topology, bad params, an agent that returned nothing or threw — the thrown error goes to the log); the `result` says why. `over_budget` means a cap was exceeded and no agent was spent. Roles take `{ skill?, instructions }`: the skill supplies the domain, the instructions the task-specific detail. Every role is told to return `blocked=true` with one `question` when only a human can answer; a blocked role stops its topology, except where an entry says a blocked branch or attempt only drops out.
+`failed` means the spec could not run at all (unknown topology, bad params, an agent that returned nothing or threw — the thrown error goes to the log); the `result` says why. `over_budget` means a cap was exceeded and no agent was spent. Roles take `{ skill?, instructions, model? }`: the skill supplies the domain, the instructions the task-specific detail.
+
+**Models per role.** `scribe` and `partition` run on Haiku by default (copying trace lines and splitting a task are mechanical); every other role runs on the session model. A role entry's `model` (`"haiku"`, `"sonnet"`, `"opus"` or a full model id) overrides that for its role, defaults included: `"roles": { "evaluator": { "instructions": "", "model": "sonnet" } }`. Sonnet for `evaluator`, `reducer` or `judge` is opt-in: name it in the spec when the check is routine enough not to need the session model; nothing moves them off it by default. `roles.partition` and `roles.scribe` may carry only a model (`{ "instructions": "", "model": "sonnet" }`): the partition step otherwise uses `roles.worker`'s skill and instructions, and the scribe takes none. A reducer or judge given in `params` may carry its own `model`; `roles.<role>` wins when both are given. A chain stage's roles set its own agents' models. An unknown model is not caught up front: its `agent()` returns nothing, so that role fails as any agent that returned nothing does. Every role is told to return `blocked=true` with one `question` when only a human can answer; a blocked role stops its topology, except where an entry says a blocked branch or attempt only drops out.
 
 Each dispatch runs as its own workflow, named by its `title` (a few plain words saying what it is for), in parallel with the rest of its wave. Agent demand is logged and never refused; the runtime queues. The 1,000-agents-per-run limit applies per dispatch and is the only hard check: a dispatch whose demand plus its scribe would cross it returns `over_budget` unrun. `dependsOn` may name only earlier waves: dispatches in one wave cannot wait on each other, and one that names a same-wave id returns `failed` unrun. Ordered steps inside a wave are a `chain`.
 
@@ -45,13 +47,16 @@ Each dispatch runs as its own workflow, named by its `title` (a few plain words 
 
 **Roles** `generator` (produces), `evaluator` (judges strictly against `pass_criteria`; changes nothing). Give each its own skill when the domain differs (e.g. `tdd` for the generator, `code-review` for the evaluator).
 
-**Params** `pass_criteria` (string, required in practice), `max_iterations` (default 3).
+**Params** `pass_criteria` (string, required), `max_iterations` (default 3).
+
+**Pass criteria** are what the evaluator counts, so write them countable. A criterion is a numbered item that names a command or an observable and its expected count or output. One criterion runs the full regression suite, or names the later gate that runs it. Good: `1. npm test from the repo root exits 0 with 0 failing tests (the full suite, not a subset); 2. grep -c "pass_criteria missing" src/topologies/generator-evaluator.ts prints 1; 3. git status --short lists only the ticket's files`.
+These words do not make criteria: relevant, targeted, touched-area, all checks, an except clause ("all pass except ..."). Each lets the evaluator pick its own subset and pass work that breaks something else. Replace them with the command and its count.
 
 **Demand** 2 × max_iterations (upper bound; stops early on pass).
 
 **Loop** generate → evaluate → if pass, done. Otherwise the next generator round sees the evaluator's numbered feedback and its own artifact paths, but not its previous inline output, so rounds converge instead of drifting.
 
-**Returns** `done` on the first pass (`iterations` = rounds used); `exhausted` at the cap with the last result and the last feedback line; `blocked` if either role blocks.
+**Returns** `done` on the first pass (`iterations` = rounds used); `exhausted` at the cap with the last result and the last feedback line; `blocked` if either role blocks; `failed` ("pass_criteria missing") when `pass_criteria` is missing or blank, with no agent spent. There is no default criterion.
 
 ```json
 { "id": "w2-d1", "title": "Build the trace renderer", "topology": "generator-evaluator",
@@ -59,7 +64,7 @@ Each dispatch runs as its own workflow, named by its `title` (a few plain words 
   "context": ["fixture files were written by w1-d2 at /scratch/fixtures/"],
   "roles": { "generator": { "instructions": "pure function, no I/O" },
              "evaluator": { "skill": "code-review", "instructions": "run npm test; fail on any failing fixture" } },
-  "params": { "pass_criteria": "npm test passes and no fixture is skipped", "max_iterations": 3 },
+  "params": { "pass_criteria": "1. npm test exits 0 with 0 failing tests (the full suite); 2. every fixture in test/fixtures renders: 0 skipped", "max_iterations": 3 },
   "returns": { "shape": "one line per file changed, then PASS or the last failing test name", "maxLines": 6 },
   "dependsOn": ["w1-d2"] }
 ```
@@ -99,21 +104,21 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 
 **Roles** none of its own; each stage carries its own roles.
 
-**Params** `stages`: a list of dispatch specs. A stage may omit `id` (becomes `<chain-id>-s<n>`), `context`, `returns` and `dependsOn`; it inherits the chain's context and return contract.
+**Params** `stages`: a list of dispatch specs. A stage may omit `id` (becomes `<chain-id>-s<n>`), `context`, `returns` and `dependsOn`; it inherits the chain's context and return contract. A panel stage may set `gate: false` to opt out of the panel gate.
 
 **Demand** the sum of the stages' demand.
 
-**Flow** stages run in order. Each stage's context gains the prior stage's status, first result line and artifact paths. The first stage that is not `done` stops the chain, which returns that stage's status, result and question. Trace lines are written for every stage (tagged with the chain as parent) and for the chain itself with `stages: ["w3-s1:done", ...]`.
+**Flow** stages run in order. Each stage's context gains the prior stage's status, first result line and artifact paths. The first stage that is not `done` stops the chain, which returns that stage's status and question. Panel gate: a panel stage that is not the last, whose result starts `FAIL`, stops the chain as `exhausted`, its first line naming the panel (`panel <stage id> "<title>" returned FAIL (1/3)`); set `gate: false` on that stage to let the chain continue past a FAIL, the verdict forwarded to the next stage. Trace lines are written for every stage (tagged with the chain as parent) and for the chain itself with `stages: ["w3-s1:done", ...]`.
 
-**Returns** the last stage's result, all stages' artifacts, `iterations` = stages run, plus `stages` statuses.
+**Returns** a result that starts with one `<stage id> <status>: <first line>` line per stage run, then the last run stage's lines, cut to the line limit. A chain that stops early ends its result with `not run: <stage ids and titles>` (kept inside the limit). Also all stages' artifacts, `iterations` = stages run, plus `stages` statuses.
 
 ```json
 { "id": "w3-d1", "title": "Write the store architecture note", "topology": "chain",
   "task": "Produce the architecture note for the store layer",
   "context": ["decision: keep sqlite for tests (w2-d1)"],
   "roles": {}, "params": { "stages": [
-    { "topology": "fan-out", "task": "Research each store module", "params": { "split": ["pg", "sqlite", "memory"] }, "roles": { "reducer": { "instructions": "one paragraph per module" } }, "returns": { "shape": "path of the research note", "maxLines": 1 } },
-    { "topology": "generator-evaluator", "task": "Write docs/store.md from the research note", "params": { "pass_criteria": "every claim cites a file; under 400 words" }, "roles": { "evaluator": { "skill": "writing-for-agents", "instructions": "" } }, "returns": { "shape": "path of the note, then its word count", "maxLines": 2 } }
+    { "topology": "fan-out", "task": "Research each store module", "params": { "split": ["pg", "sqlite", "memory"] }, "roles": { "reducer": { "instructions": "one paragraph per module" } }, "returns": { "shape": "path of the research note (.txt)", "maxLines": 1 } },
+    { "topology": "generator-evaluator", "task": "Write /scratch/store-note.txt from the research note", "params": { "pass_criteria": "1. every claim in /scratch/store-note.txt cites a file: 0 uncited claims; 2. wc -w /scratch/store-note.txt prints under 400" }, "roles": { "evaluator": { "skill": "writing-for-agents", "instructions": "" } }, "returns": { "shape": "path of the note, then its word count", "maxLines": 2 } }
   ] },
   "returns": { "shape": "path of the note, then its word count", "maxLines": 2 },
   "dependsOn": ["w2-d1"] }
@@ -141,7 +146,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
   "context": ["feature list written by w1-d1"],
   "roles": { "worker": { "skill": "tdd", "instructions": "one failing feature per session; update the progress file" },
              "evaluator": { "instructions": "run npm test; pass only if every listed feature passes" } },
-  "params": { "done_criteria": "all features pass and the progress file says DONE", "progress": "/scratch/progress.md", "max_sessions": 6, "check_every": 2 },
+  "params": { "done_criteria": "all features pass and the progress file says DONE", "progress": "/scratch/progress.txt", "max_sessions": 6, "check_every": 2 },
   "returns": { "shape": "features passing / total, then the last progress line", "maxLines": 3 },
   "dependsOn": ["w1-d1"] }
 ```
@@ -165,7 +170,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 ```json
 { "id": "w3-d2", "title": "Fix the flaky renderer test", "topology": "best-of-n",
   "task": "Propose a fix for the flaky trace-renderer test",
-  "context": ["failing test and log at /scratch/flake.md"],
+  "context": ["failing test and log at /scratch/flake.txt"],
   "roles": { "worker": { "skill": "diagnosing-bugs", "instructions": "write the patch to a new file; do not apply it" },
              "judge": { "instructions": "pick the patch most likely to remove the root cause with the smallest diff" } },
   "params": { "variants": ["minimal change", "fix the timing assumption", "restructure the test"], "criteria": "root cause addressed; no new flakiness; smallest diff", "mode": "select" },
@@ -247,7 +252,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 ```json
 { "id": "w5-d1", "title": "Decide the relay done signal", "topology": "debate",
   "task": "Decide whether relay's done signal should be an evaluator check or a worker completion flag",
-  "context": ["roles are six fixed stances (K3)", "relay spec at /scratch/design-specs.md"],
+  "context": ["roles are six fixed stances (K3)", "relay spec at /scratch/design-specs.txt"],
   "roles": { "debater": { "instructions": "cite file:line for any claim about the code" },
              "judge": { "instructions": "weigh contract stability above agent cost" } },
   "params": { "participants": [ { "name": "check", "stance": "an evaluator done-check is better" },
@@ -256,3 +261,32 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
   "returns": { "shape": "the chosen option, then the decisive reason in one line", "maxLines": 2 },
   "dependsOn": [] }
 ```
+
+---
+
+## Parallel code changes
+
+**Use when** two or more dispatches in one wave change code in the same repository. One working tree shared by parallel builders collides: overwritten files, duplicate migration numbers, a broken integration.
+
+**Each code dispatch gets a worktree.** Its generator (or worker) is told in `instructions` to create its own git worktree on a ticket branch, `git worktree add SCRATCH/wt/<id> -b ticket/<id>`, from the wave's base commit; to work, test and commit only there; and to return the branch name and its last commit.
+
+**Integration is its own dispatch.** The next wave runs one integrate `generator-evaluator` whose `dependsOn` names every ticket dispatch. Its generator merges the `ticket/<id>` branches into the working branch one at a time, resolves conflicts, and rebuilds generated files (bundles, lockfiles) after each merge instead of merging them by hand. Its `pass_criteria` run the full suite on the merged tree, so integration carries the regression floor.
+
+```json
+{ "id": "w4-d1", "title": "Integrate the wave 3 tickets", "topology": "generator-evaluator",
+  "task": "Merge ticket/w3-d1, ticket/w3-d2 and ticket/w3-d3 into the working branch so the full suite passes on the merged tree",
+  "context": ["branches and last commits from w3-d1..w3-d3: SCRATCH/w3-branches.txt"],
+  "roles": { "generator": { "instructions": "merge one branch at a time; rebuild the bundle after each merge; remove the worktrees when done" },
+             "evaluator": { "instructions": "run the full suite once; log it to SCRATCH/w4-d1-tests.log" } },
+  "params": { "pass_criteria": "1. git branch --merged lists ticket/w3-d1, ticket/w3-d2 and ticket/w3-d3; 2. npm test exits 0 with 0 failing tests (the full suite) on the merged tree; 3. git status --short prints nothing", "max_iterations": 3 },
+  "returns": { "shape": "the merged commit, then PASS or the last failing test name", "maxLines": 3 },
+  "dependsOn": ["w3-d1", "w3-d2", "w3-d3"] }
+```
+
+---
+
+## Tests per round
+
+**Use when** a dispatch's full test suite takes minutes: a `generator-evaluator`, a chain stage, an integrate or acceptance dispatch.
+
+**Generators run targeted tests**: the tests for what they changed, enough to know the change works. **The evaluator runs the full suite once per round**, at the generator's commit, and writes its output to `SCRATCH/<id>-tests.log` with that commit's sha on the first line. **A later stage at the same commit cites the log**: a chain's next stage, the integrate or acceptance dispatch reads `SCRATCH/<id>-tests.log` and checks the sha against `HEAD`; at the same commit it cites the log as its full-suite result, at any other commit it runs the suite and writes its own log. Say this in the roles' `instructions` and write it into the criteria, e.g. `1. npm test exits 0 with 0 failing tests (the full suite), logged to SCRATCH/w3-d2-tests.log whose first line is the HEAD sha`. One full-suite run per round keeps the regression floor that **Pass criteria** require.

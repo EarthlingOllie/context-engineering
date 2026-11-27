@@ -2,15 +2,23 @@
  * The trace renderer: trace JSONL text in, Mermaid flowchart out.
  * Waves become subgraphs (grouped by each dispatch line's `wave`), dispatches
  * nodes labelled with their title, id, topology and iteration count, `dependsOn` edges, status as node class, chain stages as a
- * nested subgraph, human interventions as nodes.
+ * nested subgraph, interventions as nodes (`human`, or `self` dashed, by
+ * their `source`, else by mode: autonomous is `self`), `hook` lines as nothing.
+ * The builds that wrote the dispatch lines (their `version`, B-03) become the
+ * diagram's title, in a front-matter header; a trace without one has none.
  */
 import type { TraceEvent } from "../types.ts";
+
+/** A time a trace's writer stamped; a placeholder it left unreplaced (B-04) is no time. */
+function timeOf(v: unknown): string | undefined {
+  return typeof v === "string" && v && !/^\{\{[A-Z_]+\}\}$/.test(v) ? v : undefined;
+}
 
 type Dispatch = Extract<TraceEvent, { type: "dispatch" }>;
 type Human = Extract<TraceEvent, { type: "human" }>;
 type Wave = { number: number; at?: string; dispatches: Dispatch[]; stages: Map<string, Dispatch[]>; end?: Extract<TraceEvent, { type: "wave_end" }> };
 
-export type ParsedTrace = { items: Array<{ kind: "wave"; wave: Wave } | { kind: "human"; human: Human; index: number }>; skipped: number };
+export type ParsedTrace = { items: Array<{ kind: "wave"; wave: Wave } | { kind: "human"; human: Human; index: number }>; skipped: number; versions: string[] };
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : []);
@@ -40,13 +48,16 @@ function normalise(raw: unknown): TraceEvent | null {
     };
     const title = str(e.title);
     if (title) d.title = title;
-    const at = str(e.at);
+    const at = timeOf(e.at);
     if (at) d.at = at;
     if (Array.isArray(e.stages)) d.stages = strs(e.stages);
     const parent = str(e.parent);
     if (parent) d.parent = parent;
     const question = str(e.question);
     if (question) d.question = question;
+    // Only characters a build stamp uses, so a hostile line cannot break out of the header.
+    const version = str(e.version)?.replace(/[^A-Za-z0-9.+_-]/g, "");
+    if (version) d.version = version;
     return d;
   }
   if (e.type === "human") {
@@ -54,11 +65,12 @@ function normalise(raw: unknown): TraceEvent | null {
     const question = str(e.question);
     if (!trigger || !question) return null;
     const h: Human = { type: "human", trigger: trigger as Human["trigger"], question, answer: str(e.answer) ?? "" };
-    const at = str(e.at);
+    const at = timeOf(e.at);
     if (at) h.at = at;
     const dispatch = str(e.dispatch);
     if (dispatch) h.dispatch = dispatch;
     if (e.mode === "attended" || e.mode === "autonomous") h.mode = e.mode;
+    if (e.source === "self" || e.source === "human") h.source = e.source;
     return h;
   }
   return raw as TraceEvent;
@@ -87,6 +99,7 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
   const waves = new Map<number, Wave>();
   let current: Wave | null = null;
   let humans = 0;
+  const versions: string[] = [];
   const openWave = (n: number, at?: string): Wave => {
     let w = waves.get(n);
     if (!w) {
@@ -103,6 +116,7 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
         current = openWave(e.wave, e.at);
         break;
       case "dispatch": {
+        if (e.version && !versions.includes(e.version)) versions.push(e.version);
         const w = Number.isFinite(e.wave) ? openWave(e.wave, e.at) : current ?? openWave(0, e.at);
         if (e.parent) {
           const list = w.stages.get(e.parent) ?? [];
@@ -117,11 +131,13 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
       case "human":
         items.push({ kind: "human", human: e, index: ++humans });
         break;
+      case "hook": // recorded, never drawn: a hook is not an intervention
+        break;
       default:
         skipped++;
     }
   }
-  return { items, skipped };
+  return { items, skipped, versions };
 }
 
 const CLASSES: Record<string, string> = {
@@ -131,6 +147,7 @@ const CLASSES: Record<string, string> = {
   over_budget: "fill:#fef3c7,stroke:#d97706,stroke-dasharray:4 2,color:#78350f",
   failed: "fill:#f3f4f6,stroke:#6b7280,stroke-dasharray:4 2,color:#111827",
   human: "fill:#ede9fe,stroke:#7c3aed,color:#3b0764",
+  self: "fill:#f5f3ff,stroke:#7c3aed,stroke-dasharray:4 2,color:#3b0764",
 };
 
 export function nodeId(id: string): string {
@@ -168,8 +185,9 @@ function statusClass(status: string): string {
 }
 
 export function renderTrace(text: string, extra: TraceEvent[] = []): string {
-  const { items, skipped } = parseTrace(text, extra);
-  const out: string[] = ["flowchart TD"];
+  const { items, skipped, versions } = parseTrace(text, extra);
+  const header = versions.length ? ["---", `title: graph-orchestrator ${versions.join(", ")}`, "---"] : [];
+  const out: string[] = [...header, "flowchart TD"];
   for (const [name, style] of Object.entries(CLASSES)) out.push(`  classDef ${name} ${style}`);
   if (skipped) out.push(`  %% ${skipped} unreadable line(s) skipped`);
 
@@ -182,8 +200,11 @@ export function renderTrace(text: string, extra: TraceEvent[] = []): string {
     if (item.kind === "human") {
       const h = item.human;
       const hid = `human_${item.index}`;
-      const title = [`human · ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `→ ${short(h.answer, 40)}` : ""].filter(Boolean);
-      out.push(`  ${hid}([${JSON.stringify(title.map(esc).join("<br/>"))}]):::human`);
+      // The recorded source decides (B-06); a line without one falls back to the mode. Autonomous mode records a
+      // best guess: nobody was consulted, so the node says `self` and is dashed.
+      const who = h.source ?? (h.mode === "autonomous" ? "self" : "human");
+      const title = [`${who} · ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `→ ${short(h.answer, 40)}` : ""].filter(Boolean);
+      out.push(`  ${hid}([${JSON.stringify(title.map(esc).join("<br/>"))}]):::${who}`);
       if (h.dispatch && known.has(h.dispatch)) {
         edges.push(`  ${nodeId(h.dispatch)} --> ${hid}`);
         const list = humansByDispatch.get(h.dispatch) ?? [];

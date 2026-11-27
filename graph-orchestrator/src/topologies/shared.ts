@@ -3,9 +3,10 @@
  * agent call, the result shapers and the dispatch trace event. A topology file
  * imports from here and from roles.ts; nothing in here knows a topology.
  */
-import type { DispatchResult, DispatchSpec, ReturnContract, RoleEntry, Runtime, Topology, TraceEvent } from "../types.ts";
+import type { DispatchResult, DispatchSpec, EvaluatorRound, ReturnContract, RoleEntry, Runtime, Topology, TraceEvent } from "../types.ts";
 import { ROLE_SCHEMAS, type RoleName } from "../roles.ts";
 import { type AgentLabelParts, agentLabel } from "../labels.ts";
+import { modelOpt } from "../models.ts";
 
 /** What a role call says about itself for its agent label; the stage and its topology (chain stages only) and, unless a branch names its own, the task come from the spec. */
 export type RoleLabel = Omit<AgentLabelParts, "id" | "topology">;
@@ -33,7 +34,23 @@ export type TopologyContext = {
   stageEvents: TraceEvent[];
   /** What role agent calls threw, in order: `runDispatch` puts it in a `failed` result. */
   agentErrors?: string[];
+  /**
+   * `single` only: the trace lines its worker appends as a final step, set by
+   * run.ts for the top-level dispatch `id` (a chain's stages never match it).
+   * The worker's reported count lands in `appended`; 0 or absent runs the scribe.
+   */
+  selfTrace?: { id: string; file: string; argsFile?: string; lines: string[]; appended?: number; totalLines?: number };
+  /** Lines every cut under this context dropped, in total (B-06). A chain takes the difference across a stage for the stage's line. */
+  dropped?: number;
+  /** Trace detail a topology records for a dispatch id, put on that id's dispatch line (B-06). */
+  detail?: Record<string, DispatchDetail>;
 };
+
+/** What a dispatch line carries beyond the result: the evaluator rounds and their criteria, a chain's stage first lines. */
+export type DispatchDetail = { criteria?: string; rounds?: EvaluatorRound[]; stageLines?: string[] };
+
+/** Where a cut counts the lines it drops; a TopologyContext is one. */
+export type CutSink = { dropped?: number };
 
 /**
  * What a topology file contributes to the registry in dispatch.ts: the upper
@@ -54,10 +71,47 @@ export type Checked<P> = { ok: true; params: P } | { ok: false; result: Dispatch
 
 // ---------- small helpers ----------
 
-export function cutLines(text: string, maxLines: number): string {
+/** The first `maxLines` lines of `text`; the lines dropped are added to `sink.dropped`, so no cut is silent (B-06). */
+export function cutLines(text: string, maxLines: number, sink?: CutSink): string {
   const lines = String(text ?? "").split("\n");
   if (lines.length <= maxLines) return lines.join("\n");
-  return lines.slice(0, maxLines).join("\n");
+  const keep = Math.max(0, maxLines);
+  if (sink) sink.dropped = (sink.dropped ?? 0) + lines.length - keep;
+  return lines.slice(0, keep).join("\n");
+}
+
+/** The detail record for a dispatch id, created on first use. */
+function detailFor(ctx: TopologyContext, id: string): DispatchDetail {
+  const all = (ctx.detail ??= {});
+  return (all[id] ??= {});
+}
+
+/** Record the criteria an evaluator checks against, once per dispatch. */
+export function recordCriteria(ctx: TopologyContext, spec: DispatchSpec, criteria: string): void {
+  detailFor(ctx, spec.id).criteria = criteria;
+}
+
+/** Record one evaluator round: its verdict and, for fail or blocked, the first line of its feedback or question. */
+export function recordRound(ctx: TopologyContext, spec: DispatchSpec, round: number, verdict: EvaluatorRound["verdict"], feedback = ""): void {
+  const d = detailFor(ctx, spec.id);
+  const first = firstLine(feedback).trim();
+  (d.rounds ??= []).push({ round, verdict, ...(verdict !== "pass" && first ? { feedback: first } : {}) });
+}
+
+/** Record a chain's stage first lines. */
+export function recordStageLines(ctx: TopologyContext, spec: DispatchSpec, lines: string[]): void {
+  detailFor(ctx, spec.id).stageLines = [...lines];
+}
+
+/** The fields a dispatch line gains from its recorded detail and the lines its cuts dropped (absent when none). */
+export function traceDetail(ctx: TopologyContext, id: string, dropped: number): DispatchDetail & { dropped?: number } {
+  const d = ctx.detail?.[id] ?? {};
+  return {
+    ...(d.criteria !== undefined ? { criteria: d.criteria } : {}),
+    ...(d.rounds?.length ? { rounds: d.rounds } : {}),
+    ...(d.stageLines ? { stageLines: d.stageLines } : {}),
+    ...(dropped > 0 ? { dropped } : {}),
+  };
 }
 
 export function firstLine(text: string): string {
@@ -134,9 +188,9 @@ export type WorkOutput = { result: string; artifacts: string[] };
  * question when it reported blocked. The caller decides what a blocked or
  * done output becomes; the shape of the read is the same for every role.
  */
-export function readWorkOutput(out: Record<string, unknown>, maxLines: number): WorkOutput & { question?: string } {
+export function readWorkOutput(out: Record<string, unknown>, maxLines: number, sink?: CutSink): WorkOutput & { question?: string } {
   const q = blockedQuestion(out);
-  const work: WorkOutput = { result: cutLines(str(out, "result"), maxLines), artifacts: strArr(out, "artifacts") };
+  const work: WorkOutput = { result: cutLines(str(out, "result"), maxLines, sink), artifacts: strArr(out, "artifacts") };
   return q ? { ...work, question: q } : work;
 }
 
@@ -166,11 +220,11 @@ export function fail(spec: Partial<DispatchSpec> | null | undefined, message: st
  * joins the result's first line, and the whole is cut to `maxLines`. A result
  * that already carries the message (a chain stage's, say) is left as it is.
  */
-export function withThrown(r: DispatchResult, thrown: string, maxLines: number): DispatchResult {
+export function withThrown(r: DispatchResult, thrown: string, maxLines: number, sink?: CutSink): DispatchResult {
   const message = thrown.replace(/\s+/g, " ").trim();
   if (r.status !== "failed" || !message || r.result.includes(message)) return r;
   const [first = "", ...rest] = String(r.result ?? "").split("\n");
-  return { ...r, result: cutLines([`${first} (an agent threw: ${message})`, ...rest].join("\n"), maxLines) };
+  return { ...r, result: cutLines([`${first} (an agent threw: ${message})`, ...rest].join("\n"), maxLines, sink) };
 }
 
 export function overBudget(spec: DispatchSpec, message: string): DispatchResult {
@@ -182,6 +236,8 @@ export function overBudget(spec: DispatchSpec, message: string): DispatchResult 
  * that throws is logged and counts as returning nothing, so the topology's
  * null path answers with what it had accumulated so far (artifacts, iterations);
  * its message is kept on the context for the `failed` result to report.
+ * The call carries the model its label role runs on (src/models.ts), and no
+ * `model` key when that role has none.
  */
 export async function callRole(
   ctx: TopologyContext,
@@ -194,7 +250,7 @@ export async function callRole(
   const label = agentLabel({ topology: String(spec.topology), task: spec.task, ...roleLabel, id: spec.id });
   let out: unknown;
   try {
-    out = await ctx.rt.agent(prompt, { label, schema });
+    out = await ctx.rt.agent(prompt, { label, schema, ...modelOpt(spec, roleLabel.role) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     ctx.rt.log(`${spec.id}: ${label} threw: ${message}`);
@@ -205,7 +261,7 @@ export async function callRole(
   return out as Record<string, unknown>;
 }
 
-export function dispatchEvent(wave: number, spec: DispatchSpec, r: DispatchResult, parent?: string): TraceEvent {
+export function dispatchEvent(wave: number, spec: DispatchSpec, r: DispatchResult, parent?: string): Extract<TraceEvent, { type: "dispatch" }> {
   const e: Extract<TraceEvent, { type: "dispatch" }> = {
     type: "dispatch",
     wave,

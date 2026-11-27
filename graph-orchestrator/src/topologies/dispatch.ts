@@ -67,5 +67,5 @@ export async function runDispatch(ctx: TopologyContext, raw: DispatchSpec): Prom
     r = fail(spec, `topology threw: ${err instanceof Error ? err.message : String(err)}`);
   }
   const thrown = errors[before];
-  return thrown === undefined ? r : withThrown(r, thrown, spec.returns.maxLines);
+  return thrown === undefined ? r : withThrown(r, thrown, spec.returns.maxLines, ctx);
 }

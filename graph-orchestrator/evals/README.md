@@ -9,7 +9,7 @@ Each sample is one **dispatch eval**: a fixed dispatch spec handed to the shippe
 uv venv .venv && VIRTUAL_ENV=.venv uv pip install -r graph-orchestrator/evals/requirements.txt
 # Behind a TLS-intercepting proxy, copy its CA to graph-orchestrator/evals/sandbox/ca.crt (git-ignored).
 
-# the suite, every role on claude-opus-5-5, 3 epochs, then the scorecard (paid; needs the API key in the environment):
+# the suite, each role on the plugin's model for it (scribe and partition on Haiku, the rest on claude-opus-5-5), 3 epochs, then the scorecard (paid; needs the API key in the environment):
 env -u ANTHROPIC_BASE_URL .venv/bin/python graph-orchestrator/evals/run.py
 
 # free dry run: canned engine, mockllm, no model call
@@ -73,29 +73,30 @@ The card also holds `false_passes`: per sample, its false passes over its scored
 
 ## Samples
 
-Fifteen samples; every topology in the plugin's catalog has at least one. The target is the finding the sample measures (spec: Samples).
+Sixteen samples; every topology in the plugin's catalog has at least one. The target is the finding the sample measures (spec: Samples).
 
 | Sample | Topology | Fixture | Expected | Target | Hidden check |
 |---|---|---|---|---|---|
 | `01-single-docs` | single | docs | done | cost floor per dispatch (COST-02) | every planted fact stated with its file cited, in the result or a file under `/work/scratch` |
 | `02-single-blocked` | single | blocked | blocked | status truthfulness (REL-05) | `blocked`, with a question about the cut-off, and `config/settlement.toml` unchanged: the value exists only outside the sandbox, so a guess fails |
 | `03-generator-evaluator-python` | generator-evaluator, 3 rounds | python | done | the core loop | the fixture's hidden tests (`hidden/test_duration_strict.py`, every rule of `docs/FEATURE.md`) all pass; the visible tests cover rule 1 only |
-| `04-generator-evaluator-false-pass` | generator-evaluator, 3 rounds, vague pass criteria ("The relevant tests pass.") | typescript | done | false passes (QUA-01) | the fixture's hidden test (`hidden/paginate.hidden.test.ts`) passes; it catches a planted bug the visible tests miss, so `done` with it failing is a false pass |
+| `04-generator-evaluator-false-pass` | generator-evaluator, 3 rounds, vague pass criteria ("The relevant tests pass.") | typescript | done | false passes (QUA-01): the vague-criteria guard, which must not false-pass | the fixture's hidden test (`hidden/paginate.hidden.test.ts`) passes; it catches a planted bug the visible tests miss, so `done` with it failing is a false pass |
 | `05-generator-evaluator-exhausted` | generator-evaluator, 2 rounds, contradictory pass criteria | python | exhausted | status truthfulness | `exhausted` after both rounds (`iterations` 2) |
 | `06-fan-out-reducer-docs` | fan-out, explicit list of 3, reducer | docs | done | reducer output (QUA-05) | the planted facts in the returned result only, which is the reducer's |
 | `07-fan-out-partition-docs` | fan-out, partitioned into 6 | docs | done | queueing under the cap (SPD-04) | the planted facts; the row's `queue_s`, `wall_clock_s` and `peak_concurrency` show the queueing under the cap |
 | `08-chain-single-then-ge-python` | chain: single (plan the tests), then generator-evaluator (build it) | python | done | the 64% spend pattern | the hidden tests, as sample 3 |
 | `09-chain-stage-2-fails` | chain of 3: single, generator-evaluator with contradictory criteria and 1 round, single | python | exhausted | lost stages (REL-04) | stopped at stage 2: `stages` ends with `<id>-s2:exhausted`, the result begins `stage <id>-s2 exhausted`, and no `Link 3` agent ran |
-| `10-iterative-fan-out-docs-gap` | iterative fan-out, explicit list of 2, at most 2 rounds | docs-gap | done | the coverage loop | `kind: coverage`: `done` after exactly 2 rounds, and every planted fact, the runbook's included, in the returned (reducer's) result. Round 1 covers `payouts.md` and `chargebacks.md`; `payouts.md` refers to `runbooks/payout-failures.md`, which no round-1 sub-task names, so the gap shows only after round 1 |
+| `10-iterative-fan-out-docs-gap` | iterative fan-out, explicit list of 2, at most 2 rounds, `maxLines` 20, reducer told to return every fact inline (revision 2) | docs-gap | done | the coverage loop | `kind: coverage`: `done` after exactly 2 rounds, and every planted fact, the runbook's included, in the returned (reducer's) result. Round 1 covers `payouts.md` and `chargebacks.md`; `payouts.md` refers to `runbooks/payout-failures.md`, which no round-1 sub-task names, so the gap shows only after round 1 |
 | `11-panel-diff-defect` | panel, 3 lenses (correctness, security, readability), no reducer, `maxLines` 4 | typescript | done | verdict truncation | `kind: verdict`: the result's first line is `FAIL` and a `[security] FAIL` line names the lens the planted defect belongs to; `PASS` is a false pass, and a lens line cut by the line limit does not count |
 | `12-best-of-n-python-bug` | best-of-n, 3 variants, judge (`mode: select`) | python-bug | done | the judge | `kind: chosen_tests`: the hidden tests (`hidden/test_allocate_strict.py`) pass on the candidate the judge chose, laid over the fixture as shipped; a fix that only one candidate got right counts only if the judge picked it |
 | `13-debate-design` | debate, 2 participants (postgres, redis), 2 rounds, judge | design | done | cost with no early stop | `kind: contract_verdict`: `done` with exactly one option (`postgres` or `redis`) on line 1, within the contract's 2 lines. Every round runs, so the row's `agents` should equal its `demand`, 2 × 2 + 1 = 5, and its `dollars` and `by_role` show what the full debate cost |
 | `14-relay-python-features` | relay, at most 3 sessions, check every session | python | done | the hand-over file | `kind: relay`: `done` within 3 sessions, every worker session rewrote the progress file `/work/scratch/progress.md` (its hash changed across the session), and the hidden tests pass, as sample 3 |
 | `15-fan-out-over-budget` | fan-out, explicit list of 10 | docs | over_budget | cap enforcement | `over_budget` with no dispatch agent run; the row shows 0 agents and, in a dry run, $0. In a paid run the scribe still runs, so `dollars` holds its cost alone; `by_role` shows it under `scribe` |
+| `16-generator-evaluator-countable-criteria` | generator-evaluator, 3 rounds, countable pass criteria: sample 4's task with `1. npm test ... 0 failing tests (the full suite)` and `2. ... 510 of 510` page-through combinations, each reaching every order and with `pageCount` (the function and every page's field) equal to the pages visited | typescript | done | countable criteria (ticket A-03) | the hidden test, as sample 4. Its criteria name the symptom, never the cause, and cannot be met without the fix (`tests/test_typescript_fixture.py` runs criterion 2 on the shipped code, the fixed code, a `hasNext`-only patch and a patch to `paginate` alone; only the fix meets it) |
 
 A sample's hidden check comes from its fixture (`hidden/planted_facts.json`, `hidden/expected_block.json` for the blocked fixture, `hidden/check.json` for the Python, TypeScript, python-bug and design fixtures), refined or replaced by the sample's own `check` (`source: result` scores the returned result only; `kind: over_budget`, `exhausted`, `chain_stop`, `verdict` or `contract_verdict` checks the dispatch's return; `coverage` adds the round count to the planted facts; `chosen_tests` and `relay` also run the fixture's hidden tests). See `suite.hidden_check`. The scorer tests cover each kind over saved samples: `tests/saved/blocked-task`, `over-budget`, `exhausted`, `chain-stage-2-stopped`, `hidden-tests-pass`, `hidden-tests-fail`, `ts-false-pass` (sample 4's false pass), `panel-fail-security` and `panel-pass` (sample 11 correct, and its false pass), `coverage-round-2` and `coverage-round-1` (sample 10 correct, and done in 1 round), `best-of-n-chosen` (sample 12), `debate-verdict` (sample 13), `relay-done` and `relay-exhausted` (sample 14) among them (each new one has a `NOTE.md` saying how it was made).
 
-The docs-gap fixture (`fixtures/docs-gap/`) is three short Markdown files: `docs/payouts.md`, `docs/chargebacks.md` and `docs/runbooks/payout-failures.md`, which only `payouts.md` refers to. Sample 10's workers read only the file their sub-task names and list what it refers to; its evaluator turns each referred-to document no branch covered into a round-2 sub-task. Its six planted facts (`hidden/planted_facts.json`) include two from the runbook.
+The docs-gap fixture (`fixtures/docs-gap/`) is three short Markdown files: `docs/payouts.md`, `docs/chargebacks.md` and `docs/runbooks/payout-failures.md`, which only `payouts.md` refers to. Sample 10's workers read only the file their sub-task names and list what it refers to; its evaluator turns each referred-to document no branch covered into a round-2 sub-task. Its six planted facts (`hidden/planted_facts.json`) include two from the runbook. The workers list more facts than the six planted ones, so a complete 2-round merge runs to 13-14 lines; revision 2 of the sample (2026-11-27) raised `maxLines` from 12 to 20 and tells the reducer to return every fact inline, never a pointer to a file, because the check reads the returned result only and a reducer that overflowed 12 lines into a scratch file was scored a false pass on a correct run (5 of 30 epochs after ticket A-02).
 
 The python-bug fixture (`fixtures/python-bug/`) is a package, `feekit`, whose `allocate(total_cents, weights)` splits a fee by weight; its docstring is the contract and `docs/BUG-431.md` the bug report. The planted bug: each share is rounded on its own, so the shares need not add up to the total; the visible tests use only totals that divide evenly. Sample 12's attempts each write a fixed copy of the files they change under their candidate dir (`/work/scratch/<id>-c<i>/`, at their path relative to `/work`) and leave `/work` alone. After the dispatch, the solver reads the chosen candidate from the judge (its `chosen` index, kept on its agent record, else the first `[i]` in the verdict: `scoring.chosen_candidate`), lays that candidate's files over the fixture as shipped in `/tmp/chosen` (`suite.chosen_candidate_tree`), runs the hidden tests there and records the candidate with the run. `fixtures/python-bug/reference/` (host only) holds a fix; `tests/test_python_bug_fixture.py` checks the shipped code passes the visible tests and fails the hidden ones, and the fix, laid over as a chosen candidate, passes both.
 
@@ -129,9 +130,11 @@ env -u ANTHROPIC_BASE_URL .venv/bin/python graph-orchestrator/evals/run.py     #
 python3 graph-orchestrator/evals/compare.py graph-orchestrator/evals/baselines/<plugin commit>.json graph-orchestrator/evals/out/scorecards/<commit>-<time>.json
 ```
 
-`--baseline` takes no `--stub`, `--role-model`, `--stub-serve-model`, `--samples`, `--epochs`, `--cut-to-one-epoch` or `--from-log`. It refuses to start if the plugin or the skills have uncommitted changes (`plugin_commit` ends in `-dirty`), and refuses to freeze, writing an ordinary scorecard to `out/scorecards/` instead, if the plugin commit changed during the run, the run did not finish, or a baseline for that commit is already frozen. So no plugin source changes between the plugin commit in the header and the run. `tests/test_baseline.py` checks every committed baseline: the full header (every pin), the frozen configuration, all 15 samples at epochs 1-5, the spread, a file named after its clean plugin commit, and no plugin source (`graph-orchestrator/` but `evals/`, and `skills/`) changed between that commit and the commit that added the file (`run.plugin_source_changes`).
+`--baseline` takes no `--stub`, `--role-model`, `--stub-serve-model`, `--samples`, `--epochs`, `--cut-to-one-epoch` or `--from-log`. It refuses to start if the plugin or the skills have uncommitted changes (`plugin_commit` ends in `-dirty`), and refuses to freeze, writing an ordinary scorecard to `out/scorecards/` instead, if the plugin commit changed during the run, the run did not finish, or a baseline for that commit is already frozen. So no plugin source changes between the plugin commit in the header and the run. `tests/test_baseline.py` checks every committed baseline: the full header (every pin), the frozen configuration, every sample at epochs 1-5 (but a sample added or revised since that baseline, `run.stale_samples`), the spread, a file named after its clean plugin commit, and no plugin source (`graph-orchestrator/` but `evals/`, and `skills/`) changed between that commit and the commit that added the file (`run.plugin_source_changes`).
 
 The spread a baseline records is what `compare.py` uses as each sample's noise band from then on, in place of the 10% default.
+
+**Sample revisions.** A change to a sample that makes earlier baselines for it meaningless raises its `revision` (default 1). Each scorecard header records `sample_revisions` (a card without it ran revision 1 of every sample it has rows for). `compare.py` does not compare a sample whose baseline is at another revision or has no rows for it: it lists it under "not gated" with the fix's own counts, so it is reported and never reads as a regression. `run.stale_samples(card)` names them for a baseline. **Against the frozen baseline `3035a58f6828`, `10-iterative-fan-out-docs-gap` (revision 2) and `16-generator-evaluator-countable-criteria` (new) are stale: freeze a fresh baseline epoch for them before re-gating any ticket on them** (fixes A-03, A-05, A-06, A-14; observability-evals B-05).
 
 **The routine budget.** A routine run (3 epochs) has a $30 budget (`suite.ROUTINE_BUDGET`) besides each sample's own limits; every scorecard records the run's actual cost and duration in `run_cost`. If the first routine run is over $30, debate, best-of-n and relay (`suite.CUT_TO_ONE_EPOCH`: samples 12, 13 and 14) are cut to 1 epoch before any sample is dropped: `run.py --cut-to-one-epoch` runs them as a second task at 1 epoch and the rest at `--epochs`, in one scorecard. The scorecard says when a run was over budget and names the command.
 
@@ -183,7 +186,27 @@ Also `--stub`, `--stub-delay-ms`, `--log-dir`, `--out-dir` (default `out/sweeps/
 python3 graph-orchestrator/evals/compare.py <baseline.json> <fix.json> [--force]
 ```
 
-Prints one line per sample and metric: the baseline value, the fix value, the difference, the noise band and whether the move is `noise` or `MOVED`. Cost, time, tokens and agents compare the per-sample mean over epochs. The band is 10% of the baseline value, or, when the baseline has more than one epoch, the baseline's measured spread (max minus min over its epochs) for that sample; a difference no larger than the band is noise. Outcome correctness, false passes (a row's `false_pass`, else `done` reported while the hidden check failed) and status truthfulness compare as counts over epochs (`2/3` against `3/3`), never averaged, and any change in a count is shown. It refuses, exit 2, to compare scorecards whose `engine_version`, `inspect_version` or `model` differ, unless given `--force`. Tested in `tests/test_compare.py` with the hand-written scorecards in `tests/saved/scorecards/`.
+Prints one line per sample and metric: the baseline value, the fix value, the difference, the noise band and whether the move is `noise` or `MOVED`. Cost, time, tokens and agents compare the per-sample mean over epochs. The band is 10% of the baseline value, or, when the baseline has more than one epoch, the baseline's measured spread (max minus min over its epochs) for that sample; a difference no larger than the band is noise. Outcome correctness, false passes (a row's `false_pass`, else `done` reported while the hidden check failed) and status truthfulness compare as counts over epochs (`2/3` against `3/3`), never averaged, and any change in a count is shown. A sample new since the baseline, or at another revision there, is not compared but listed under "not gated" with its counts (see Sample revisions). It refuses, exit 2, to compare scorecards whose `engine_version`, `inspect_version` or `model` differ, unless given `--force`. Tested in `tests/test_compare.py` with the hand-written scorecards in `tests/saved/scorecards/`.
+
+## GitHub Actions
+
+`.github/workflows/dispatch-evals.yml` runs the suite on demand (Actions, *Dispatch evals*, *Run workflow*) on a hosted runner with Docker. Its inputs go through `ci.py`, which checks each one and passes it to `run.py`:
+
+| Input | `run.py` option |
+|---|---|
+| `stub` (default on) | `--stub`: canned engine, mockllm, no model call, no cost, no secret |
+| `epochs` | `--epochs` (empty: the default) |
+| `samples` | `--samples` |
+| `role_models` | one `--role-model` per comma-separated `ROLE=MODEL` |
+| `baseline` | refused: the job exits 2 and runs nothing; freeze the baseline locally |
+
+A paid run (`stub` off) reads the API key from the `ANTHROPIC_API_KEY` repository secret, passed only to the suite step and only when `stub` is off; it is never printed, and the job refuses a paid run when the secret is missing. The job uploads `out/scorecards/` as the `scorecard` artifact and `logs/` as the `inspect-log` artifact, even when the run fails. It has read-only repository permissions and commits nothing.
+
+Paid runs from the job:
+
+| Date | Run | Plugin commit | Options | Run cost | Scorecard |
+|---|---|---|---|---|---|
+| none yet | | | | | |
 
 ## Pins
 
@@ -193,7 +216,7 @@ Prints one line per sample and metric: the baseline value, the fix value, the di
 
 The bridge serves only the model names declared to it and silently sends any other name to the main model, so `suite.DECLARED_MODELS` declares Opus, Sonnet and Haiku (each priced in `suite.PRICES`) and the scorer fails a sample when any call's serving model differs from the requested one (`scoring.model_routing`).
 
-The baseline and routine runs force no role: every role is requested on `claude-opus-5-5`. To see the check work, force one role onto another declared model through the harness, without changing the plugin:
+The baseline and routine runs force no role: each role is requested on the model the plugin asks for it. Since ticket 07 (fixes spec) that is `claude-haiku-5-5` for scribe and partition (the plugin asks for `haiku`; the harness resolves the aliases `haiku`, `sonnet` and `opus` to their declared ids, `runtime.MODEL_ALIASES`) and `claude-opus-5-5` for every other role; the frozen baseline predates it and ran every role on Opus. To see the check work, force one role onto another declared model through the harness, without changing the plugin:
 
 ```sh
 python graph-orchestrator/evals/run.py --role-model evaluator=claude-haiku-5-5 --samples 03-generator-evaluator-python   # paid
@@ -205,11 +228,16 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 
 `--role-model` takes a role from `suite.ROLES` (the plugin's label roles) and a declared model, and may be repeated. In the sandbox the SDK engine also pins Claude Code's small fast model to the requested model, so its background calls do not show up as misrouted.
 
+## Session evals
+
+The session evals are a separate, on-demand Inspect task: `python graph-orchestrator/evals/session/run.py` (paid; `--mock complies` for a free plumbing run). Neither `run.py` nor the GitHub Actions job runs them. See `session/README.md`.
+
 ## Layout
 
 | Path | What it is |
 |---|---|
 | `run.py` | the one command: runs the suite and writes the scorecard |
+| `ci.py` | the GitHub Actions entry point: workflow inputs to `run.py` options, the baseline refused |
 | `compare.py` | compares two scorecards per sample and metric, marking noise |
 | `baselines/` | frozen baseline scorecards, committed: `<plugin commit>.json` and `.md` |
 | `sweep.py` | on demand: the concurrency sweep, samples 6 and 7 at each cap, one table |
@@ -221,8 +249,9 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 | `fixtures/<name>/hidden/` | the hidden check; read by the scorer on the host, never in the sandbox while the agents run (hidden tests are copied in only after the dispatch) |
 | `harness/` | the Node harness: loads the built `workflows/dispatch.js` the way the Workflow harness does and supplies a real `Runtime` (`runtime.ts`), with the Agent SDK as its engine (`sdk-engine.ts`) or, for `--stub`, canned answers (`stub-engine.ts`); copied into the sandbox at run time |
 | `sandbox/` | the sandbox image (Python 3.12 with pytest from `sandbox/requirements.txt`, Node 22 copied from the Node image, the pinned Agent SDK); `run.py` writes its compose file to `out/` with the run's CPU count and memory |
-| `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`); spread, run cost, the budget cut, `--baseline` and committed baselines (`test_baseline.py`); the sweep (`test_sweep.py`); suite and sample tests, the catalog demand formula among them (`test_suite.py`); fixture tests (`test_python_fixture.py`, `test_typescript_fixture.py`, `test_python_bug_fixture.py`) |
+| `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`); spread, run cost, the budget cut, `--baseline` and committed baselines (`test_baseline.py`); the sweep (`test_sweep.py`); the GitHub Actions job and its inputs (`test_ci.py`); suite and sample tests, the catalog demand formula among them (`test_suite.py`); fixture tests (`test_python_fixture.py`, `test_typescript_fixture.py`, `test_python_bug_fixture.py`) |
 | `spike/` | ticket 01's throwaway spike |
+| `session/` | on demand, never in the routine run: the session evals (headless Claude Code with the plugin runs a whole orchestrated session over a fixture; scenarios scored by code over transcript, scratch directory and git state). Command and scenarios: `session/README.md` |
 
 The harness changes nothing in the plugin: the bundle is read as text and run with `agent`, `parallel` and `log` as globals.
 

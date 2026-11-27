@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (integrating once every dispatch has reported superseded by ADR-0006)
 ---
 # One Workflow run per dispatch, named for its purpose
 

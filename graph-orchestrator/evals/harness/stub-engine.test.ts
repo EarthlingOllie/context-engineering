@@ -41,7 +41,7 @@ test("the stub reports each call as served on the model requested, or with `serv
     [
       ["generator", "claude-opus-5-5", ["claude-opus-5-5"]],
       ["evaluator", "claude-haiku-5-5", ["claude-haiku-5-5"]],
-      ["scribe", "claude-opus-5-5", ["claude-opus-5-5"]],
+      ["scribe", "claude-haiku-5-5", ["claude-haiku-5-5"]],
     ],
   );
   const args2 = sampleArgs("03-generator-evaluator-python.json", mkdtempSync(join(tmpdir(), "stub-")));

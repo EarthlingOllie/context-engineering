@@ -6,5 +6,5 @@
 
 **Status:** ready-for-agent
 
-- [ ] SKILL.md's Finish section documents the acceptance dispatch (docs seam)
+- [x] SKILL.md's Finish section documents the acceptance dispatch (docs seam)
 - [ ] By hand: a ticket-set session ends with an acceptance dispatch whose criteria are the spec's acceptance criteria

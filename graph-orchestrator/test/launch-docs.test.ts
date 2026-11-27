@@ -35,7 +35,7 @@ test("no document teaches the refused plugin-root scriptPath", () => {
   }
 });
 
-test("SKILL.md copies the workflows into SCRATCH at kickoff as a fourth exception to the rule", () => {
-  assert.match(docs.skill, /Four exceptions, and only these:/);
+test("SKILL.md copies the workflows into SCRATCH at kickoff as one of the exceptions to the rule", () => {
+  assert.match(docs.skill, /Six exceptions, and only these:/);
   assert.match(docs.skill, /cp -R "\$\{CLAUDE_PLUGIN_ROOT\}\/workflows" "SCRATCH\/plugin\/"/);
 });

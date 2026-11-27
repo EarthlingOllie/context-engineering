@@ -5,6 +5,9 @@
 import { appendFileSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 
 // src/trace/render.ts
+function timeOf(v) {
+  return typeof v === "string" && v && !/^\{\{[A-Z_]+\}\}$/.test(v) ? v : void 0;
+}
 var str = (v) => typeof v === "string" && v ? v : void 0;
 var strs = (v) => Array.isArray(v) ? v.filter((s) => typeof s === "string") : [];
 function normalise(raw) {
@@ -26,13 +29,15 @@ function normalise(raw) {
     };
     const title = str(e.title);
     if (title) d.title = title;
-    const at = str(e.at);
+    const at = timeOf(e.at);
     if (at) d.at = at;
     if (Array.isArray(e.stages)) d.stages = strs(e.stages);
     const parent = str(e.parent);
     if (parent) d.parent = parent;
     const question = str(e.question);
     if (question) d.question = question;
+    const version = str(e.version)?.replace(/[^A-Za-z0-9.+_-]/g, "");
+    if (version) d.version = version;
     return d;
   }
   if (e.type === "human") {
@@ -40,11 +45,12 @@ function normalise(raw) {
     const question = str(e.question);
     if (!trigger || !question) return null;
     const h = { type: "human", trigger, question, answer: str(e.answer) ?? "" };
-    const at = str(e.at);
+    const at = timeOf(e.at);
     if (at) h.at = at;
     const dispatch = str(e.dispatch);
     if (dispatch) h.dispatch = dispatch;
     if (e.mode === "attended" || e.mode === "autonomous") h.mode = e.mode;
+    if (e.source === "self" || e.source === "human") h.source = e.source;
     return h;
   }
   return raw;
@@ -71,6 +77,7 @@ function parseTrace(text, extra = []) {
   const waves = /* @__PURE__ */ new Map();
   let current = null;
   let humans = 0;
+  const versions = [];
   const openWave = (n, at) => {
     let w = waves.get(n);
     if (!w) {
@@ -87,6 +94,7 @@ function parseTrace(text, extra = []) {
         current = openWave(e.wave, e.at);
         break;
       case "dispatch": {
+        if (e.version && !versions.includes(e.version)) versions.push(e.version);
         const w = Number.isFinite(e.wave) ? openWave(e.wave, e.at) : current ?? openWave(0, e.at);
         if (e.parent) {
           const list = w.stages.get(e.parent) ?? [];
@@ -101,11 +109,13 @@ function parseTrace(text, extra = []) {
       case "human":
         items.push({ kind: "human", human: e, index: ++humans });
         break;
+      case "hook":
+        break;
       default:
         skipped++;
     }
   }
-  return { items, skipped };
+  return { items, skipped, versions };
 }
 var CLASSES = {
   done: "fill:#dcfce7,stroke:#16a34a,color:#14532d",
@@ -113,7 +123,8 @@ var CLASSES = {
   exhausted: "fill:#fef3c7,stroke:#d97706,color:#78350f",
   over_budget: "fill:#fef3c7,stroke:#d97706,stroke-dasharray:4 2,color:#78350f",
   failed: "fill:#f3f4f6,stroke:#6b7280,stroke-dasharray:4 2,color:#111827",
-  human: "fill:#ede9fe,stroke:#7c3aed,color:#3b0764"
+  human: "fill:#ede9fe,stroke:#7c3aed,color:#3b0764",
+  self: "fill:#f5f3ff,stroke:#7c3aed,stroke-dasharray:4 2,color:#3b0764"
 };
 function nodeId(id) {
   const s = String(id).replace(/[^A-Za-z0-9_]/g, "_");
@@ -142,8 +153,9 @@ function statusClass(status) {
   return CLASSES[status] ? status : "failed";
 }
 function renderTrace(text, extra = []) {
-  const { items, skipped } = parseTrace(text, extra);
-  const out = ["flowchart TD"];
+  const { items, skipped, versions } = parseTrace(text, extra);
+  const header = versions.length ? ["---", `title: graph-orchestrator ${versions.join(", ")}`, "---"] : [];
+  const out = [...header, "flowchart TD"];
   for (const [name, style] of Object.entries(CLASSES)) out.push(`  classDef ${name} ${style}`);
   if (skipped) out.push(`  %% ${skipped} unreadable line(s) skipped`);
   const known = /* @__PURE__ */ new Set();
@@ -154,8 +166,9 @@ function renderTrace(text, extra = []) {
     if (item.kind === "human") {
       const h = item.human;
       const hid = `human_${item.index}`;
-      const title2 = [`human \xB7 ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `\u2192 ${short(h.answer, 40)}` : ""].filter(Boolean);
-      out.push(`  ${hid}([${JSON.stringify(title2.map(esc).join("<br/>"))}]):::human`);
+      const who = h.source ?? (h.mode === "autonomous" ? "self" : "human");
+      const title2 = [`${who} \xB7 ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `\u2192 ${short(h.answer, 40)}` : ""].filter(Boolean);
+      out.push(`  ${hid}([${JSON.stringify(title2.map(esc).join("<br/>"))}]):::${who}`);
       if (h.dispatch && known.has(h.dispatch)) {
         edges.push(`  ${nodeId(h.dispatch)} --> ${hid}`);
         const list = humansByDispatch.get(h.dispatch) ?? [];

@@ -228,7 +228,7 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
   assert.deepEqual(r.stages, ["w3-s1:done", "w3-s2:done"]);
-  assert.equal(r.result, "/scratch/t/writeup.md");
+  assert.equal(r.result, "w3-s1 done: /scratch/t/research.md\nw3-s2 done: /scratch/t/writeup.md\n/scratch/t/writeup.md");
   assert.deepEqual(r.artifacts, ["/scratch/t/research.md", "/scratch/t/writeup.md"]);
   assert.match(calls[0]!.prompt, /- chain-wide fact\n- stage fact/);
   assert.match(calls[1]!.prompt, /- w3-s1 \(done\) returned: \/scratch\/t\/research\.md\n- artifacts from w3-s1: \/scratch\/t\/research\.md/);
@@ -299,7 +299,7 @@ test("a role that throws mid-topology is logged and the result keeps what the to
   const { out, logs } = await wave(
     [
       spec({ id: "w1-d1", topology: "fan-out", params: { split: ["a", "b"] }, roles: { reducer: { instructions: "merge" } } }),
-      spec({ id: "w1-d2", topology: "generator-evaluator", params: { max_iterations: 3 } }),
+      spec({ id: "w1-d2", topology: "generator-evaluator", params: { max_iterations: 3, pass_criteria: "1. npm test exits 0" } }),
     ],
     {
       "Worker (1 of 2)": { result: "a done", artifacts: ["/scratch/t/a.md"], blocked: false },
@@ -346,7 +346,7 @@ test("demand log: each workflow logs its own dispatch's agent need, with the scr
 });
 
 test("hard limit: a dispatch whose demand and scribe exceed the 1000-agent run limit returns over_budget unrun", async () => {
-  const stage = { topology: "generator-evaluator", task: "s", params: { max_iterations: 5 } }; // 10 agents each
+  const stage = { topology: "generator-evaluator", task: "s", params: { max_iterations: 5, pass_criteria: "1. npm test exits 0" } }; // 10 agents each
   const big = spec({ id: "w1-d1", topology: "chain", params: { stages: Array.from({ length: 100 }, () => stage) } }); // 1000 + scribe
   const fits = spec({ id: "w1-d2", topology: "chain", params: { stages: Array.from({ length: 99 }, () => stage) } }); // 990 + scribe
   assert.equal(agentDemand(big), 1000);
@@ -397,6 +397,19 @@ test("the scribe writes the dispatch's own trace file: humans first, stamped wit
   assert.deepEqual(out.results[0]!.scribe, { appended: 2, totalLines: 99 });
 });
 
+test("A-09: a hook entry in humans is written as a hook event, not an intervention", async () => {
+  const { out } = await wave([spec({ id: "w2-d1", topology: "single" })], {}, {
+    humans: [{ type: "hook", hook: "Stop", dispatch: "w1-d1", message: "Uncommitted changes: commit and push." }, { trigger: "blocked", question: "Which DB?", answer: "postgres" }],
+  });
+  const [hook, human, dispatch] = out.events as Array<{ type: string; at?: string; hook?: string; dispatch?: string }>;
+  assert.equal(hook!.type, "hook");
+  assert.equal(hook!.hook, "Stop");
+  assert.equal(hook!.dispatch, "w1-d1");
+  assert.equal(hook!.at, baseArgs.now);
+  assert.equal(human!.type, "human", "an untyped entry is still an intervention");
+  assert.equal(dispatch!.type, "dispatch");
+});
+
 test("trace files: one per dispatch id under <scratch>/trace, so parallel workflows never write the same file", () => {
   assert.equal(traceFileOf("/s/", "w1-d2"), "/s/trace/w1-d2.jsonl");
   assert.equal(traceFileOf("/s", "w 1/../x"), "/s/trace/w_1_.._x.jsonl");
@@ -441,4 +454,27 @@ test("a scribe that throws is logged and the workflow still returns its result",
   assert.equal(out.results[0]!.status, "done");
   assert.equal(out.results[0]!.scribe, null);
   assert.ok(logs.some((l) => /scribe threw: disk full/.test(l)));
+});
+
+test("B-03: the returned data and every dispatch line, chain stages included, carry the plugin version", async () => {
+  const { out } = await wave([
+    spec({ id: "w1-d1", topology: "chain", params: { stages: [{ topology: "single", task: "a" }, { topology: "single", task: "b" }] } }),
+    spec({ id: "w1-d2", topology: "nonsense" as never }),
+  ]);
+  const dispatchLines = (out.events as Array<{ type: string; version?: string }>).filter((e) => e.type === "dispatch");
+  assert.equal(dispatchLines.length, 4);
+  for (const r of out.results) {
+    assert.equal(typeof r.version, "string");
+    assert.ok(r.version, "returned data names the build");
+  }
+  for (const e of dispatchLines) assert.equal(e.version, out.results[0]!.version);
+});
+
+test("B-03: a single whose worker appends its own lines writes the version too, so no scribe is needed", async () => {
+  const f = fakeRuntime({ Worker: (c: { prompt: string }) => ({ result: "ok", artifacts: [], blocked: false, traceAppended: c.prompt.split("\n").filter((l) => l.startsWith('{"type":"dispatch"')).length, traceTotalLines: 1 }) });
+  const out = await runWorkflow({ ...baseArgs, dispatch: spec({ id: "w1-d1", topology: "single" }) } as never, f.rt);
+  const worker = f.calls[0]!;
+  const line = worker.prompt.split("\n").find((l) => l.startsWith('{"type":"dispatch"'))!;
+  assert.equal(JSON.parse(line).version, out.version);
+  assert.ok(out.version);
 });

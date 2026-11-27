@@ -18,7 +18,7 @@ BASELINES = EVALS / "baselines"  # frozen baseline scorecards, committed, one pe
 FIXTURES = EVALS / "fixtures"
 
 # ---- pins: written into every scorecard header ----
-MODEL = "claude-opus-5-5"  # every role, in the baseline and routine runs
+MODEL = "claude-opus-5-5"  # the main model: every role the plugin names no model for (scribe and partition ask for Haiku since ticket 07)
 INSPECT_VERSION = "0.3.292"  # = requirements.txt
 SDK_VERSION = "0.3.332"  # @anthropic-ai/claude-agent-sdk in sandbox/package.json
 CLAUDE_CODE_VERSION = "2.1.332"  # the engine that SDK version ships
@@ -146,6 +146,11 @@ def catalog_demand(spec: dict) -> int:
 
 def load_samples() -> list[dict]:
     return [json.loads(p.read_text()) for p in sorted(SAMPLES.glob("*.json"))]
+
+
+def sample_revision(sample: dict) -> int:
+    """A sample's `revision` (default 1), raised whenever a change to it makes earlier baselines for it stale."""
+    return int(sample.get("revision", 1))
 
 
 def fixture_sandbox_files(fixture: str) -> dict[str, Path]:

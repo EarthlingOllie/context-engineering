@@ -67,7 +67,7 @@ async function runRelay(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
       { role: "worker", index: s, count: n },
     );
     if (!out) return { ...fail(spec, `relay: worker returned nothing in session ${s}`, s), artifacts };
-    const { question: wq, ...work } = readWorkOutput(out, returns.maxLines);
+    const { question: wq, ...work } = readWorkOutput(out, returns.maxLines, ctx);
     last = work;
     artifacts = uniq([...artifacts, ...work.artifacts]);
     if (wq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: wq, iterations: s };
@@ -100,7 +100,7 @@ async function runRelay(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
 
   // The check line always survives the cut: the result gives up its last line for it.
   const tail = `-- exhausted after ${n} session(s); last check: ${firstLine(feedback ?? "")}`;
-  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1) : "";
+  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1, ctx) : "";
   return { id: spec.id, status: "exhausted", result: head ? `${head}\n${tail}` : tail, artifacts, iterations: n };
 }
 

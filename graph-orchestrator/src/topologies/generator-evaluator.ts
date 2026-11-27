@@ -1,13 +1,16 @@
 // ---------- generator-evaluator ----------
 import type { DispatchResult, DispatchSpec, GeneratorEvaluatorParams } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { DEFAULT_ITERATIONS, type TopologyContext, type TopologyImpl, type WorkOutput, blockedQuestion, callRole, contractOf, cutLines, fail, firstLine, int, readWorkOutput, roleEntry, str } from "./shared.ts";
+import { DEFAULT_ITERATIONS, type TopologyContext, type TopologyImpl, type WorkOutput, blockedQuestion, callRole, contractOf, cutLines, fail, firstLine, int, readWorkOutput, recordCriteria, recordRound, roleEntry, str } from "./shared.ts";
 
 async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
   const returns = contractOf(spec);
   const params = spec.params as Partial<GeneratorEvaluatorParams>;
   const maxIterations = int(params.max_iterations, DEFAULT_ITERATIONS);
-  const criteria = typeof params.pass_criteria === "string" && params.pass_criteria ? params.pass_criteria : "the task is complete and correct";
+  // No default: an invented criterion lets the evaluator pass anything (QUA-01). Fail before any agent is spent.
+  const criteria = typeof params.pass_criteria === "string" ? params.pass_criteria.trim() : "";
+  if (!criteria) return fail(spec, "generator-evaluator: pass_criteria missing; give numbered, countable criteria");
+  recordCriteria(ctx, spec, criteria);
   const genEntry = roleEntry(spec, "generator");
   const evalEntry = roleEntry(spec, "evaluator");
 
@@ -29,7 +32,7 @@ async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): 
       { role: "generator", round, rounds: maxIterations },
     );
     if (!gen) return { ...fail(spec, `generator returned nothing in round ${round}`, round), artifacts: last?.artifacts ?? [] };
-    const { question: gq, ...work } = readWorkOutput(gen, returns.maxLines);
+    const { question: gq, ...work } = readWorkOutput(gen, returns.maxLines, ctx);
     last = work;
     if (gq) return { id: spec.id, status: "blocked", result: last.result, artifacts: last.artifacts, question: gq, iterations: round };
 
@@ -53,14 +56,18 @@ async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): 
     );
     if (!ev) return { ...fail(spec, `evaluator returned nothing in round ${round}`, round), artifacts: last.artifacts };
     const eq = blockedQuestion(ev);
-    if (eq) return { id: spec.id, status: "blocked", result: last.result, artifacts: last.artifacts, question: eq, iterations: round };
+    if (eq) {
+      recordRound(ctx, spec, round, "blocked", eq);
+      return { id: spec.id, status: "blocked", result: last.result, artifacts: last.artifacts, question: eq, iterations: round };
+    }
+    recordRound(ctx, spec, round, ev["pass"] === true ? "pass" : "fail", str(ev, "feedback"));
     if (ev["pass"] === true) return { id: spec.id, status: "done", result: last.result, artifacts: last.artifacts, iterations: round };
     feedback = str(ev, "feedback");
   }
 
   // The feedback line always survives the cut: the result gives up its last line for it.
   const tail = `-- exhausted after ${maxIterations} round(s); last evaluator feedback: ${firstLine(feedback ?? "")}`;
-  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1) : "";
+  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1, ctx) : "";
   return {
     id: spec.id,
     status: "exhausted",

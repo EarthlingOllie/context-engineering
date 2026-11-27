@@ -125,6 +125,7 @@ def build_scorecard(logs, commit: str) -> dict:
         "pytest_version": suite.PYTEST_VERSION,
         "created_at": log.eval.created,
         "log": Path(log.location).name if log.location else None,
+        "sample_revisions": {str(s.id): suite.sample_revision(s.metadata) for s in samples},
     }
     other = {sid: e for sid, e in epochs_of.items() if e != epochs}
     if other:
@@ -257,10 +258,27 @@ BASELINE_HEADER = (
 )
 
 
+def stale_samples(card: dict) -> list[str]:
+    """The current samples a baseline holds no rows for at their current revision: added or revised since it was
+    frozen (a sample's `revision`, recorded in the header's `sample_revisions`; a baseline that records none ran
+    revision 1 of every sample it has rows for). compare.py reports them ungated; freeze a fresh baseline epoch
+    before gating on them."""
+    h = card.get("header") or {}
+    have = {r["sample"] for r in card.get("rows") or []}
+    recorded = h.get("sample_revisions")
+    out = []
+    for s in suite.load_samples():
+        base = recorded.get(s["id"], 0) if recorded is not None else (1 if s["id"] in have else 0)
+        if base != suite.sample_revision(s):
+            out.append(s["id"])
+    return out
+
+
 def baseline_problems(card: dict, file_name: str) -> list[str]:
     """What keeps a scorecard from being the frozen baseline: the full version header, the frozen configuration (no
     stub, no forced role, the pinned model, Inspect and engine, 5 epochs), every sample at every epoch, the spread,
-    and a file named after its clean plugin commit."""
+    and a file named after its clean plugin commit. A sample added or revised since the baseline (stale_samples) is
+    not required."""
     h, problems = card.get("header") or {}, []
     missing = [k for k in BASELINE_HEADER if k not in h or h[k] is None or h[k] == ""]
     if missing:
@@ -279,7 +297,10 @@ def baseline_problems(card: dict, file_name: str) -> list[str]:
     epochs: dict[str, set] = {}
     for r in card.get("rows") or []:
         epochs.setdefault(r["sample"], set()).add(r["epoch"])
+    stale = set(stale_samples(card))
     for s in suite.load_samples():
+        if s["id"] in stale:
+            continue
         got = epochs.get(s["id"], set())
         if got != set(range(1, suite.BASELINE_EPOCHS + 1)):
             problems.append(f"{s['id']} has epochs {sorted(got)}, not 1-{suite.BASELINE_EPOCHS}")

@@ -1,0 +1,82 @@
+# Runs the dispatch-eval suite (graph-orchestrator/evals) on demand, where Docker and the API key are present.
+# Inputs map to run.py's options through evals/ci.py, which checks each one and refuses the baseline option.
+# A stub run needs no secret and costs nothing. A paid run reads the ANTHROPIC_API_KEY repository secret.
+# The scorecard and the Inspect log are uploaded as artifacts; the job commits nothing.
+name: Dispatch evals
+
+on:
+  workflow_dispatch:
+    inputs:
+      stub:
+        description: "Stub run: canned engine and mockllm, no model call, no cost, no secret"
+        type: boolean
+        default: true
+      epochs:
+        description: "Epochs per sample (empty: the suite default, 3)"
+        type: string
+        default: ""
+      samples:
+        description: "Comma-separated sample ids (empty: every sample)"
+        type: string
+        default: ""
+      role_models:
+        description: "Comma-separated ROLE=MODEL, e.g. evaluator=claude-haiku-5-5 (empty: every role on the pinned model)"
+        type: string
+        default: ""
+      baseline:
+        description: "Freeze the baseline: always refused here; freeze it locally on a clean commit"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dispatch-evals
+  cancel-in-progress: false
+
+jobs:
+  dispatch-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check Docker
+        run: docker version
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the pinned host packages
+        run: python -m pip install --disable-pip-version-check -r graph-orchestrator/evals/requirements.txt
+
+      - name: Run the suite
+        env:
+          INPUT_STUB: ${{ inputs.stub }}
+          INPUT_EPOCHS: ${{ inputs.epochs }}
+          INPUT_SAMPLES: ${{ inputs.samples }}
+          INPUT_ROLE_MODELS: ${{ inputs.role_models }}
+          INPUT_BASELINE: ${{ inputs.baseline }}
+          ANTHROPIC_API_KEY: ${{ !inputs.stub && secrets.ANTHROPIC_API_KEY || '' }}
+        run: python graph-orchestrator/evals/ci.py
+
+      - name: Upload the scorecard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scorecard
+          path: graph-orchestrator/evals/out/scorecards/
+          if-no-files-found: warn
+
+      - name: Upload the Inspect log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspect-log
+          path: graph-orchestrator/evals/logs/
+          if-no-files-found: warn
+          retention-days: 14

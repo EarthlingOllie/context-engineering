@@ -199,3 +199,14 @@ test("with nothing watched an agent's record has no watched field", async () => 
   await runtime.agent("a", { label: "Worker: a" });
   assert.equal("watched" in agents[0]!, false);
 });
+
+test("a model alias the plugin requests (haiku, sonnet, opus) is resolved to its declared model id before it reaches the engine", async () => {
+  const { engine, seen } = recordingEngine();
+  const { runtime, agents } = createRuntime({ engine, mainModel: "claude-opus-5-5", cap: 2 });
+  await runtime.agent("a", { label: "Grapher: logging current dispatch", model: "haiku" });
+  await runtime.agent("b", { label: "Evaluator: x", model: "sonnet" });
+  await runtime.agent("c", { label: "Judge: x", model: "opus" });
+  await runtime.agent("d", { label: "Worker: x", model: "claude-sonnet-5-5" });
+  assert.deepEqual(seen.map((r) => r.model), ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-sonnet-5-5"]);
+  assert.deepEqual(agents.map((a) => a.model), ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-sonnet-5-5"]);
+});

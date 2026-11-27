@@ -75,11 +75,35 @@ test("human interventions without a dispatch render as standalone nodes; unreada
   const out = renderTrace(fixture("human-intervention.jsonl"));
   const L = lines(out);
   assert.ok(L.includes('human_1(["human · ambiguity<br/>Rewrite or wrap the legacy parser?<br/>→ wrap it"]):::human'));
-  assert.ok(L.includes('human_2(["human · budget<br/>Wave budget of 16 reached; continue?<br/>→ stop"]):::human'));
+  assert.ok(L.includes('human_2(["self · budget<br/>Wave budget of 16 reached; continue?<br/>→ stop"]):::self'), "an autonomous intervention is titled self, dashed class");
   assert.ok(L.includes('w1_d1["w1-d1<br/>single ×1<br/>over budget"]:::over_budget'));
   assert.ok(L.includes("%% 1 unreadable line(s) skipped"));
   assert.ok(out.indexOf("human_1([") < out.indexOf("subgraph wave1") && out.indexOf("subgraph wave1") < out.indexOf("human_2(["));
   assert.equal(parseTrace(fixture("human-intervention.jsonl")).skipped, 1);
+});
+
+test("A-09: an autonomous intervention renders as self · <trigger> with the dashed class; an attended one, or one without a mode, as human · <trigger>", () => {
+  const out = renderTrace(fixture("human-intervention.jsonl"));
+  const L = lines(out);
+  assert.ok(L.includes('human_1(["human · ambiguity<br/>Rewrite or wrap the legacy parser?<br/>→ wrap it"]):::human'), "attended: human");
+  assert.ok(L.includes('human_2(["self · budget<br/>Wave budget of 16 reached; continue?<br/>→ stop"]):::self'), "autonomous: self");
+  const selfDef = L.find((l) => l.startsWith("classDef self "));
+  assert.ok(selfDef && /stroke-dasharray/.test(selfDef), `self class is dashed: ${selfDef}`);
+  const humanDef = L.find((l) => l.startsWith("classDef human "));
+  assert.ok(humanDef && !/stroke-dasharray/.test(humanDef), "human class stays solid");
+  const bare = renderTrace("", [{ type: "human", trigger: "exhausted", question: "Stop?", answer: "yes" }]);
+  assert.ok(lines(bare).includes('human_1(["human · exhausted<br/>Stop?<br/>→ yes"]):::human'), "no mode: human");
+});
+
+test("A-09: a hook event renders nothing: no node, no edge, not counted as unreadable", () => {
+  const text = fixture("human-intervention.jsonl");
+  assert.ok(text.includes('"type":"hook"'), "the fixture carries a hook line");
+  const out = renderTrace(text);
+  assert.ok(!/hook|Uncommitted/i.test(out), "nothing of the hook reaches the diagram");
+  assert.equal(lines(out).filter((l) => /^human_\d+\(\[/.test(l)).length, 2, "still two intervention nodes");
+  assert.equal(parseTrace(text).skipped, 1, "only the non-JSON line is skipped");
+  const alone = renderTrace("", [{ type: "hook", hook: "Stop", message: "push now" }]);
+  assert.ok(alone.trim().split("\n").slice(1).every((l) => l.startsWith("  classDef ")), "a hook alone draws only the class definitions");
 });
 
 test("an intervention only dots into dispatches that come after it; a same-wave dispatch that ran before it gets no edge (UC3 trace)", () => {
@@ -185,4 +209,26 @@ test("the CLI renders a trace directory in dispatch order (wave, then dispatch n
   assert.deepEqual(JSON.parse(readFileSync(join(trace, "end.jsonl"), "utf8").trim()), { ...JSON.parse(human), type: "human" });
   execFileSync("node", [cli, trace], { encoding: "utf8" });
   assert.ok(existsSync(join(dir, "trace.mmd")), "a directory's default output sits beside it");
+});
+
+test("B-03: the diagram header names the build that wrote the trace; an old trace without a version still renders as before", () => {
+  const old = fixture("single-wave.jsonl");
+  const stamped = old.replace(/"type":"dispatch"/g, '"type":"dispatch","version":"0.5.0+1a2b3c4"');
+  const out = renderTrace(stamped);
+  assert.deepEqual(lines(out).slice(0, 4), ["---", "title: graph-orchestrator 0.5.0+1a2b3c4", "---", "flowchart TD"]);
+  assert.equal(out.split("\n---\n")[1], renderTrace(old));
+  assert.match(renderTrace(old), /^flowchart TD\n/);
+});
+
+test("B-03: a trace written by two builds names both in the header, in the order they appear; an unsafe version is not echoed raw", () => {
+  const text = [
+    '{"type":"dispatch","wave":1,"id":"w1-d1","topology":"single","iterations":1,"status":"done","dependsOn":[],"version":"0.4.0+aaaaaaa"}',
+    '{"type":"dispatch","wave":2,"id":"w2-d1","topology":"single","iterations":1,"status":"done","dependsOn":[],"version":"0.5.0+bbbbbbb"}',
+    '{"type":"dispatch","wave":2,"id":"w2-d2","topology":"single","iterations":1,"status":"done","dependsOn":[],"version":"0.4.0+aaaaaaa"}',
+    '{"type":"dispatch","wave":3,"id":"w3-d1","topology":"single","iterations":1,"status":"done","dependsOn":[],"version":"x\\n---\\nevil: 1"}',
+  ].join("\n");
+  const L = lines(renderTrace(text));
+  assert.equal(L[1], "title: graph-orchestrator 0.4.0+aaaaaaa, 0.5.0+bbbbbbb, x---evil1");
+  assert.equal(L[2], "---");
+  assert.equal(parseTrace(text).skipped, 0);
 });

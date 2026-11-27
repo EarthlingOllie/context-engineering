@@ -322,6 +322,11 @@ class ChainStop(unittest.TestCase):
         r = row("chain-stage-2-stopped", expected="exhausted", check=self.CHECK, sample_id="09-chain-stage-2-fails")
         self.assertEqual((r["outcome_correct"], r["missing_facts"], r["status_truthful"], r["agents"]), (True, [], True, 3))
 
+    def test_a_chain_that_reports_the_stage_on_its_stage_line_is_correct(self):
+        rec = load_saved_sample(SAVED / "chain-stage-2-stopped")
+        rec.result["return"]["result"] = 'w1-d9-s1 done: /work/scratch/plan.md\nw1-d9-s2 exhausted: changed duration.py\nnot run: w1-d9-s3 "Announce parse_duration"'
+        self.assertEqual(outcome(rec, self.CHECK), (True, []))
+
     def test_a_chain_that_reports_another_stage_or_status_or_runs_on_is_not_correct(self):
         rec = load_saved_sample(SAVED / "chain-stage-2-stopped")
         rec.result["return"]["stages"] = ["w1-d9-s1:done"]

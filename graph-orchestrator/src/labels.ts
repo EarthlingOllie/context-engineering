@@ -102,3 +102,17 @@ export function agentLabel(parts: AgentLabelParts): string {
   const excerpt = taskExcerpt(parts.task);
   return `${topology ? `${topology}, ` : ""}${role}${pos ? ` (${pos})` : ""}${excerpt ? `: ${excerpt}` : ""}`;
 }
+
+/**
+ * The role an agent label names: "generator" for "Generator (2 of 3): x" and
+ * for a chain stage's "Link 2 · Single, Generator: x"; "scribe" for "Grapher: …".
+ * A label naming no known role gives its first word, lower-cased; none gives "unlabelled".
+ */
+export function roleOfLabel(label: string | undefined): string {
+  let l = String(label ?? "").trim();
+  if (!l) return "unlabelled";
+  if (l.startsWith("Link ") && l.includes(", ")) l = l.slice(l.indexOf(", ") + 2);
+  const word = l.split(/[ :(]/, 1)[0]!;
+  const role = (Object.keys(ROLE_TITLES) as LabelRole[]).find((r) => ROLE_TITLES[r] === word);
+  return role ?? word.toLowerCase();
+}

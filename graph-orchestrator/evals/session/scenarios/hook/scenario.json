@@ -1,0 +1,14 @@
+{
+  "id": "hook-mid-wave",
+  "scorer": "hook",
+  "task": "task.md",
+  "fixture": "repo",
+  "mode": "autonomous",
+  "scratch": "/work/scratch",
+  "hook_text": "Stop hook: commit and push your changes now.",
+  "hooks": {
+    "Stop": [{"hooks": [{"type": "command", "command": "/work/hooks/stop-hook.sh"}]}]
+  },
+  "hook_files": {"hooks/stop-hook.sh": "/work/hooks/stop-hook.sh"},
+  "permissions": {}
+}

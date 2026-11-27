@@ -17,6 +17,13 @@ const blockedProps = {
   question: { type: "string", description: "The single question for the human. Empty unless blocked." },
 };
 
+/** Refusal counts every working and evaluator role reports (B-07), so refusals reach the dispatch line without reading transcripts. */
+const refusalProps = {
+  writesRefused: { type: "number", description: "How many of your file writes or edits were refused (permission denied, outside the sandbox, a hook blocked them). 0 if none." },
+  toolsDenied: { type: "number", description: "How many tool calls were denied to you (permission prompts refused, tools unavailable or blocked). 0 if none." },
+};
+const REFUSAL_KEYS = ["writesRefused", "toolsDenied"];
+
 const workOutput = {
   type: "object",
   properties: {
@@ -27,8 +34,9 @@ const workOutput = {
       description: "Absolute paths of files you wrote or that carry the full result. Empty if none.",
     },
     ...blockedProps,
+    ...refusalProps,
   },
-  required: ["result", "artifacts", "blocked"],
+  required: ["result", "artifacts", "blocked", ...REFUSAL_KEYS],
 };
 
 export const ROLE_SCHEMAS: Record<RoleName, Record<string, unknown>> = {
@@ -45,8 +53,9 @@ export const ROLE_SCHEMAS: Record<RoleName, Record<string, unknown>> = {
           "At most 10 lines. Numbered, specific, actionable; each point names where (file:line or section). Empty when pass is true.",
       },
       ...blockedProps,
+      ...refusalProps,
     },
-    required: ["pass", "feedback", "blocked"],
+    required: ["pass", "feedback", "blocked", ...REFUSAL_KEYS],
   },
   judge: {
     type: "object",
@@ -76,16 +85,24 @@ export const ROLE_STANCES: Record<RoleName, string> = {
     "You are a worker inside an orchestrated wave. Do the TASK completely, then report once.",
     "You may read, search, write and run whatever the task requires. Load your own project conventions from disk; nothing about them is repeated here.",
     "Do not narrate progress, do not restate this prompt, do not ask how things are going. Your final structured output is the only thing anyone sees.",
+    "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`.",
+    "Report in `writesRefused` how many of your writes were refused and in `toolsDenied` how many tool calls were denied to you; 0 when none.",
+    "To wait on a long command, run it in the foreground with a timeout, or start it in the background and wait once on its exit status; never loop on `pgrep -f`, which matches itself.",
   ].join("\n"),
   generator: [
     "You are the generator in a generate-and-evaluate loop. Produce the deliverable the TASK describes, as files on disk where it is code or long text, and report it in the RETURN shape.",
     "When FEEDBACK is present it is the evaluator's verdict on your previous round. Address every numbered point. Your own previous output is deliberately not shown; re-open your ARTIFACTS from disk if you need them.",
     "You may read, search, write and run as the task requires. Do not narrate.",
+    "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`.",
+    "Report in `writesRefused` how many of your writes were refused and in `toolsDenied` how many tool calls were denied to you; 0 when none.",
+    "To wait on a long command, run it in the foreground with a timeout, or start it in the background and wait once on its exit status; never loop on `pgrep -f`, which matches itself.",
   ].join("\n"),
   evaluator: [
     "You are the evaluator in a generate-and-evaluate loop. Judge the SUBMISSION strictly against the PASS CRITERIA and nothing else.",
     "Read and run whatever you need to verify it (open the artifacts, run the tests). Change nothing on disk.",
+    "If a tool needed for a criterion is denied, set blocked=true with a question naming the check that could not run. Never pass a criterion that could not be checked.",
     "pass=true only when every criterion is met. Otherwise feedback is a numbered list of specific, actionable points with locations, and nothing else.",
+    "Report in `writesRefused` how many of your writes were refused and in `toolsDenied` how many tool calls were denied to you; 0 when none.",
   ].join("\n"),
   judge: [
     "You are the judge. You receive the task and the candidates or debate transcript; you return one verdict in the RETURN shape.",
@@ -96,6 +113,8 @@ export const ROLE_STANCES: Record<RoleName, string> = {
     "You are the reducer. Merge the results in the sections below (fan-out branch results, panel lens feedback, or iterative fan-out rounds) into one answer in the RETURN shape.",
     "A blocked branch, lens or round is a gap: note it in one line, do not redo its work. Prefer the inputs' artifacts over re-deriving anything.",
     "Read artifacts as needed; write a merged artifact if the result exceeds the line limit. Do not narrate.",
+    "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`.",
+    "Report in `writesRefused` how many of your writes were refused and in `toolsDenied` how many tool calls were denied to you; 0 when none.",
   ].join("\n"),
   debater: [
     "You are a debater holding the STANCE below. Argue it with evidence from the task and the codebase, engage the other positions from the PRIOR ROUND directly, and concede any specific point the evidence is against.",

@@ -27,7 +27,7 @@ test("the bundle is one plain script: meta literal first, no imports or requires
   assert.doesNotMatch(body, /^\s*export\b/m);
   assert.doesNotMatch(body, /\brequire\(/);
   assert.doesNotMatch(body, /Date\.now\(|Math\.random\(|new Date\(\)/);
-  assert.match(body, /return await runWorkflow\(args, \{ agent, parallel, log \}\);\s*$/);
+  assert.match(body, /return await runWorkflow\(args, \{ agent, parallel, log, budget: typeof budget === "undefined" \? null : budget \}\);\s*$/);
 });
 
 test("the script body runs under a harness-shaped scope and returns the dispatch's result as data", async () => {
@@ -64,4 +64,18 @@ return await workflow({ scriptPath: '/scratch/s1/plugin/workflows/dispatch.js' }
   const out = await run(async (ref: unknown, a: unknown) => (seen.push(ref, a), "child result"), { dispatch: { id: "w1-d1" } });
   assert.equal(out, "child result");
   assert.deepEqual(seen, [{ scriptPath: "/scratch/s1/plugin/workflows/dispatch.js" }, { dispatch: { id: "w1-d1" } }]);
+});
+
+test("B-03: the built script's version is the package version plus the git short commit, in the returned data and the dispatch line", async () => {
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+  const { body } = splitScript(source);
+  const run = new AsyncFunction("agent", "parallel", "log", "phase", "pipeline", "workflow", "budget", "args", body);
+  const f = fakeRuntime();
+  const out = (await run(f.rt.agent, f.rt.parallel, f.rt.log, () => {}, () => {}, () => {}, { total: null }, { ...baseArgs, dispatch: spec({ id: "w1-d1", topology: "fan-out", params: { split: ["a"] } }) })) as { version: string };
+  const [version, commit] = out.version.split("+");
+  assert.equal(version, pkg.version);
+  assert.match(commit ?? "", /^[0-9a-f]{7,}$/);
+  const scribe = f.calls.at(-1)!.prompt;
+  const line = scribe.split("\n").find((l) => l.startsWith('{"type":"dispatch"'))!;
+  assert.equal(JSON.parse(line).version, out.version);
 });

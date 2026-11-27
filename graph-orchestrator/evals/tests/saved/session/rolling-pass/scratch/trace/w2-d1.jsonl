@@ -1,0 +1,1 @@
+{"type": "dispatch", "wave": 2, "id": "w2-d1", "topology": "single", "title": "Add the --min-quantity option to the CLI", "iterations": 1, "status": "done", "dependsOn": ["w1-d1"]}

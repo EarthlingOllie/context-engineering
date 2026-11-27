@@ -1,0 +1,1 @@
+{"type": "dispatch", "wave": 1, "id": "w1-d2", "topology": "generator-evaluator", "iterations": 1, "status": "blocked", "dependsOn": [], "question": "Evaluator: could not run criterion 2, `semgrep --config p/javascript --error src/ test/`: semgrep is not installed and there is no network to install it. Provide semgrep or drop the criterion?"}

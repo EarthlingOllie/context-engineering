@@ -35,8 +35,7 @@ test("iterative-fan-out pass: round 1 branches, evaluator passes, reducer merges
   assert.match(ev, /ROLE: evaluator/);
   assert.match(ev, /COVERAGE CRITERIA:\nevery import covered/);
   assert.match(ev, /FINDINGS SO FAR:/);
-  assert.match(ev, /scan src\/a.*\n.*a\.ts:3 reads trace/);
-  assert.doesNotMatch(ev, /more/);
+  assert.match(ev, /scan src\/a.*\na\.ts:3 reads trace\nmore\nartifacts: \/s\/a\.md/);
   assert.match(ev, /\/s\/a\.md/);
 
   const red = calls[3]!.prompt;
@@ -180,4 +179,23 @@ test("iterative-fan-out: blank split entries are not counted for the cap or the 
   assert.equal(agentDemand({ topology: "iterative-fan-out", params }), 9 + 1 + 1);
   const { out } = await wave([ifo("w1-d1", params)]);
   assert.equal(out.results[0]!.status, "done");
+});
+
+test("iterative-fan-out evaluator sees each done branch's whole result (cut to the contract) and artifacts, no first-line cap", async () => {
+  const { out, calls } = await wave([ifo("w1-d1", { split: ["scan src/a", "scan src/b"] })], {
+    "Worker (round 1 of 2, 1 of 2)": work("a.ts:3 reads trace\na.ts:9 writes trace\na.ts:12 deletes trace", ["/s/a.txt"]),
+    "Worker (round 1 of 2, 2 of 2)": work("b.ts:1 header\nb.ts:2\nb.ts:3\nb.ts:4\nb.ts:5 last in contract\nb.ts:6 beyond contract"),
+    "Evaluator (1 of 2)": fail("cover src/c"),
+    "Worker (round 2 of 2)": work("c.ts:1 imports trace\nc.ts:7 reads trace", ["/s/c.txt"]),
+    "Evaluator (2 of 2)": pass,
+  });
+  assert.equal(out.results[0]!.status, "done");
+  const evals = calls.filter((c) => roleOf(c.opts.label).startsWith("Evaluator"));
+  assert.equal(evals.length, 2);
+  const ev2 = evals[1]!.prompt;
+  assert.match(ev2, /round 1 branch 1 \(done\) — scan src\/a\na\.ts:3 reads trace\na\.ts:9 writes trace\na\.ts:12 deletes trace\nartifacts: \/s\/a\.txt/);
+  assert.match(ev2, /b\.ts:5 last in contract\nartifacts: none/);
+  assert.doesNotMatch(ev2, /beyond contract/);
+  assert.match(ev2, /round 2 branch 1 \(done\) — cover src\/c\nc\.ts:1 imports trace\nc\.ts:7 reads trace\nartifacts: \/s\/c\.txt/);
+  assert.match(evals[0]!.prompt, /a\.ts:12 deletes trace/);
 });

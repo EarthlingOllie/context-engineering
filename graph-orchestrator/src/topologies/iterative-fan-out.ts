@@ -4,7 +4,7 @@ import { buildPrompt } from "../roles.ts";
 import { type Branch, branchStep, noBranchFinished, partitionStep } from "./fan-out.ts";
 import {
   DEFAULT_GAP_ROUNDS, DEFAULT_WIDTH, MAX_GAP_ROUNDS, MAX_WIDTH, type Checked, type TopologyContext, type TopologyImpl,
-  blockedQuestion, callRole, contractOf, cutLines, fail, firstLine, int, overBudget, readWorkOutput, roleEntry, str, uniq,
+  blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, readWorkOutput, recordCriteria, recordRound, roleEntry, str, uniq,
 } from "./shared.ts";
 
 /** Iterative-fan-out params with the defaults applied; width is the list length for an explicit split. */
@@ -99,10 +99,14 @@ async function branchRound(
   return { ok: true, tasks, branches };
 }
 
-/** Findings as section text: done branches with their result (or only its first line) and artifacts, the rest as GAP lines. */
-function findingsText(findings: Finding[], full: boolean): string {
+/**
+ * Findings as section text: done branches with their whole result (already cut
+ * to the return contract by the branch step, no second cap) and artifacts, the
+ * rest as GAP lines. The evaluator and the reducer see the same text.
+ */
+function findingsText(findings: Finding[]): string {
   return findings
-    .map((f) => `round ${f.round} branch ${f.index} (${f.status}) — ${f.task}\n${f.status === "done" ? `${full ? f.result : firstLine(f.result)}\nartifacts: ${f.artifacts.length ? f.artifacts.join(", ") : "none"}` : `GAP: ${f.question ?? f.result}`}`)
+    .map((f) => `round ${f.round} branch ${f.index} (${f.status}) — ${f.task}\n${f.status === "done" ? `${f.result}\nartifacts: ${f.artifacts.length ? f.artifacts.join(", ") : "none"}` : `GAP: ${f.question ?? f.result}`}`)
     .join("\n\n");
 }
 
@@ -111,6 +115,7 @@ async function runIterativeFanOut(ctx: TopologyContext, spec: DispatchSpec): Pro
   if (!checked.ok) return checked.result;
   const { width, coverage_criteria, max_rounds } = checked.params;
   const returns = contractOf(spec);
+  recordCriteria(ctx, spec, coverage_criteria);
   const ran = new Set<string>();
   const findings: Finding[] = [];
   const artifacts = () => uniq(findings.flatMap((f) => f.artifacts));
@@ -133,10 +138,10 @@ async function runIterativeFanOut(ctx: TopologyContext, spec: DispatchSpec): Pro
     const step = await branchRound(ctx, spec, round, max_rounds, split, width);
     // Round 1 is fan-out's branch step outright: a failed partition, or every branch blocked or failed, ends the dispatch as fan-out ends it.
     if (!step.ok) return step.result;
-    if (round === 1 && !step.branches.some((b) => b.status === "done")) return noBranchFinished(spec, step.branches, returns.maxLines);
+    if (round === 1 && !step.branches.some((b) => b.status === "done")) return noBranchFinished(spec, step.branches, returns.maxLines, ctx);
     for (const t of step.tasks) ran.add(norm(t));
     findings.push(...step.branches.map((b): Finding => ({ ...b, round, index: b.index + 1 })));
-    const body = findingsText(findings, false);
+    const body = findingsText(findings);
     const ev = await callRole(
       ctx,
       spec,
@@ -157,6 +162,8 @@ async function runIterativeFanOut(ctx: TopologyContext, spec: DispatchSpec): Pro
     );
     if (!ev) return { ...fail(spec, `iterative-fan-out: evaluator returned nothing in round ${round}`, round), artifacts: artifacts() };
     const eq = blockedQuestion(ev, "evaluator");
+    if (eq) recordRound(ctx, spec, round, "blocked", eq);
+    else recordRound(ctx, spec, round, ev["pass"] === true ? "pass" : "fail", str(ev, "feedback"));
     if (eq) return withGaps({ id: spec.id, status: "blocked", result: `evaluator blocked in round ${round}`, artifacts: artifacts(), iterations: round }, eq);
     if (ev["pass"] === true) {
       passed = true;
@@ -174,7 +181,7 @@ async function runIterativeFanOut(ctx: TopologyContext, spec: DispatchSpec): Pro
   }
 
   // Reduce: always, over every branch of every round, noting the gaps; with the evaluator's open gaps when exhausted.
-  const sections = [{ title: "BRANCH RESULTS", body: findingsText(findings, true) }];
+  const sections = [{ title: "BRANCH RESULTS", body: findingsText(findings) }];
   if (!passed) sections.push({ title: "OPEN GAPS", body: openGaps.length ? openGaps.map((g) => `- ${g}`).join("\n") : "(the evaluator named none)" });
   const red = await callRole(
     ctx,
@@ -184,12 +191,12 @@ async function runIterativeFanOut(ctx: TopologyContext, spec: DispatchSpec): Pro
     { role: "reducer" },
   );
   if (!red) return { ...fail(spec, "iterative-fan-out: reducer returned nothing", round), artifacts: artifacts() };
-  const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);
+  const { question: rq, ...work } = readWorkOutput(red, returns.maxLines, ctx);
   if (rq) return withGaps({ id: spec.id, status: "blocked", result: work.result, artifacts: artifacts(), iterations: round }, rq);
   const all = uniq([...artifacts(), ...work.artifacts]);
   if (passed) return withGaps({ id: spec.id, status: "done", result: work.result, artifacts: all, iterations: round });
   const tail = `-- exhausted after ${round} round(s); open gaps: ${openGaps.length}; first: ${openGaps[0] ?? "none"}`;
-  const result = `${cutLines(work.result, Math.max(0, returns.maxLines - 1))}\n${tail}`.replace(/^\n/, "");
+  const result = `${cutLines(work.result, Math.max(0, returns.maxLines - 1), ctx)}\n${tail}`.replace(/^\n/, "");
   return withGaps({ id: spec.id, status: "exhausted", result, artifacts: all, iterations: round });
 }
 

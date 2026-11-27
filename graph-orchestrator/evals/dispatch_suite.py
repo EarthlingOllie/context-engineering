@@ -238,7 +238,8 @@ def dispatch_suite(
             id=s["id"],
             input=f"Run dispatch {s['args']['dispatch']['id']}: {s['description']}",
             target=s["expected_status"],
-            metadata={"fixture": s["fixture"], "expected_status": s["expected_status"], "check": s.get("check", {}), "args": s["args"]},
+            metadata={"fixture": s["fixture"], "expected_status": s["expected_status"], "check": s.get("check", {}), "args": s["args"],
+                      "revision": suite.sample_revision(s)},
         )
         for s in suite.load_samples()
         if not wanted or s["id"] in wanted

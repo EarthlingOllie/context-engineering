@@ -1,17 +1,37 @@
 // Bundles the TypeScript into the two plain JavaScript files the plugin ships.
 import { build } from "esbuild";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+// The version stamp (B-03, REL-07): the package version plus the git short commit of the last change to the
+// bundle's inputs (src/, the manifests, this file). Not HEAD: a committed bundle can never contain the sha of the
+// commit that holds it, so stamping HEAD left the bundle dirty after every commit. Committing a rebuilt bundle, or
+// docs, leaves this sha unchanged, so a rebuild on a clean tree is a no-op.
+const PKG_VERSION = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version;
+let commit = "nogit";
+try {
+  commit =
+    execFileSync("git", ["log", "-1", "--format=%h", "--", "src", "package.json", "package-lock.json", "build.mjs"], {
+      cwd: fileURLToPath(new URL(".", import.meta.url)),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim() || commit;
+} catch {
+  // not a git checkout: the stamp says so rather than failing the build
+}
+const VERSION = `${PKG_VERSION}+${commit}`;
 
 const META = `export const meta = {
   name: 'dispatch',
   description: 'graph-orchestrator: run one dispatch through its topology (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) and write its trace lines',
-  whenToUse: 'Invoked by the graph-orchestrator skill once per dispatch, from a wrapper script that names the workflow, with { now, scratch, dispatch, humans } as args. Not for direct use.',
+  whenToUse: 'Invoked by the graph-orchestrator skill once per dispatch, from a wrapper script that names the workflow, with { scratch, dispatch, humans } as args. Not for direct use.',
 }
 `;
 
 const FOOTER = `
-// --- script body: the harness supplies agent, parallel, log and args ---
-return await runWorkflow(args, { agent, parallel, log });
+// --- script body: the harness supplies agent, parallel, log, budget and args ---
+return await runWorkflow(args, { agent, parallel, log, budget: typeof budget === "undefined" ? null : budget });
 `;
 
 mkdirSync("workflows", { recursive: true });
@@ -26,6 +46,7 @@ const bundle = await build({
   target: "es2020",
   write: false,
   legalComments: "none",
+  define: { __PLUGIN_VERSION__: JSON.stringify(VERSION) },
 });
 let js = bundle.outputFiles[0].text;
 js = js.replace(/\nexport \{[^}]*\};?\s*$/, "\n");
@@ -46,4 +67,4 @@ await build({
   legalComments: "none",
 });
 
-console.log("built workflows/dispatch.js and scripts/render-trace.js");
+console.log(`built workflows/dispatch.js (${VERSION}) and scripts/render-trace.js`);

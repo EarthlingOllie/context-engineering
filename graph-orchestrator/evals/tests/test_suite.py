@@ -179,6 +179,41 @@ class TypeScriptSamples(unittest.TestCase):
         self.assertEqual(s4["args"]["dispatch"]["params"]["pass_criteria"], "The relevant tests pass.")
         self.assertEqual(suite.hidden_check(s4), {"kind": "tests", "runner": "node", "tests": ["paginate.hidden.test.ts"]})
 
+    def test_sample_4_stays_the_vague_criteria_guard(self):
+        s4 = self.by_id()["04-generator-evaluator-false-pass"]
+        self.assertIn("vague", s4["description"])
+        self.assertIn("16-generator-evaluator-countable-criteria", s4["description"])
+
+    def test_sample_16_is_sample_4_with_countable_pass_criteria(self):
+        s = self.by_id()
+        s4, s16 = s["04-generator-evaluator-false-pass"], s["16-generator-evaluator-countable-criteria"]
+        self.assertEqual((s16["fixture"], s16["expected_status"]), (s4["fixture"], s4["expected_status"]))
+        d4, d16 = s4["args"]["dispatch"], s16["args"]["dispatch"]
+        for key in ("topology", "title", "task", "context", "roles", "returns", "dependsOn"):
+            self.assertEqual(d16[key], d4[key], key)
+        self.assertEqual(d16["params"]["max_iterations"], d4["params"]["max_iterations"])
+        self.assertNotEqual(d16["id"], d4["id"])
+        self.assertEqual(suite.hidden_check(s16), suite.hidden_check(s4))
+
+    def test_sample_16_criteria_are_numbered_countable_and_use_none_of_the_catalogs_forbidden_words(self):
+        crit = self.by_id()["16-generator-evaluator-countable-criteria"]["args"]["dispatch"]["params"]["pass_criteria"]
+        items = re.split(r"(?:^|\s)(?=\d+\. )", crit.strip())
+        items = [i for i in items if i.strip()]
+        self.assertGreaterEqual(len(items), 2)
+        for n, item in enumerate(items, 1):
+            self.assertTrue(item.startswith(f"{n}. "), item)
+            self.assertRegex(item, r"\d", f"criterion {n} names no count")
+        self.assertIn("npm test", items[0])
+        self.assertIn("0 failing", items[0])
+        self.assertIn("full suite", items[0])
+        for word in ("relevant", "targeted", "touched-area", "all checks", "except"):
+            self.assertNotIn(word, crit.lower(), word)
+
+    def test_sample_16_criteria_do_not_name_the_planted_bug_s_cause(self):
+        crit = self.by_id()["16-generator-evaluator-countable-criteria"]["args"]["dispatch"]["params"]["pass_criteria"].lower()
+        for word in ("round", "ceil", "floor", "math.", "pagecount", "half"):
+            self.assertNotIn(word, crit, word)
+
     def test_sample_11_reviews_the_diff_through_lenses_including_the_defects_and_must_fail_naming_it(self):
         s11 = self.by_id()["11-panel-diff-defect"]
         d = s11["args"]["dispatch"]
@@ -206,8 +241,8 @@ class RemainingTopologySamples(unittest.TestCase):
         covered = {spec["topology"] for s in suite.load_samples() for spec in _specs(s["args"]["dispatch"])}
         self.assertLessEqual(topologies, covered)
 
-    def test_the_suite_has_15_samples_numbered_1_to_15(self):
-        self.assertEqual([int(s["id"][:2]) for s in suite.load_samples()], list(range(1, 16)))
+    def test_the_suite_has_16_samples_numbered_1_to_16(self):
+        self.assertEqual([int(s["id"][:2]) for s in suite.load_samples()], list(range(1, 17)))
 
     def test_samples_10_12_13_14_with_their_topology_fixture_and_expected_status(self):
         got = {i: (s["fixture"], s["args"]["dispatch"]["topology"], s["expected_status"]) for i, s in self.by_id().items()}
@@ -228,6 +263,20 @@ class RemainingTopologySamples(unittest.TestCase):
         c = suite.hidden_check(s10)
         self.assertEqual((c["kind"], c["rounds"], len(c["facts"])), ("coverage", 2, 6))
         self.assertTrue(any(f["file"] == "payout-failures.md" for f in c["facts"]))
+
+    def test_sample_10_returns_every_fact_inline_with_room_for_more_than_the_planted_ones(self):
+        # Post-A-02 the reducer merges 13-14 facts (workers list more than the 6 planted); with maxLines 12 it sometimes
+        # wrote them to a scratch file and returned a pointer, which the result-only coverage check scores as missing.
+        d = self.by_id()["10-iterative-fan-out-docs-gap"]["args"]["dispatch"]
+        planted = len(suite.hidden_check(self.by_id()["10-iterative-fan-out-docs-gap"])["facts"])
+        max_lines = d["returns"]["maxLines"]
+        self.assertGreaterEqual(max_lines, 16)
+        self.assertGreaterEqual(max_lines - 1, 14 + 2, "the observed 14 merged facts plus headroom, after the engine's status tail line")
+        self.assertGreaterEqual(max_lines, 2 * planted)
+        reducer = d["roles"]["reducer"]["instructions"].lower()
+        self.assertIn("inline", reducer)
+        self.assertIn("never", reducer)
+        self.assertIn("pointer", reducer)
 
     def test_sample_12_runs_3_variants_and_is_scored_by_the_hidden_tests_on_the_chosen_candidate(self):
         d = self.by_id()["12-best-of-n-python-bug"]["args"]["dispatch"]

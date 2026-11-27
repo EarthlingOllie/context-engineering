@@ -22,7 +22,8 @@ Scoring is deterministic. Each sample is scored by its hidden check
   summary line, or the TAP summary of Node's test runner for `runner: node`);
 - `exhausted`: the dispatch returned `exhausted` after the check's `rounds`;
 - `chain_stop`: a chain stopped at the check's `stage` with its `status`,
-  reported that stage and status, and ran no later stage;
+  reported that stage and status (a `<stage id> <status>:` stage line, or
+  the older `stage <stage id> <status>` first line), and ran no later stage;
 - `verdict`: a panel returned `done` with the check's verdict (`FAIL`) on its
   first line and a `[<lens>] FAIL` line for the check's `lens`, the lens the
   planted defect belongs to;
@@ -224,7 +225,8 @@ def outcome_chain_stop(rec: Recorded, check: dict) -> tuple[bool, list[str]]:
     stages = ret.get("stages") or []
     if len(stages) != stage or stages[-1] != f"{stage_id}:{status}":
         why.append(f"stages reported {stages}, not stage {stage} last")
-    if not str(ret.get("result") or "").startswith(f"stage {stage_id} {status}"):
+    result = str(ret.get("result") or "")
+    if not (result.startswith(f"stage {stage_id} {status}") or any(l.startswith(f"{stage_id} {status}:") for l in result.splitlines())):
         why.append(f"result does not name stage {stage_id} {status}")
     if any((m := _LINK.match(str(a.get("label") or ""))) and int(m.group(1)) > stage for a in rec.result.get("agents") or []):
         why.append(f"a stage after stage {stage} ran")
