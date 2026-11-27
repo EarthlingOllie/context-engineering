@@ -31,6 +31,7 @@ export {
   firstLine,
   forwardLines,
   normaliseSpec,
+  traceDetail,
   withThrown,
 } from "./topologies/shared.ts";
 export { agentDemand, runDispatch } from "./topologies/dispatch.ts";

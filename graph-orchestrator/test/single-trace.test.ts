@@ -41,7 +41,7 @@ test("single: a worker that omits the count counts as none, so the scribe runs",
 test("single: the worker is given exactly the lines the scribe would write: humans stamped with now, then the done dispatch line", async () => {
   const { calls } = await wave([retry()], { Worker: appended(2) }, { humans });
   assert.deepEqual(eventsOf(calls[0]!.prompt), [
-    { ...humans[0], at: baseArgs.now },
+    { ...humans[0], at: baseArgs.now, source: "human" }, // B-06: an attended intervention carries source human
     { type: "dispatch", wave: 2, id: "w2-d1", title: "Add the retry policy", topology: "single", iterations: 1, status: "done", dependsOn: ["w1-d2"], agents: [{ role: "worker" }], demand: 1, concurrency: 1, at: baseArgs.now },
   ]);
 });

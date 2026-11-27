@@ -54,7 +54,7 @@ async function runSingle(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
     trace.appended = Math.max(0, Math.floor(Number(out["traceAppended"]) || 0));
     trace.totalLines = Math.max(0, Math.floor(Number(out["traceTotalLines"]) || 0));
   }
-  const { question, ...work } = readWorkOutput(out, returns.maxLines);
+  const { question, ...work } = readWorkOutput(out, returns.maxLines, ctx);
   const base = { id: spec.id, ...work, iterations: 1 };
   return question ? { ...base, status: "blocked", question } : { ...base, status: "done" };
 }

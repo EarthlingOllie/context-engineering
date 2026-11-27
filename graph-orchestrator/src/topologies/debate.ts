@@ -91,7 +91,7 @@ async function runDebate(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
     // Blocked first, with every blocked debater's question; then any debater that returned nothing fails the debate.
     const read = participants.map((p, i) => {
       const out = outs[i];
-      return { name: p.name, question: out ? blockedQuestion(out, "debater") : null, position: out ? cutLines(str(out, "position").trim(), POSITION_LINES) : "" };
+      return { name: p.name, question: out ? blockedQuestion(out, "debater") : null, position: out ? cutLines(str(out, "position").trim(), POSITION_LINES, ctx) : "" };
     });
     const blocked = read.filter((x) => x.question);
     if (blocked.length) {
@@ -127,7 +127,7 @@ async function runDebate(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
   const verdict = str(out, "verdict").trim();
   if (!verdict) return fail(spec, "debate: judge returned nothing", rounds);
   const decisive = firstLine(str(out, "reasoning").trim());
-  const head = cutLines(verdict, returns.maxLines);
+  const head = cutLines(verdict, returns.maxLines, ctx);
   const room = returns.maxLines - head.split("\n").length;
   const result = decisive && room >= 1 ? `${head}\n-- decisive: ${decisive}` : head;
   return { id: spec.id, status: "done", result, artifacts, iterations: rounds };

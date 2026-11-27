@@ -216,10 +216,36 @@ var DEFAULT_SESSIONS = 3;
 var MAX_GAP_ROUNDS = 3;
 var DEFAULT_GAP_ROUNDS = 2;
 var MAX_DEBATE_ROUNDS = 4;
-function cutLines(text, maxLines) {
+function cutLines(text, maxLines, sink) {
   const lines = String(text ?? "").split("\n");
   if (lines.length <= maxLines) return lines.join("\n");
-  return lines.slice(0, maxLines).join("\n");
+  const keep = Math.max(0, maxLines);
+  if (sink) sink.dropped = (sink.dropped ?? 0) + lines.length - keep;
+  return lines.slice(0, keep).join("\n");
+}
+function detailFor(ctx, id) {
+  const all = ctx.detail ?? (ctx.detail = {});
+  return all[id] ?? (all[id] = {});
+}
+function recordCriteria(ctx, spec, criteria) {
+  detailFor(ctx, spec.id).criteria = criteria;
+}
+function recordRound(ctx, spec, round, verdict, feedback = "") {
+  const d = detailFor(ctx, spec.id);
+  const first = firstLine(feedback).trim();
+  (d.rounds ?? (d.rounds = [])).push({ round, verdict, ...verdict !== "pass" && first ? { feedback: first } : {} });
+}
+function recordStageLines(ctx, spec, lines) {
+  detailFor(ctx, spec.id).stageLines = [...lines];
+}
+function traceDetail(ctx, id, dropped) {
+  const d = ctx.detail?.[id] ?? {};
+  return {
+    ...d.criteria !== void 0 ? { criteria: d.criteria } : {},
+    ...d.rounds?.length ? { rounds: d.rounds } : {},
+    ...d.stageLines ? { stageLines: d.stageLines } : {},
+    ...dropped > 0 ? { dropped } : {}
+  };
 }
 function firstLine(text) {
   return String(text ?? "").split("\n")[0] ?? "";
@@ -267,9 +293,9 @@ function blockedQuestion(o, who = "worker") {
   const q = str(o, "question").trim();
   return q || `(the ${who} reported blocked without a question)`;
 }
-function readWorkOutput(out, maxLines) {
+function readWorkOutput(out, maxLines, sink) {
   const q = blockedQuestion(out);
-  const work = { result: cutLines(str(out, "result"), maxLines), artifacts: strArr(out, "artifacts") };
+  const work = { result: cutLines(str(out, "result"), maxLines, sink), artifacts: strArr(out, "artifacts") };
   return q ? { ...work, question: q } : work;
 }
 function entryOf(raw) {
@@ -288,11 +314,11 @@ function fail(spec, message, iterations = 0) {
   const id = spec && typeof spec === "object" && spec.id ? String(spec.id) : "?";
   return { id, status: "failed", result: message, artifacts: [], iterations };
 }
-function withThrown(r, thrown, maxLines) {
+function withThrown(r, thrown, maxLines, sink) {
   const message = thrown.replace(/\s+/g, " ").trim();
   if (r.status !== "failed" || !message || r.result.includes(message)) return r;
   const [first = "", ...rest] = String(r.result ?? "").split("\n");
-  return { ...r, result: cutLines([`${first} (an agent threw: ${message})`, ...rest].join("\n"), maxLines) };
+  return { ...r, result: cutLines([`${first} (an agent threw: ${message})`, ...rest].join("\n"), maxLines, sink) };
 }
 function overBudget(spec, message) {
   return { id: spec.id, status: "over_budget", result: message, artifacts: [], iterations: 0 };
@@ -380,7 +406,7 @@ async function runSingle(ctx, spec) {
     trace.appended = Math.max(0, Math.floor(Number(out["traceAppended"]) || 0));
     trace.totalLines = Math.max(0, Math.floor(Number(out["traceTotalLines"]) || 0));
   }
-  const { question, ...work } = readWorkOutput(out, returns.maxLines);
+  const { question, ...work } = readWorkOutput(out, returns.maxLines, ctx);
   const base = { id: spec.id, ...work, iterations: 1 };
   return question ? { ...base, status: "blocked", question } : { ...base, status: "done" };
 }
@@ -393,6 +419,7 @@ async function runGeneratorEvaluator(ctx, spec) {
   const maxIterations = int(params.max_iterations, DEFAULT_ITERATIONS);
   const criteria = typeof params.pass_criteria === "string" ? params.pass_criteria.trim() : "";
   if (!criteria) return fail(spec, "generator-evaluator: pass_criteria missing; give numbered, countable criteria");
+  recordCriteria(ctx, spec, criteria);
   const genEntry = roleEntry(spec, "generator");
   const evalEntry = roleEntry(spec, "evaluator");
   let feedback = null;
@@ -412,7 +439,7 @@ async function runGeneratorEvaluator(ctx, spec) {
       { role: "generator", round, rounds: maxIterations }
     );
     if (!gen) return { ...fail(spec, `generator returned nothing in round ${round}`, round), artifacts: last?.artifacts ?? [] };
-    const { question: gq, ...work } = readWorkOutput(gen, returns.maxLines);
+    const { question: gq, ...work } = readWorkOutput(gen, returns.maxLines, ctx);
     last = work;
     if (gq) return { id: spec.id, status: "blocked", result: last.result, artifacts: last.artifacts, question: gq, iterations: round };
     const ev = await callRole(
@@ -436,12 +463,16 @@ artifacts: ${last.artifacts.length ? last.artifacts.join(", ") : "none"}` }
     );
     if (!ev) return { ...fail(spec, `evaluator returned nothing in round ${round}`, round), artifacts: last.artifacts };
     const eq = blockedQuestion(ev);
-    if (eq) return { id: spec.id, status: "blocked", result: last.result, artifacts: last.artifacts, question: eq, iterations: round };
+    if (eq) {
+      recordRound(ctx, spec, round, "blocked", eq);
+      return { id: spec.id, status: "blocked", result: last.result, artifacts: last.artifacts, question: eq, iterations: round };
+    }
+    recordRound(ctx, spec, round, ev["pass"] === true ? "pass" : "fail", str(ev, "feedback"));
     if (ev["pass"] === true) return { id: spec.id, status: "done", result: last.result, artifacts: last.artifacts, iterations: round };
     feedback = str(ev, "feedback");
   }
   const tail = `-- exhausted after ${maxIterations} round(s); last evaluator feedback: ${firstLine(feedback ?? "")}`;
-  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1) : "";
+  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1, ctx) : "";
   return {
     id: spec.id,
     status: "exhausted",
@@ -509,7 +540,7 @@ async function branchStep(ctx, spec, subtasks, opts) {
         opts.label(i + 1, n, task)
       );
       if (!out) return { index: i, task, status: "failed", result: "worker returned nothing", artifacts: [] };
-      const { question, ...work } = readWorkOutput(out, opts.branchReturns.maxLines);
+      const { question, ...work } = readWorkOutput(out, opts.branchReturns.maxLines, ctx);
       const b = { index: i, task, status: question ? "blocked" : "done", ...work };
       if (question) b.question = question;
       return b;
@@ -521,9 +552,9 @@ function branchQuestions(branches, prefix = "") {
   const blocked = branches.filter((b) => b.status === "blocked");
   return blocked.length ? blocked.map((b) => `${prefix}branch ${b.index + 1} (${b.task}): ${b.question}`).join("\n") : void 0;
 }
-function noBranchFinished(spec, branches, maxLines) {
+function noBranchFinished(spec, branches, maxLines, sink) {
   const status = branches.some((b) => b.status === "blocked") ? "blocked" : "failed";
-  const base = { id: spec.id, status, result: cutLines(branches.map((b) => `branch ${b.index + 1} ${b.status}: ${b.question ?? b.result}`).join("\n"), maxLines), artifacts: uniq(branches.flatMap((b) => b.artifacts)), iterations: 1 };
+  const base = { id: spec.id, status, result: cutLines(branches.map((b) => `branch ${b.index + 1} ${b.status}: ${b.question ?? b.result}`).join("\n"), maxLines, sink), artifacts: uniq(branches.flatMap((b) => b.artifacts)), iterations: 1 };
   const q = branchQuestions(branches);
   return q ? { ...base, question: q } : base;
 }
@@ -557,8 +588,8 @@ async function runFanOut(ctx, spec) {
   const finished = branches.filter((b) => b.status === "done");
   const artifacts = uniq(branches.flatMap((b) => b.artifacts));
   const gapQuestion = branchQuestions(branches);
-  if (finished.length === 0) return noBranchFinished(spec, branches, returns.maxLines);
-  const concatenated = () => cutLines(branches.map((b) => b.status === "done" ? `[${b.index + 1}] ${b.result}` : `[${b.index + 1}] ${b.status}: ${b.question ?? b.result}`).join("\n"), returns.maxLines);
+  if (finished.length === 0) return noBranchFinished(spec, branches, returns.maxLines, ctx);
+  const concatenated = () => cutLines(branches.map((b) => b.status === "done" ? `[${b.index + 1}] ${b.result}` : `[${b.index + 1}] ${b.status}: ${b.question ?? b.result}`).join("\n"), returns.maxLines, ctx);
   let result;
   let extraArtifacts = [];
   if (hasReducer) {
@@ -574,7 +605,7 @@ GAP: ${b.question ?? b.result}`).join("\n\n");
       { role: "reducer" }
     );
     if (red) {
-      const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);
+      const { question: rq, ...work } = readWorkOutput(red, returns.maxLines, ctx);
       if (rq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: gapQuestion ? `${rq}
 ${gapQuestion}` : rq, iterations: 1 };
       result = work.result;
@@ -664,7 +695,7 @@ async function runDebate(ctx, spec) {
     );
     const read = participants.map((p, i) => {
       const out2 = outs[i];
-      return { name: p.name, question: out2 ? blockedQuestion(out2, "debater") : null, position: out2 ? cutLines(str(out2, "position").trim(), POSITION_LINES) : "" };
+      return { name: p.name, question: out2 ? blockedQuestion(out2, "debater") : null, position: out2 ? cutLines(str(out2, "position").trim(), POSITION_LINES, ctx) : "" };
     });
     const blocked = read.filter((x) => x.question);
     if (blocked.length) {
@@ -700,7 +731,7 @@ ${roundLines(round)}`).join("\n") }
   const verdict = str(out, "verdict").trim();
   if (!verdict) return fail(spec, "debate: judge returned nothing", rounds);
   const decisive = firstLine(str(out, "reasoning").trim());
-  const head = cutLines(verdict, returns.maxLines);
+  const head = cutLines(verdict, returns.maxLines, ctx);
   const room = returns.maxLines - head.split("\n").length;
   const result = decisive && room >= 1 ? `${head}
 -- decisive: ${decisive}` : head;
@@ -720,11 +751,11 @@ function stageName(s) {
 function panelGateTrips(stage, r, last) {
   return !last && stage.topology === "panel" && stage.gate !== false && r.status === "done" && /^FAIL\b/.test(r.result);
 }
-function chainResult(lines, last, notRun, maxLines) {
+function chainResult(ctx, lines, last, notRun, maxLines) {
   const body = [...lines, ...last ? last.split("\n") : []].join("\n");
-  if (!notRun.length) return cutLines(body, maxLines);
+  if (!notRun.length) return cutLines(body, maxLines, ctx);
   const tail = `not run: ${notRun.map(stageName).join(", ")}`;
-  return maxLines <= 1 ? tail : `${cutLines(body, maxLines - 1)}
+  return maxLines <= 1 ? tail : `${cutLines(body, maxLines - 1, ctx)}
 ${tail}`;
 }
 async function runChain(ctx, spec) {
@@ -738,21 +769,23 @@ async function runChain(ctx, spec) {
   for (let i = 0; i < stages.length; i++) {
     const forwarded = prev ? forwardLines(prev) : [];
     const stage = normaliseStage(spec, stages[i], i, forwarded);
+    const droppedBefore = ctx.dropped ?? 0;
     let r = await runDispatch(ctx, stage);
     if (panelGateTrips(stage, r, i === stages.length - 1)) {
       const [verdict, ...rest] = r.result.split("\n");
       r = { ...r, status: "exhausted", result: [`panel ${stageName(stage)} returned ${verdict}`, ...rest].join("\n") };
     }
-    ctx.stageEvents.push(dispatchEvent(ctx.wave, stage, r, spec.id));
+    ctx.stageEvents.push({ ...dispatchEvent(ctx.wave, stage, r, spec.id), ...traceDetail(ctx, stage.id, (ctx.dropped ?? 0) - droppedBefore) });
     statuses.push(`${stage.id}:${r.status}`);
     stageLines.push(`${stage.id} ${r.status}: ${firstLine(r.result)}`);
+    recordStageLines(ctx, spec, stageLines);
     artifacts.push(...r.artifacts);
     if (r.status !== "done") {
       const notRun = stages.slice(i + 1).map((st, j) => normaliseStage(spec, st, i + 1 + j, []));
       const out = {
         id: spec.id,
         status: r.status,
-        result: chainResult(stageLines, r.result, notRun, returns.maxLines),
+        result: chainResult(ctx, stageLines, r.result, notRun, returns.maxLines),
         artifacts: uniq(artifacts),
         iterations: i + 1,
         stages: statuses
@@ -762,7 +795,7 @@ async function runChain(ctx, spec) {
     }
     prev = r;
   }
-  return { id: spec.id, status: "done", result: chainResult(stageLines, prev?.result ?? "", [], returns.maxLines), artifacts: uniq(artifacts), iterations: stages.length, stages: statuses };
+  return { id: spec.id, status: "done", result: chainResult(ctx, stageLines, prev?.result ?? "", [], returns.maxLines), artifacts: uniq(artifacts), iterations: stages.length, stages: statuses };
 }
 var chain = {
   demand: (_spec, params) => {
@@ -817,7 +850,7 @@ async function runRelay(ctx, spec) {
       { role: "worker", index: s, count: n }
     );
     if (!out) return { ...fail(spec, `relay: worker returned nothing in session ${s}`, s), artifacts };
-    const { question: wq, ...work } = readWorkOutput(out, returns.maxLines);
+    const { question: wq, ...work } = readWorkOutput(out, returns.maxLines, ctx);
     last = work;
     artifacts = uniq([...artifacts, ...work.artifacts]);
     if (wq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: wq, iterations: s };
@@ -849,7 +882,7 @@ progress: ${progress}` }
     feedback = str(ev, "feedback");
   }
   const tail = `-- exhausted after ${n} session(s); last check: ${firstLine(feedback ?? "")}`;
-  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1) : "";
+  const head = returns.maxLines > 1 ? cutLines(last?.result ?? "", returns.maxLines - 1, ctx) : "";
   return { id: spec.id, status: "exhausted", result: head ? `${head}
 ${tail}` : tail, artifacts, iterations: n };
 }
@@ -924,7 +957,7 @@ async function runBestOfN(ctx, spec) {
         ctx.rt.log(`${spec.id}: attempt ${index}/${n} returned nothing; dropped`);
         return { index, kind: "empty" };
       }
-      const { question: question2, ...work } = readWorkOutput(out, returns.maxLines);
+      const { question: question2, ...work } = readWorkOutput(out, returns.maxLines, ctx);
       return question2 ? { index, kind: "blocked", question: question2 } : { index, kind: "done", work };
     })
   );
@@ -935,7 +968,7 @@ async function runBestOfN(ctx, spec) {
   const withQuestion = (r) => question && !r.question ? { ...r, question } : r;
   if (done.length === 0) {
     const notes = all.map((a) => `attempt ${a.index} ${a.kind === "blocked" ? `blocked: ${a.question}` : "returned nothing"}`).join("\n");
-    return withQuestion({ id: spec.id, status: blocked.length ? "blocked" : "failed", result: cutLines(notes, returns.maxLines), artifacts: [], iterations: 1 });
+    return withQuestion({ id: spec.id, status: blocked.length ? "blocked" : "failed", result: cutLines(notes, returns.maxLines, ctx), artifacts: [], iterations: 1 });
   }
   if (mode === "vote") {
     const tally = /* @__PURE__ */ new Map();
@@ -969,7 +1002,7 @@ artifacts: ${d.work.artifacts.length ? d.work.artifacts.join(", ") : "none"}`).j
     JUDGE_SCHEMA
   );
   if (!j) return withQuestion({ ...fail(spec, "best-of-n: judge returned nothing", 1), artifacts: candidateArtifacts });
-  const verdict = cutLines(str(j, "verdict"), returns.maxLines);
+  const verdict = cutLines(str(j, "verdict"), returns.maxLines, ctx);
   const jq = blockedQuestion(j, "judge");
   if (jq) return { id: spec.id, status: "blocked", result: verdict, artifacts: candidateArtifacts, question: question ? `${jq}
 ${question}` : jq, iterations: 1 };
@@ -1050,6 +1083,7 @@ async function runIterativeFanOut(ctx, spec) {
   if (!checked.ok) return checked.result;
   const { width, coverage_criteria, max_rounds } = checked.params;
   const returns = contractOf(spec);
+  recordCriteria(ctx, spec, coverage_criteria);
   const ran = /* @__PURE__ */ new Set();
   const findings = [];
   const artifacts = () => uniq(findings.flatMap((f) => f.artifacts));
@@ -1070,7 +1104,7 @@ async function runIterativeFanOut(ctx, spec) {
     round++;
     const step = await branchRound(ctx, spec, round, max_rounds, split, width);
     if (!step.ok) return step.result;
-    if (round === 1 && !step.branches.some((b) => b.status === "done")) return noBranchFinished(spec, step.branches, returns.maxLines);
+    if (round === 1 && !step.branches.some((b) => b.status === "done")) return noBranchFinished(spec, step.branches, returns.maxLines, ctx);
     for (const t of step.tasks) ran.add(norm(t));
     findings.push(...step.branches.map((b) => ({ ...b, round, index: b.index + 1 })));
     const body = findingsText(findings);
@@ -1094,6 +1128,8 @@ async function runIterativeFanOut(ctx, spec) {
     );
     if (!ev) return { ...fail(spec, `iterative-fan-out: evaluator returned nothing in round ${round}`, round), artifacts: artifacts() };
     const eq = blockedQuestion(ev, "evaluator");
+    if (eq) recordRound(ctx, spec, round, "blocked", eq);
+    else recordRound(ctx, spec, round, ev["pass"] === true ? "pass" : "fail", str(ev, "feedback"));
     if (eq) return withGaps({ id: spec.id, status: "blocked", result: `evaluator blocked in round ${round}`, artifacts: artifacts(), iterations: round }, eq);
     if (ev["pass"] === true) {
       passed = true;
@@ -1119,12 +1155,12 @@ async function runIterativeFanOut(ctx, spec) {
     { role: "reducer" }
   );
   if (!red) return { ...fail(spec, "iterative-fan-out: reducer returned nothing", round), artifacts: artifacts() };
-  const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);
+  const { question: rq, ...work } = readWorkOutput(red, returns.maxLines, ctx);
   if (rq) return withGaps({ id: spec.id, status: "blocked", result: work.result, artifacts: artifacts(), iterations: round }, rq);
   const all = uniq([...artifacts(), ...work.artifacts]);
   if (passed) return withGaps({ id: spec.id, status: "done", result: work.result, artifacts: all, iterations: round });
   const tail = `-- exhausted after ${round} round(s); open gaps: ${openGaps.length}; first: ${openGaps[0] ?? "none"}`;
-  const result = `${cutLines(work.result, Math.max(0, returns.maxLines - 1))}
+  const result = `${cutLines(work.result, Math.max(0, returns.maxLines - 1), ctx)}
 ${tail}`.replace(/^\n/, "");
   return withGaps({ id: spec.id, status: "exhausted", result, artifacts: all, iterations: round });
 }
@@ -1215,7 +1251,7 @@ async function runPanel(ctx, spec) {
   const failing = judged.filter((v) => !v.pass);
   if (reducer === null) {
     const lines = [verdict, ...failing.map((v) => `[${v.lens.name}] FAIL: ${firstLine(v.feedback) || "(no feedback given)"}`)];
-    return { id: spec.id, status: "done", result: cutLines(lines.join("\n"), returns.maxLines), artifacts: [], iterations: 1 };
+    return { id: spec.id, status: "done", result: cutLines(lines.join("\n"), returns.maxLines, ctx), artifacts: [], iterations: 1 };
   }
   const body = judged.map((v) => `[${v.lens.name}] ${v.pass ? "PASS" : "FAIL"}${v.feedback ? `
 ${v.feedback}` : ""}`).join("\n\n");
@@ -1241,10 +1277,10 @@ ${v.feedback}` : ""}`).join("\n\n");
     { role: "reducer" }
   );
   if (!red) return fail(spec, `panel: reducer returned nothing; pooled verdict was ${verdict}`, 1);
-  const { question, ...work } = readWorkOutput(red, redReturns.maxLines);
+  const { question, ...work } = readWorkOutput(red, redReturns.maxLines, ctx);
   if (question) return { id: spec.id, status: "blocked", result: verdict, artifacts: work.artifacts, question, iterations: 1 };
   const result = cutLines(work.result ? `${verdict}
-${work.result}` : verdict, returns.maxLines);
+${work.result}` : verdict, returns.maxLines, ctx);
   return { id: spec.id, status: "done", result, artifacts: work.artifacts, iterations: 1 };
 }
 var panel = { demand: demandPanel, run: runPanel };
@@ -1284,7 +1320,7 @@ async function runDispatch(ctx, raw) {
     r = fail(spec, `topology threw: ${err instanceof Error ? err.message : String(err)}`);
   }
   const thrown = errors[before];
-  return thrown === void 0 ? r : withThrown(r, thrown, spec.returns.maxLines);
+  return thrown === void 0 ? r : withThrown(r, thrown, spec.returns.maxLines, ctx);
 }
 
 // src/run.ts
@@ -1348,6 +1384,11 @@ function meteredRuntime(rt) {
   });
   return { runtime: { ...rt, agent }, agents, concurrency: () => peak };
 }
+function withSource(h) {
+  const { source, ...rest } = h;
+  const s = source === "self" || source === "human" ? source : h.mode === "autonomous" ? "self" : h.mode === "attended" ? "human" : void 0;
+  return s ? { ...rest, source: s } : rest;
+}
 function refusal(spec, demand) {
   if (demand + 1 > HARD_AGENT_LIMIT) return { id: spec.id, status: "over_budget", result: `not run: ${demand} agent(s) and the scribe would exceed the ${HARD_AGENT_LIMIT}-agent run limit`, artifacts: [], iterations: 0 };
   const wave = waveOf(spec.id);
@@ -1364,7 +1405,7 @@ async function runWorkflow(args, rt) {
   const id = spec.id;
   const wave = waveOf(id);
   const rawHumans = Array.isArray(a.humans) ? a.humans : [];
-  const humans = rawHumans.filter((h) => !!h && typeof h === "object").map((h) => h.type === "hook" ? { ...h, type: "hook", at: h.at ?? now } : { ...h, type: "human", at: h.at ?? now });
+  const humans = rawHumans.filter((h) => !!h && typeof h === "object").map((h) => h.type === "hook" ? { ...h, type: "hook", at: h.at ?? now } : withSource({ ...h, type: "human", at: h.at ?? now }));
   if (humans.length !== rawHumans.length) rt.log(`${id}: dropped ${rawHumans.length - humans.length} malformed humans entry(ies); each must be an object`);
   const demand = agentDemand(raw);
   rt.log(`${id}: ${String(spec.topology)}, up to ${demand} agent(s) + 1 scribe`);
@@ -1378,11 +1419,14 @@ async function runWorkflow(args, rt) {
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
   else result = refusal(spec, demand) ?? await runDispatch(ctx, raw);
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
-  const fields = { agents: meter.agents(), demand, concurrency: meter.concurrency() };
+  const dropped = ctx.dropped ?? 0;
+  if (dropped > 0) rt.log(`${id}: cuts dropped ${dropped} line(s)`);
+  const fields = { agents: meter.agents(), demand, concurrency: meter.concurrency(), ...traceDetail(ctx, id, dropped) };
   const lines = linesOf(result, ctx.stageEvents, fields);
   const self = ctx.selfTrace;
   if (self && (self.appended ?? 0) > 0) {
-    const rolesOnly = linesOf(result, ctx.stageEvents, { ...fields, agents: fields.agents.map((a2) => ({ role: a2.role })) });
+    const { dropped: _cut, ...unknowable } = fields;
+    const rolesOnly = linesOf(result, ctx.stageEvents, { ...unknowable, agents: fields.agents.map((a2) => ({ role: a2.role })) });
     if (self.lines.join("\n") === rolesOnly.join("\n")) {
       if (self.appended !== rolesOnly.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${rolesOnly.length}`);
       rt.log(`STATUS ${result.status}`);

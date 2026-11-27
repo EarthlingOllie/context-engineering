@@ -1,6 +1,6 @@
 // ---------- chain ----------
 import type { ChainParams, ChainStage, DispatchResult, DispatchSpec } from "../types.ts";
-import { type TopologyContext, type TopologyImpl, contractOf, cutLines, dispatchEvent, fail, firstLine, forwardLines, normaliseSpec, uniq } from "./shared.ts";
+import { type TopologyContext, type TopologyImpl, contractOf, cutLines, dispatchEvent, fail, firstLine, forwardLines, normaliseSpec, recordStageLines, traceDetail, uniq } from "./shared.ts";
 import { agentDemand, runDispatch } from "./dispatch.ts";
 
 /** A stage is a dispatch spec numbered after its parent, seeing the parent's context, then its own, then what the previous stage forwarded. */
@@ -25,11 +25,11 @@ function panelGateTrips(stage: DispatchSpec, r: DispatchResult, last: boolean): 
  * run, then the last run stage's lines, cut to the line limit; a chain that
  * stopped early keeps a final `not run: <stages>` line inside that limit.
  */
-function chainResult(lines: string[], last: string, notRun: DispatchSpec[], maxLines: number): string {
+function chainResult(ctx: TopologyContext, lines: string[], last: string, notRun: DispatchSpec[], maxLines: number): string {
   const body = [...lines, ...(last ? last.split("\n") : [])].join("\n");
-  if (!notRun.length) return cutLines(body, maxLines);
+  if (!notRun.length) return cutLines(body, maxLines, ctx);
   const tail = `not run: ${notRun.map(stageName).join(", ")}`;
-  return maxLines <= 1 ? tail : `${cutLines(body, maxLines - 1)}\n${tail}`;
+  return maxLines <= 1 ? tail : `${cutLines(body, maxLines - 1, ctx)}\n${tail}`;
 }
 
 async function runChain(ctx: TopologyContext, spec: DispatchSpec): Promise<DispatchResult> {
@@ -44,21 +44,23 @@ async function runChain(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
   for (let i = 0; i < stages.length; i++) {
     const forwarded = prev ? forwardLines(prev) : [];
     const stage = normaliseStage(spec, stages[i], i, forwarded);
+    const droppedBefore = ctx.dropped ?? 0;
     let r = await runDispatch(ctx, stage);
     if (panelGateTrips(stage, r, i === stages.length - 1)) {
       const [verdict, ...rest] = r.result.split("\n");
       r = { ...r, status: "exhausted", result: [`panel ${stageName(stage)} returned ${verdict}`, ...rest].join("\n") };
     }
-    ctx.stageEvents.push(dispatchEvent(ctx.wave, stage, r, spec.id));
+    ctx.stageEvents.push({ ...dispatchEvent(ctx.wave, stage, r, spec.id), ...traceDetail(ctx, stage.id, (ctx.dropped ?? 0) - droppedBefore) });
     statuses.push(`${stage.id}:${r.status}`);
     stageLines.push(`${stage.id} ${r.status}: ${firstLine(r.result)}`);
+    recordStageLines(ctx, spec, stageLines);
     artifacts.push(...r.artifacts);
     if (r.status !== "done") {
       const notRun = stages.slice(i + 1).map((st, j) => normaliseStage(spec, st, i + 1 + j, []));
       const out: DispatchResult = {
         id: spec.id,
         status: r.status,
-        result: chainResult(stageLines, r.result, notRun, returns.maxLines),
+        result: chainResult(ctx, stageLines, r.result, notRun, returns.maxLines),
         artifacts: uniq(artifacts),
         iterations: i + 1,
         stages: statuses,
@@ -68,7 +70,7 @@ async function runChain(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
     }
     prev = r;
   }
-  return { id: spec.id, status: "done", result: chainResult(stageLines, prev?.result ?? "", [], returns.maxLines), artifacts: uniq(artifacts), iterations: stages.length, stages: statuses };
+  return { id: spec.id, status: "done", result: chainResult(ctx, stageLines, prev?.result ?? "", [], returns.maxLines), artifacts: uniq(artifacts), iterations: stages.length, stages: statuses };
 }
 
 export const chain: TopologyImpl = {

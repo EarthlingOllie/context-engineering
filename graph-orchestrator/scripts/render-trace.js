@@ -45,6 +45,7 @@ function normalise(raw) {
     const dispatch = str(e.dispatch);
     if (dispatch) h.dispatch = dispatch;
     if (e.mode === "attended" || e.mode === "autonomous") h.mode = e.mode;
+    if (e.source === "self" || e.source === "human") h.source = e.source;
     return h;
   }
   return raw;
@@ -157,7 +158,7 @@ function renderTrace(text, extra = []) {
     if (item.kind === "human") {
       const h = item.human;
       const hid = `human_${item.index}`;
-      const who = h.mode === "autonomous" ? "self" : "human";
+      const who = h.source ?? (h.mode === "autonomous" ? "self" : "human");
       const title2 = [`${who} \xB7 ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `\u2192 ${short(h.answer, 40)}` : ""].filter(Boolean);
       out.push(`  ${hid}([${JSON.stringify(title2.map(esc).join("<br/>"))}]):::${who}`);
       if (h.dispatch && known.has(h.dispatch)) {

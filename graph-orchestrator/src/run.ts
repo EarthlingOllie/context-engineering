@@ -14,7 +14,7 @@
  */
 import type { AgentUsage, DispatchArgs, DispatchResult, DispatchReturn, DispatchSpec, HookEvent, HumanEvent, Runtime, TraceEvent } from "./types.ts";
 import { agentLabel, roleOfLabel } from "./labels.ts";
-import { agentDemand, dispatchEvent, fail, normaliseSpec, runDispatch, type TopologyContext } from "./topologies.ts";
+import { agentDemand, dispatchEvent, fail, normaliseSpec, runDispatch, traceDetail, type TopologyContext } from "./topologies.ts";
 
 /** The runtime's hard limit on agents per run. */
 export const HARD_AGENT_LIMIT = 1000;
@@ -94,8 +94,18 @@ export function meteredRuntime(rt: Runtime): { runtime: Runtime; agents: () => A
   return { runtime: { ...rt, agent }, agents, concurrency: () => peak };
 }
 
-/** The per-agent fields of a dispatch line. */
-type AgentFields = { agents: AgentUsage[]; demand: number; concurrency: number };
+/** The per-agent fields of a dispatch line, and the detail its topology recorded (B-06). */
+type AgentFields = { agents: AgentUsage[]; demand: number; concurrency: number } & ReturnType<typeof traceDetail>;
+
+/**
+ * A human intervention's `source` (B-06): a valid one as given, else from the
+ * mode (autonomous is `self`, attended is `human`); absent when neither says.
+ */
+function withSource(h: HumanEvent): HumanEvent {
+  const { source, ...rest } = h;
+  const s = source === "self" || source === "human" ? source : h.mode === "autonomous" ? "self" : h.mode === "attended" ? "human" : undefined;
+  return s ? { ...rest, source: s } : rest;
+}
 
 /** Why a spec cannot run before its topology is asked, or null. */
 function refusal(spec: DispatchSpec, demand: number): DispatchResult | null {
@@ -120,7 +130,7 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   const rawHumans: unknown[] = Array.isArray(a.humans) ? a.humans : [];
   const humans: Array<HumanEvent | HookEvent> = rawHumans
     .filter((h): h is HumanEvent | HookEvent => !!h && typeof h === "object")
-    .map((h) => (h.type === "hook" ? { ...h, type: "hook", at: h.at ?? now } : { ...(h as HumanEvent), type: "human", at: h.at ?? now }));
+    .map((h) => (h.type === "hook" ? { ...h, type: "hook", at: h.at ?? now } : withSource({ ...(h as HumanEvent), type: "human", at: h.at ?? now })));
   if (humans.length !== rawHumans.length) rt.log(`${id}: dropped ${rawHumans.length - humans.length} malformed humans entry(ies); each must be an object`);
 
   const demand = agentDemand(raw);
@@ -141,13 +151,18 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   else result = refusal(spec, demand) ?? (await runDispatch(ctx, raw));
 
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
-  const fields: AgentFields = { agents: meter.agents(), demand, concurrency: meter.concurrency() };
+  // Cuts that dropped lines are logged, and counted on the dispatch line (B-06).
+  const dropped = ctx.dropped ?? 0;
+  if (dropped > 0) rt.log(`${id}: cuts dropped ${dropped} line(s)`);
+  const fields: AgentFields = { agents: meter.agents(), demand, concurrency: meter.concurrency(), ...traceDetail(ctx, id, dropped) };
   const lines = linesOf(result, ctx.stageEvents, fields);
 
-  // The worker wrote the lines: no scribe, provided what it wrote is what the result's lines are (its usage aside, which it could not know).
+  // The worker wrote the lines: no scribe, provided what it wrote is what the result's lines are (its usage and the
+  // count its result's cut dropped aside, which it could not know; the log line above records that count).
   const self = ctx.selfTrace;
   if (self && (self.appended ?? 0) > 0) {
-    const rolesOnly = linesOf(result, ctx.stageEvents, { ...fields, agents: fields.agents.map((a) => ({ role: a.role })) });
+    const { dropped: _cut, ...unknowable } = fields;
+    const rolesOnly = linesOf(result, ctx.stageEvents, { ...unknowable, agents: fields.agents.map((a) => ({ role: a.role })) });
     if (self.lines.join("\n") === rolesOnly.join("\n")) {
       if (self.appended !== rolesOnly.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${rolesOnly.length}`);
       rt.log(`STATUS ${result.status}`);

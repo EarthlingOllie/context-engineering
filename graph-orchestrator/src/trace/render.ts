@@ -2,8 +2,8 @@
  * The trace renderer: trace JSONL text in, Mermaid flowchart out.
  * Waves become subgraphs (grouped by each dispatch line's `wave`), dispatches
  * nodes labelled with their title, id, topology and iteration count, `dependsOn` edges, status as node class, chain stages as a
- * nested subgraph, interventions as nodes (`human`, or `self` dashed when
- * autonomous), `hook` lines as nothing.
+ * nested subgraph, interventions as nodes (`human`, or `self` dashed, by
+ * their `source`, else by mode: autonomous is `self`), `hook` lines as nothing.
  */
 import type { TraceEvent } from "../types.ts";
 
@@ -60,6 +60,7 @@ function normalise(raw: unknown): TraceEvent | null {
     const dispatch = str(e.dispatch);
     if (dispatch) h.dispatch = dispatch;
     if (e.mode === "attended" || e.mode === "autonomous") h.mode = e.mode;
+    if (e.source === "self" || e.source === "human") h.source = e.source;
     return h;
   }
   return raw as TraceEvent;
@@ -186,8 +187,9 @@ export function renderTrace(text: string, extra: TraceEvent[] = []): string {
     if (item.kind === "human") {
       const h = item.human;
       const hid = `human_${item.index}`;
-      // Autonomous mode records a best guess: nobody was consulted, so the node says `self` and is dashed.
-      const who = h.mode === "autonomous" ? "self" : "human";
+      // The recorded source decides (B-06); a line without one falls back to the mode. Autonomous mode records a
+      // best guess: nobody was consulted, so the node says `self` and is dashed.
+      const who = h.source ?? (h.mode === "autonomous" ? "self" : "human");
       const title = [`${who} · ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `→ ${short(h.answer, 40)}` : ""].filter(Boolean);
       out.push(`  ${hid}([${JSON.stringify(title.map(esc).join("<br/>"))}]):::${who}`);
       if (h.dispatch && known.has(h.dispatch)) {

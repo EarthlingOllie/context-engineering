@@ -113,7 +113,7 @@ async function runPanel(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
 
   if (reducer === null) {
     const lines = [verdict, ...failing.map((v) => `[${v.lens.name}] FAIL: ${firstLine(v.feedback) || "(no feedback given)"}`)];
-    return { id: spec.id, status: "done", result: cutLines(lines.join("\n"), returns.maxLines), artifacts: [], iterations: 1 };
+    return { id: spec.id, status: "done", result: cutLines(lines.join("\n"), returns.maxLines, ctx), artifacts: [], iterations: 1 };
   }
 
   const body = judged.map((v) => `[${v.lens.name}] ${v.pass ? "PASS" : "FAIL"}${v.feedback ? `\n${v.feedback}` : ""}`).join("\n\n");
@@ -138,9 +138,9 @@ async function runPanel(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
     { role: "reducer" },
   );
   if (!red) return fail(spec, `panel: reducer returned nothing; pooled verdict was ${verdict}`, 1);
-  const { question, ...work } = readWorkOutput(red, redReturns.maxLines);
+  const { question, ...work } = readWorkOutput(red, redReturns.maxLines, ctx);
   if (question) return { id: spec.id, status: "blocked", result: verdict, artifacts: work.artifacts, question, iterations: 1 };
-  const result = cutLines(work.result ? `${verdict}\n${work.result}` : verdict, returns.maxLines);
+  const result = cutLines(work.result ? `${verdict}\n${work.result}` : verdict, returns.maxLines, ctx);
   return { id: spec.id, status: "done", result, artifacts: work.artifacts, iterations: 1 };
 }
 

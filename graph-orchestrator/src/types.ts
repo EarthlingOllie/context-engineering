@@ -94,6 +94,12 @@ export type DispatchResult = {
  */
 export type AgentUsage = { role: string; output_tokens?: number };
 
+/**
+ * One evaluator round as a dispatch line records it (B-06): its verdict and,
+ * for fail or blocked, the first line of its feedback or question.
+ */
+export type EvaluatorRound = { round: number; verdict: "pass" | "fail" | "blocked"; feedback?: string };
+
 /** A human intervention, written by the orchestrator (via the next wave or the renderer). */
 export type HumanEvent = {
   type: "human";
@@ -103,6 +109,8 @@ export type HumanEvent = {
   question: string;
   answer: string;
   mode?: "attended" | "autonomous";
+  /** Who answered (B-06): `human` when a person did, `self` for an autonomous best guess. Old lines lack it; the renderer then falls back to `mode`. */
+  source?: "self" | "human";
 };
 
 /**
@@ -147,6 +155,14 @@ export type TraceEvent =
       demand?: number;
       /** The most agents the dispatch had running at once; 0 when none ran. */
       concurrency?: number;
+      /** generator-evaluator and iterative-fan-out: the criteria the evaluator checked, once (B-06). */
+      criteria?: string;
+      /** generator-evaluator and iterative-fan-out: each evaluator round's verdict and first feedback line, in order. */
+      rounds?: EvaluatorRound[];
+      /** chain only: each run stage's `<id> <status>: <first line>`. */
+      stageLines?: string[];
+      /** Lines the dispatch's cuts dropped, in total; absent when none. A chain's line counts every cut under it. */
+      dropped?: number;
     }
   | { type: "wave_end"; wave: number; at: string; done: number; blocked: number; exhausted: number; over_budget: number; failed: number } // v0.2 traces only
   | HumanEvent

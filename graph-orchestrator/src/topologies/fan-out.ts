@@ -1,7 +1,7 @@
 // ---------- fan-out ----------
 import type { DispatchResult, DispatchSpec, DispatchStatus, FanOutParams, ReturnContract, RoleEntry } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { DEFAULT_WIDTH, MAX_WIDTH, type TopologyContext, type TopologyImpl, type RoleLabel, blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, readWorkOutput, roleEntry, strArr, uniq } from "./shared.ts";
+import { DEFAULT_WIDTH, MAX_WIDTH, type CutSink, type TopologyContext, type TopologyImpl, type RoleLabel, blockedQuestion, callRole, contractOf, cutLines, fail, int, overBudget, readWorkOutput, roleEntry, strArr, uniq } from "./shared.ts";
 
 /** One branch's outcome: the result fields a dispatch would carry, plus which sub-task it was (`index` is 0-based). */
 export type Branch = Pick<DispatchResult, "status" | "result" | "artifacts" | "question"> & { index: number; task: string };
@@ -81,7 +81,7 @@ export async function branchStep(
         opts.label(i + 1, n, task),
       );
       if (!out) return { index: i, task, status: "failed", result: "worker returned nothing", artifacts: [] };
-      const { question, ...work } = readWorkOutput(out, opts.branchReturns.maxLines);
+      const { question, ...work } = readWorkOutput(out, opts.branchReturns.maxLines, ctx);
       const b: Branch = { index: i, task, status: question ? "blocked" : "done", ...work };
       if (question) b.question = question;
       return b;
@@ -97,9 +97,9 @@ export function branchQuestions(branches: Branch[], prefix = ""): string | undef
 }
 
 /** When no branch finished: `blocked` if any blocked (with their questions), else `failed`; one line per branch. */
-export function noBranchFinished(spec: DispatchSpec, branches: Branch[], maxLines: number): DispatchResult {
+export function noBranchFinished(spec: DispatchSpec, branches: Branch[], maxLines: number, sink?: CutSink): DispatchResult {
   const status: DispatchStatus = branches.some((b) => b.status === "blocked") ? "blocked" : "failed";
-  const base: DispatchResult = { id: spec.id, status, result: cutLines(branches.map((b) => `branch ${b.index + 1} ${b.status}: ${b.question ?? b.result}`).join("\n"), maxLines), artifacts: uniq(branches.flatMap((b) => b.artifacts)), iterations: 1 };
+  const base: DispatchResult = { id: spec.id, status, result: cutLines(branches.map((b) => `branch ${b.index + 1} ${b.status}: ${b.question ?? b.result}`).join("\n"), maxLines, sink), artifacts: uniq(branches.flatMap((b) => b.artifacts)), iterations: 1 };
   const q = branchQuestions(branches);
   return q ? { ...base, question: q } : base;
 }
@@ -139,10 +139,10 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
   const artifacts = uniq(branches.flatMap((b) => b.artifacts));
   const gapQuestion = branchQuestions(branches);
 
-  if (finished.length === 0) return noBranchFinished(spec, branches, returns.maxLines);
+  if (finished.length === 0) return noBranchFinished(spec, branches, returns.maxLines, ctx);
 
   // 3. Reduce over the finished branches, noting the gaps; or concatenate (also the fallback when the reducer returns nothing).
-  const concatenated = () => cutLines(branches.map((b) => (b.status === "done" ? `[${b.index + 1}] ${b.result}` : `[${b.index + 1}] ${b.status}: ${b.question ?? b.result}`)).join("\n"), returns.maxLines);
+  const concatenated = () => cutLines(branches.map((b) => (b.status === "done" ? `[${b.index + 1}] ${b.result}` : `[${b.index + 1}] ${b.status}: ${b.question ?? b.result}`)).join("\n"), returns.maxLines, ctx);
   let result: string;
   let extraArtifacts: string[] = [];
   if (hasReducer) {
@@ -157,7 +157,7 @@ async function runFanOut(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
       { role: "reducer" },
     );
     if (red) {
-      const { question: rq, ...work } = readWorkOutput(red, returns.maxLines);
+      const { question: rq, ...work } = readWorkOutput(red, returns.maxLines, ctx);
       // A blocked reducer blocks the dispatch; the blocked branches' questions still travel with it, as on the done path.
       if (rq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: gapQuestion ? `${rq}\n${gapQuestion}` : rq, iterations: 1 };
       result = work.result;
