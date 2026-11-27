@@ -6,5 +6,5 @@
 
 **Status:** ready-for-agent
 
-- [ ] The generator and worker prompts carry the sentence (dispatch seam)
+- [x] The generator and worker prompts carry the sentence (dispatch seam)
 - [ ] - [ ] Its own dispatch-eval run against the frozen baseline: every sample's pass rate and false passes stay within the baseline spread; the run's scorecard is linked here

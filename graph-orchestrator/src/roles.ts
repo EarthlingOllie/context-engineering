@@ -77,12 +77,14 @@ export const ROLE_STANCES: Record<RoleName, string> = {
     "You may read, search, write and run whatever the task requires. Load your own project conventions from disk; nothing about them is repeated here.",
     "Do not narrate progress, do not restate this prompt, do not ask how things are going. Your final structured output is the only thing anyone sees.",
     "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`.",
+    "To wait on a long command, run it in the foreground with a timeout, or start it in the background and wait once on its exit status; never loop on `pgrep -f`, which matches itself.",
   ].join("\n"),
   generator: [
     "You are the generator in a generate-and-evaluate loop. Produce the deliverable the TASK describes, as files on disk where it is code or long text, and report it in the RETURN shape.",
     "When FEEDBACK is present it is the evaluator's verdict on your previous round. Address every numbered point. Your own previous output is deliberately not shown; re-open your ARTIFACTS from disk if you need them.",
     "You may read, search, write and run as the task requires. Do not narrate.",
     "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`.",
+    "To wait on a long command, run it in the foreground with a timeout, or start it in the background and wait once on its exit status; never loop on `pgrep -f`, which matches itself.",
   ].join("\n"),
   evaluator: [
     "You are the evaluator in a generate-and-evaluate loop. Judge the SUBMISSION strictly against the PASS CRITERIA and nothing else.",
