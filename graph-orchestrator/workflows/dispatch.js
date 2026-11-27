@@ -714,25 +714,45 @@ function normaliseStage(parent, stage, index, forwarded) {
   s.context.push(...forwarded);
   return s;
 }
+function stageName(s) {
+  return s.title ? `${s.id} "${s.title}"` : s.id;
+}
+function panelGateTrips(stage, r, last) {
+  return !last && stage.topology === "panel" && stage.gate !== false && r.status === "done" && /^FAIL\b/.test(r.result);
+}
+function chainResult(lines, last, notRun, maxLines) {
+  const body = [...lines, ...last ? last.split("\n") : []].join("\n");
+  if (!notRun.length) return cutLines(body, maxLines);
+  const tail = `not run: ${notRun.map(stageName).join(", ")}`;
+  return maxLines <= 1 ? tail : `${cutLines(body, maxLines - 1)}
+${tail}`;
+}
 async function runChain(ctx, spec) {
   const returns = contractOf(spec);
   const stages = spec.params.stages;
   if (!Array.isArray(stages) || stages.length === 0) return fail(spec, "chain: `params.stages` must be a non-empty list of dispatch specs");
   const statuses = [];
+  const stageLines = [];
   const artifacts = [];
   let prev = null;
   for (let i = 0; i < stages.length; i++) {
     const forwarded = prev ? forwardLines(prev) : [];
     const stage = normaliseStage(spec, stages[i], i, forwarded);
-    const r = await runDispatch(ctx, stage);
+    let r = await runDispatch(ctx, stage);
+    if (panelGateTrips(stage, r, i === stages.length - 1)) {
+      const [verdict, ...rest] = r.result.split("\n");
+      r = { ...r, status: "exhausted", result: [`panel ${stageName(stage)} returned ${verdict}`, ...rest].join("\n") };
+    }
     ctx.stageEvents.push(dispatchEvent(ctx.wave, stage, r, spec.id));
     statuses.push(`${stage.id}:${r.status}`);
+    stageLines.push(`${stage.id} ${r.status}: ${firstLine(r.result)}`);
     artifacts.push(...r.artifacts);
     if (r.status !== "done") {
+      const notRun = stages.slice(i + 1).map((st, j) => normaliseStage(spec, st, i + 1 + j, []));
       const out = {
         id: spec.id,
         status: r.status,
-        result: cutLines(`stage ${stage.id} ${r.status}: ${r.result}`, returns.maxLines),
+        result: chainResult(stageLines, r.result, notRun, returns.maxLines),
         artifacts: uniq(artifacts),
         iterations: i + 1,
         stages: statuses
@@ -742,7 +762,7 @@ async function runChain(ctx, spec) {
     }
     prev = r;
   }
-  return { id: spec.id, status: "done", result: cutLines(prev?.result ?? "", returns.maxLines), artifacts: uniq(artifacts), iterations: stages.length, stages: statuses };
+  return { id: spec.id, status: "done", result: chainResult(stageLines, prev?.result ?? "", [], returns.maxLines), artifacts: uniq(artifacts), iterations: stages.length, stages: statuses };
 }
 var chain = {
   demand: (_spec, params) => {

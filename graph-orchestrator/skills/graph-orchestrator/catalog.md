@@ -102,13 +102,13 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 
 **Roles** none of its own; each stage carries its own roles.
 
-**Params** `stages`: a list of dispatch specs. A stage may omit `id` (becomes `<chain-id>-s<n>`), `context`, `returns` and `dependsOn`; it inherits the chain's context and return contract.
+**Params** `stages`: a list of dispatch specs. A stage may omit `id` (becomes `<chain-id>-s<n>`), `context`, `returns` and `dependsOn`; it inherits the chain's context and return contract. A panel stage may set `gate: false` to opt out of the panel gate.
 
 **Demand** the sum of the stages' demand.
 
-**Flow** stages run in order. Each stage's context gains the prior stage's status, first result line and artifact paths. The first stage that is not `done` stops the chain, which returns that stage's status, result and question. Trace lines are written for every stage (tagged with the chain as parent) and for the chain itself with `stages: ["w3-s1:done", ...]`.
+**Flow** stages run in order. Each stage's context gains the prior stage's status, first result line and artifact paths. The first stage that is not `done` stops the chain, which returns that stage's status and question. Panel gate: a panel stage that is not the last, whose result starts `FAIL`, stops the chain as `exhausted`, its first line naming the panel (`panel <stage id> "<title>" returned FAIL (1/3)`); set `gate: false` on that stage to let the chain continue past a FAIL, the verdict forwarded to the next stage. Trace lines are written for every stage (tagged with the chain as parent) and for the chain itself with `stages: ["w3-s1:done", ...]`.
 
-**Returns** the last stage's result, all stages' artifacts, `iterations` = stages run, plus `stages` statuses.
+**Returns** a result that starts with one `<stage id> <status>: <first line>` line per stage run, then the last run stage's lines, cut to the line limit. A chain that stops early ends its result with `not run: <stage ids and titles>` (kept inside the limit). Also all stages' artifacts, `iterations` = stages run, plus `stages` statuses.
 
 ```json
 { "id": "w3-d1", "title": "Write the store architecture note", "topology": "chain",

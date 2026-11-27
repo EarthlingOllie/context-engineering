@@ -228,7 +228,7 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
   assert.deepEqual(r.stages, ["w3-s1:done", "w3-s2:done"]);
-  assert.equal(r.result, "/scratch/t/writeup.md");
+  assert.equal(r.result, "w3-s1 done: /scratch/t/research.md\nw3-s2 done: /scratch/t/writeup.md\n/scratch/t/writeup.md");
   assert.deepEqual(r.artifacts, ["/scratch/t/research.md", "/scratch/t/writeup.md"]);
   assert.match(calls[0]!.prompt, /- chain-wide fact\n- stage fact/);
   assert.match(calls[1]!.prompt, /- w3-s1 \(done\) returned: \/scratch\/t\/research\.md\n- artifacts from w3-s1: \/scratch\/t\/research\.md/);

@@ -178,7 +178,8 @@ test("sample 9 (chain whose stage 2 cannot pass) stops at stage 2, reports it an
   const result = await runHarness({ bundleSource, args: sampleArgs("09-chain-stage-2-fails.json"), engine, mainModel: "claude-opus-5-5", cap: 2 });
   assert.equal(result.return?.["status"], "exhausted");
   assert.deepEqual(result.return?.["stages"], ["w1-d9-s1:done", "w1-d9-s2:exhausted"]);
-  assert.match(String(result.return?.["result"]), /^stage w1-d9-s2 exhausted: /);
+  assert.match(String(result.return?.["result"]), /^w1-d9-s1 done: .*\nw1-d9-s2 exhausted: /);
+  assert.match(String(result.return?.["result"]), /\nnot run: w1-d9-s3 "Announce parse_duration"$/);
   assert.ok(!result.agents.some((a) => a.label?.startsWith("Link 3")));
   assert.deepEqual(result.agents.map((a) => roleOf(a.label)), ["Worker", "Generator", "Evaluator", "Grapher"]);
 });

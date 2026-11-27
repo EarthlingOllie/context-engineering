@@ -37,7 +37,9 @@ export type DebateParams = {
   rounds?: number; // default 2, ≤ 4
   judge?: RoleEntry; // or roles.judge (required one way or the other)
 };
-export type ChainParams = { stages: DispatchSpec[] };
+/** A chain stage: a dispatch spec; a non-last panel stage stops the chain on FAIL unless it sets `gate: false`. */
+export type ChainStage = DispatchSpec & { gate?: boolean };
+export type ChainParams = { stages: ChainStage[] };
 export type RelayParams = {
   done_criteria: string; // required: the evaluator done-check is the only stop
   progress: string; // required: the progress-artifact path
