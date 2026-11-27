@@ -2,12 +2,21 @@
 import { build } from "esbuild";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-// The version stamp (B-03, REL-07): the package version plus the git short commit the build ran at.
+// The version stamp (B-03, REL-07): the package version plus the git short commit of the last change to the
+// bundle's inputs (src/, the manifests, this file). Not HEAD: a committed bundle can never contain the sha of the
+// commit that holds it, so stamping HEAD left the bundle dirty after every commit. Committing a rebuilt bundle, or
+// docs, leaves this sha unchanged, so a rebuild on a clean tree is a no-op.
 const PKG_VERSION = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version;
 let commit = "nogit";
 try {
-  commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || commit;
+  commit =
+    execFileSync("git", ["log", "-1", "--format=%h", "--", "src", "package.json", "package-lock.json", "build.mjs"], {
+      cwd: fileURLToPath(new URL(".", import.meta.url)),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim() || commit;
 } catch {
   // not a git checkout: the stamp says so rather than failing the build
 }
