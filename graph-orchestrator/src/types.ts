@@ -82,6 +82,16 @@ export type DispatchResult = {
   stages?: string[]; // chain only: "w3-s1:done"
 };
 
+/**
+ * One agent of a dispatch as its trace line records it: the role its label
+ * names, and only the usage a Workflow script can read (ticket 02). That is
+ * `output_tokens`, the `budget.spent()` delta across the call, recorded only
+ * when no other agent of the dispatch ran during it; unreadable figures are
+ * left out, never zeroed. The pool behind `budget.spent()` is shared by every
+ * workflow in the turn, so a dispatch running beside others can over-count.
+ */
+export type AgentUsage = { role: string; output_tokens?: number };
+
 /** A human intervention, written by the orchestrator (via the next wave or the renderer). */
 export type HumanEvent = {
   type: "human";
@@ -116,6 +126,12 @@ export type TraceEvent =
       stages?: string[];
       parent?: string; // for chain stages
       question?: string;
+      /** Every agent the dispatch ran, in call order (not the scribe, which writes this line). Absent on older lines and on chain stage lines. */
+      agents?: AgentUsage[];
+      /** The agents the dispatch needed: its topology's upper bound (agentDemand), 0 when refused unrun. */
+      demand?: number;
+      /** The most agents the dispatch had running at once; 0 when none ran. */
+      concurrency?: number;
     }
   | { type: "wave_end"; wave: number; at: string; done: number; blocked: number; exhausted: number; over_budget: number; failed: number } // v0.2 traces only
   | HumanEvent;
@@ -139,4 +155,6 @@ export type Runtime = {
   agent: (prompt: string, opts?: AgentOptions) => Promise<unknown>;
   parallel: <T>(thunks: Array<() => Promise<T>>) => Promise<Array<T | null>>;
   log: (message: string) => void;
+  /** The Workflow harness's `budget` global: `spent()` is output tokens spent this turn. Optional; absent or without `spent`, no usage is recorded. */
+  budget?: { spent?: () => number } | null;
 };

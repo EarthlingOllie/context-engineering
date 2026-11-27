@@ -50,6 +50,16 @@ export function fileHash(path: string): string | null {
   }
 }
 
+/** Output tokens an engine record reports across its calls (`calls[].usage.output_tokens`); 0 when it reports none. */
+export function outputTokensOf(record: unknown): number {
+  const calls = (record as { calls?: unknown } | null)?.calls;
+  if (!Array.isArray(calls)) return 0;
+  return calls.reduce((sum: number, c) => {
+    const n = Number((c as { usage?: { output_tokens?: unknown } | null } | null)?.usage?.output_tokens);
+    return sum + (Number.isFinite(n) && n > 0 ? n : 0);
+  }, 0);
+}
+
 export type LogRecord = { atMs: number; message: string };
 
 export type HarnessRuntime = Runtime & { agent: (prompt: string, opts?: HarnessAgentOptions) => Promise<unknown> };
@@ -135,6 +145,9 @@ export function createRuntime(o: { engine: Engine; mainModel: string; cap: numbe
     logs.push({ atMs: now(), message: String(message) });
   };
 
-  const runtime: HarnessRuntime = { agent, parallel, log };
+  // The Workflow harness's `budget` global: spent() is the output tokens of every call answered so far.
+  const budget = { total: null, spent: () => agents.reduce((sum, a) => sum + outputTokensOf(a.engine), 0) };
+
+  const runtime: HarnessRuntime = { agent, parallel, log, budget };
   return { runtime, agents, logs, now };
 }

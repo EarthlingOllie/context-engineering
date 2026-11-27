@@ -27,7 +27,7 @@ test("the bundle is one plain script: meta literal first, no imports or requires
   assert.doesNotMatch(body, /^\s*export\b/m);
   assert.doesNotMatch(body, /\brequire\(/);
   assert.doesNotMatch(body, /Date\.now\(|Math\.random\(|new Date\(\)/);
-  assert.match(body, /return await runWorkflow\(args, \{ agent, parallel, log \}\);\s*$/);
+  assert.match(body, /return await runWorkflow\(args, \{ agent, parallel, log, budget: typeof budget === "undefined" \? null : budget \}\);\s*$/);
 });
 
 test("the script body runs under a harness-shaped scope and returns the dispatch's result as data", async () => {

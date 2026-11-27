@@ -42,7 +42,7 @@ test("single: the worker is given exactly the lines the scribe would write: huma
   const { calls } = await wave([retry()], { Worker: appended(2) }, { humans });
   assert.deepEqual(eventsOf(calls[0]!.prompt), [
     { ...humans[0], at: baseArgs.now },
-    { type: "dispatch", wave: 2, id: "w2-d1", title: "Add the retry policy", topology: "single", iterations: 1, status: "done", dependsOn: ["w1-d2"], at: baseArgs.now },
+    { type: "dispatch", wave: 2, id: "w2-d1", title: "Add the retry policy", topology: "single", iterations: 1, status: "done", dependsOn: ["w1-d2"], agents: [{ role: "worker" }], demand: 1, concurrency: 1, at: baseArgs.now },
   ]);
 });
 

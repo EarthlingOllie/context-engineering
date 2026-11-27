@@ -59,6 +59,14 @@ function agentLabel(parts) {
   const excerpt = taskExcerpt(parts.task);
   return `${topology ? `${topology}, ` : ""}${role}${pos ? ` (${pos})` : ""}${excerpt ? `: ${excerpt}` : ""}`;
 }
+function roleOfLabel(label) {
+  let l = String(label ?? "").trim();
+  if (!l) return "unlabelled";
+  if (l.startsWith("Link ") && l.includes(", ")) l = l.slice(l.indexOf(", ") + 2);
+  const word = l.split(/[ :(]/, 1)[0];
+  const role = Object.keys(ROLE_TITLES).find((r) => ROLE_TITLES[r] === word);
+  return role ?? word.toLowerCase();
+}
 
 // src/roles.ts
 var blockedProps = {
@@ -1282,6 +1290,42 @@ var SCRIBE_SCHEMA = {
   properties: { appended: { type: "number" }, totalLines: { type: "number" } },
   required: ["appended", "totalLines"]
 };
+function meteredRuntime(rt) {
+  const recs = [];
+  const running = /* @__PURE__ */ new Set();
+  let peak = 0;
+  const spent = () => {
+    try {
+      const b = rt.budget;
+      if (!b || typeof b.spent !== "function") return void 0;
+      const v = Number(b.spent());
+      return Number.isFinite(v) ? v : void 0;
+    } catch {
+      return void 0;
+    }
+  };
+  const agent = async (prompt, opts) => {
+    const rec = { role: roleOfLabel(opts?.label), overlapped: running.size > 0 };
+    for (const r of running) r.overlapped = true;
+    const before = spent();
+    if (before !== void 0) rec.before = before;
+    recs.push(rec);
+    running.add(rec);
+    peak = Math.max(peak, running.size);
+    try {
+      return await rt.agent(prompt, opts);
+    } finally {
+      running.delete(rec);
+      const after = spent();
+      if (after !== void 0) rec.after = after;
+    }
+  };
+  const agents = () => recs.map((r) => {
+    const delta = !r.overlapped && r.before !== void 0 && r.after !== void 0 ? r.after - r.before : void 0;
+    return delta !== void 0 && delta >= 0 ? { role: r.role, output_tokens: delta } : { role: r.role };
+  });
+  return { runtime: { ...rt, agent }, agents, concurrency: () => peak };
+}
 function refusal(spec, demand) {
   if (demand + 1 > HARD_AGENT_LIMIT) return { id: spec.id, status: "over_budget", result: `not run: ${demand} agent(s) and the scribe would exceed the ${HARD_AGENT_LIMIT}-agent run limit`, artifacts: [], iterations: 0 };
   const wave = waveOf(spec.id);
@@ -1302,20 +1346,23 @@ async function runWorkflow(args, rt) {
   if (humans.length !== rawHumans.length) rt.log(`${id}: dropped ${rawHumans.length - humans.length} malformed humans entry(ies); each must be an object`);
   const demand = agentDemand(raw);
   rt.log(`${id}: ${String(spec.topology)}, up to ${demand} agent(s) + 1 scribe`);
-  const linesOf = (r, stages) => [...humans, ...stages, { ...dispatchEvent(wave, spec, r), at: now }].map((e) => JSON.stringify(e));
-  const ctx = { rt, artifactDir: scratch, wave, stageEvents: [] };
+  const linesOf = (r, stages, fields2) => [...humans, ...stages, { ...dispatchEvent(wave, spec, r), ...fields2, at: now }].map((e) => JSON.stringify(e));
+  const meter = meteredRuntime(rt);
+  const ctx = { rt: meter.runtime, artifactDir: scratch, wave, stageEvents: [] };
   if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
-    ctx.selfTrace = { id, file: traceFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, []) };
+    ctx.selfTrace = { id, file: traceFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1 }) };
   }
   let result;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
   else result = refusal(spec, demand) ?? await runDispatch(ctx, raw);
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
-  const lines = linesOf(result, ctx.stageEvents);
+  const fields = { agents: meter.agents(), demand, concurrency: meter.concurrency() };
+  const lines = linesOf(result, ctx.stageEvents, fields);
   const self = ctx.selfTrace;
   if (self && (self.appended ?? 0) > 0) {
-    if (self.lines.join("\n") === lines.join("\n")) {
-      if (self.appended !== lines.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${lines.length}`);
+    const rolesOnly = linesOf(result, ctx.stageEvents, { ...fields, agents: fields.agents.map((a2) => ({ role: a2.role })) });
+    if (self.lines.join("\n") === rolesOnly.join("\n")) {
+      if (self.appended !== rolesOnly.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${rolesOnly.length}`);
       rt.log(`STATUS ${result.status}`);
       return { ...result, ...spec.title ? { title: spec.title } : {}, scribe: { appended: self.appended ?? 0, totalLines: self.totalLines ?? 0 }, tracedBy: "worker" };
     }
@@ -1339,5 +1386,5 @@ async function runWorkflow(args, rt) {
   return { ...result, ...spec.title ? { title: spec.title } : {}, scribe, ...scribe ? { tracedBy: "scribe" } : {} };
 }
 
-// --- script body: the harness supplies agent, parallel, log and args ---
-return await runWorkflow(args, { agent, parallel, log });
+// --- script body: the harness supplies agent, parallel, log, budget and args ---
+return await runWorkflow(args, { agent, parallel, log, budget: typeof budget === "undefined" ? null : budget });

@@ -25,7 +25,7 @@ export function loadBundle(src: string): Bundle {
   };
   return {
     meta,
-    run: (rt, args) => fn(rt.agent, rt.parallel, rt.log, () => {}, unsupported("pipeline"), unsupported("workflow"), { total: null }, args),
+    run: (rt, args) => fn(rt.agent, rt.parallel, rt.log, () => {}, unsupported("pipeline"), unsupported("workflow"), rt.budget ?? { total: null }, args),
   };
 }
 

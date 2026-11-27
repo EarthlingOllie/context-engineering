@@ -17,12 +17,13 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Engine } from "./runtime.ts";
 
-export type StubOptions = { delayMs?: number; evaluator?: "pass" | "fail"; serveModel?: string };
+/** `outputTokens`: each call's usage reports that many output tokens (the runtime's budget.spent() sums them); absent, usage is null. */
+export type StubOptions = { delayMs?: number; evaluator?: "pass" | "fail"; serveModel?: string; outputTokens?: number };
 
 export function stubEngine(o: StubOptions = {}): Engine {
   const delayMs = o.delayMs ?? 0;
   return async (req) => {
-    const record = { stub: true, calls: [{ model: o.serveModel ?? req.model, usage: null }] };
+    const record = { stub: true, calls: [{ model: o.serveModel ?? req.model, usage: o.outputTokens !== undefined ? { output_tokens: o.outputTokens } : null }] };
     if (req.prompt.startsWith("ROLE: scribe")) {
       const file = /to the file (.+?), exactly as given/.exec(req.prompt)?.[1];
       if (!file) throw new Error("stub scribe: no trace file in the prompt");

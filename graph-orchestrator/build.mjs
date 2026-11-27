@@ -10,8 +10,8 @@ const META = `export const meta = {
 `;
 
 const FOOTER = `
-// --- script body: the harness supplies agent, parallel, log and args ---
-return await runWorkflow(args, { agent, parallel, log });
+// --- script body: the harness supplies agent, parallel, log, budget and args ---
+return await runWorkflow(args, { agent, parallel, log, budget: typeof budget === "undefined" ? null : budget });
 `;
 
 mkdirSync("workflows", { recursive: true });
