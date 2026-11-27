@@ -75,11 +75,35 @@ test("human interventions without a dispatch render as standalone nodes; unreada
   const out = renderTrace(fixture("human-intervention.jsonl"));
   const L = lines(out);
   assert.ok(L.includes('human_1(["human · ambiguity<br/>Rewrite or wrap the legacy parser?<br/>→ wrap it"]):::human'));
-  assert.ok(L.includes('human_2(["human · budget<br/>Wave budget of 16 reached; continue?<br/>→ stop"]):::human'));
+  assert.ok(L.includes('human_2(["self · budget<br/>Wave budget of 16 reached; continue?<br/>→ stop"]):::self'), "an autonomous intervention is titled self, dashed class");
   assert.ok(L.includes('w1_d1["w1-d1<br/>single ×1<br/>over budget"]:::over_budget'));
   assert.ok(L.includes("%% 1 unreadable line(s) skipped"));
   assert.ok(out.indexOf("human_1([") < out.indexOf("subgraph wave1") && out.indexOf("subgraph wave1") < out.indexOf("human_2(["));
   assert.equal(parseTrace(fixture("human-intervention.jsonl")).skipped, 1);
+});
+
+test("A-09: an autonomous intervention renders as self · <trigger> with the dashed class; an attended one, or one without a mode, as human · <trigger>", () => {
+  const out = renderTrace(fixture("human-intervention.jsonl"));
+  const L = lines(out);
+  assert.ok(L.includes('human_1(["human · ambiguity<br/>Rewrite or wrap the legacy parser?<br/>→ wrap it"]):::human'), "attended: human");
+  assert.ok(L.includes('human_2(["self · budget<br/>Wave budget of 16 reached; continue?<br/>→ stop"]):::self'), "autonomous: self");
+  const selfDef = L.find((l) => l.startsWith("classDef self "));
+  assert.ok(selfDef && /stroke-dasharray/.test(selfDef), `self class is dashed: ${selfDef}`);
+  const humanDef = L.find((l) => l.startsWith("classDef human "));
+  assert.ok(humanDef && !/stroke-dasharray/.test(humanDef), "human class stays solid");
+  const bare = renderTrace("", [{ type: "human", trigger: "exhausted", question: "Stop?", answer: "yes" }]);
+  assert.ok(lines(bare).includes('human_1(["human · exhausted<br/>Stop?<br/>→ yes"]):::human'), "no mode: human");
+});
+
+test("A-09: a hook event renders nothing: no node, no edge, not counted as unreadable", () => {
+  const text = fixture("human-intervention.jsonl");
+  assert.ok(text.includes('"type":"hook"'), "the fixture carries a hook line");
+  const out = renderTrace(text);
+  assert.ok(!/hook|Uncommitted/i.test(out), "nothing of the hook reaches the diagram");
+  assert.equal(lines(out).filter((l) => /^human_\d+\(\[/.test(l)).length, 2, "still two intervention nodes");
+  assert.equal(parseTrace(text).skipped, 1, "only the non-JSON line is skipped");
+  const alone = renderTrace("", [{ type: "hook", hook: "Stop", message: "push now" }]);
+  assert.ok(alone.trim().split("\n").slice(1).every((l) => l.startsWith("  classDef ")), "a hook alone draws only the class definitions");
 });
 
 test("an intervention only dots into dispatches that come after it; a same-wave dispatch that ran before it gets no edge (UC3 trace)", () => {

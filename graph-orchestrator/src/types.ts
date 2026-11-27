@@ -105,12 +105,25 @@ export type HumanEvent = {
   mode?: "attended" | "autonomous";
 };
 
+/**
+ * A hook message (a Stop hook's git check, a commit or push reminder) that
+ * reached the session. It is never a human answer and never an intervention:
+ * the trace records that it fired, and the renderer draws nothing for it.
+ */
+export type HookEvent = {
+  type: "hook";
+  at?: string;
+  hook: string; // the hook's event name, e.g. "Stop"
+  dispatch?: string; // the running dispatch that owned the tree when it fired, if any
+  message?: string; // the hook's first line
+};
+
 /** The args of one dispatch workflow run. */
 export type DispatchArgs = {
   now: string; // ISO timestamp supplied by the orchestrator; scripts cannot read the clock
   scratch: string; // the session scratch directory: artifacts go here, the trace line to <scratch>/trace/<id>.jsonl
   dispatch: DispatchSpec;
-  humans?: HumanEvent[]; // interventions since the last wave, written by the scribe before the dispatch line
+  humans?: Array<HumanEvent | HookEvent>; // interventions (and hook events) since the last wave, written by the scribe before the dispatch line
 };
 
 export type TraceEvent =
@@ -136,7 +149,8 @@ export type TraceEvent =
       concurrency?: number;
     }
   | { type: "wave_end"; wave: number; at: string; done: number; blocked: number; exhausted: number; over_budget: number; failed: number } // v0.2 traces only
-  | HumanEvent;
+  | HumanEvent
+  | HookEvent;
 
 /** What a dispatch workflow returns: the result, and whether its trace lines were written. */
 export type DispatchReturn = DispatchResult & {

@@ -2,7 +2,8 @@
  * The trace renderer: trace JSONL text in, Mermaid flowchart out.
  * Waves become subgraphs (grouped by each dispatch line's `wave`), dispatches
  * nodes labelled with their title, id, topology and iteration count, `dependsOn` edges, status as node class, chain stages as a
- * nested subgraph, human interventions as nodes.
+ * nested subgraph, interventions as nodes (`human`, or `self` dashed when
+ * autonomous), `hook` lines as nothing.
  */
 import type { TraceEvent } from "../types.ts";
 
@@ -117,6 +118,8 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
       case "human":
         items.push({ kind: "human", human: e, index: ++humans });
         break;
+      case "hook": // recorded, never drawn: a hook is not an intervention
+        break;
       default:
         skipped++;
     }
@@ -131,6 +134,7 @@ const CLASSES: Record<string, string> = {
   over_budget: "fill:#fef3c7,stroke:#d97706,stroke-dasharray:4 2,color:#78350f",
   failed: "fill:#f3f4f6,stroke:#6b7280,stroke-dasharray:4 2,color:#111827",
   human: "fill:#ede9fe,stroke:#7c3aed,color:#3b0764",
+  self: "fill:#f5f3ff,stroke:#7c3aed,stroke-dasharray:4 2,color:#3b0764",
 };
 
 export function nodeId(id: string): string {
@@ -182,8 +186,10 @@ export function renderTrace(text: string, extra: TraceEvent[] = []): string {
     if (item.kind === "human") {
       const h = item.human;
       const hid = `human_${item.index}`;
-      const title = [`human · ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `→ ${short(h.answer, 40)}` : ""].filter(Boolean);
-      out.push(`  ${hid}([${JSON.stringify(title.map(esc).join("<br/>"))}]):::human`);
+      // Autonomous mode records a best guess: nobody was consulted, so the node says `self` and is dashed.
+      const who = h.mode === "autonomous" ? "self" : "human";
+      const title = [`${who} · ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `→ ${short(h.answer, 40)}` : ""].filter(Boolean);
+      out.push(`  ${hid}([${JSON.stringify(title.map(esc).join("<br/>"))}]):::${who}`);
       if (h.dispatch && known.has(h.dispatch)) {
         edges.push(`  ${nodeId(h.dispatch)} --> ${hid}`);
         const list = humansByDispatch.get(h.dispatch) ?? [];

@@ -1364,7 +1364,7 @@ async function runWorkflow(args, rt) {
   const id = spec.id;
   const wave = waveOf(id);
   const rawHumans = Array.isArray(a.humans) ? a.humans : [];
-  const humans = rawHumans.filter((h) => !!h && typeof h === "object").map((h) => ({ ...h, type: "human", at: h.at ?? now }));
+  const humans = rawHumans.filter((h) => !!h && typeof h === "object").map((h) => h.type === "hook" ? { ...h, type: "hook", at: h.at ?? now } : { ...h, type: "human", at: h.at ?? now });
   if (humans.length !== rawHumans.length) rt.log(`${id}: dropped ${rawHumans.length - humans.length} malformed humans entry(ies); each must be an object`);
   const demand = agentDemand(raw);
   rt.log(`${id}: ${String(spec.topology)}, up to ${demand} agent(s) + 1 scribe`);

@@ -12,7 +12,7 @@
  * "completed" for every run that returned, so this line is where a watcher
  * sees the real outcome.
  */
-import type { AgentUsage, DispatchArgs, DispatchResult, DispatchReturn, DispatchSpec, HumanEvent, Runtime, TraceEvent } from "./types.ts";
+import type { AgentUsage, DispatchArgs, DispatchResult, DispatchReturn, DispatchSpec, HookEvent, HumanEvent, Runtime, TraceEvent } from "./types.ts";
 import { agentLabel, roleOfLabel } from "./labels.ts";
 import { agentDemand, dispatchEvent, fail, normaliseSpec, runDispatch, type TopologyContext } from "./topologies.ts";
 
@@ -116,8 +116,11 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   const wave = waveOf(id);
 
   // Interventions since the last wave: objects are kept (stamped with now when undated), anything else is dropped and logged.
+  // An entry typed `hook` stays a hook event (A-09: a hook is never an intervention); every other object is a human one.
   const rawHumans: unknown[] = Array.isArray(a.humans) ? a.humans : [];
-  const humans: HumanEvent[] = rawHumans.filter((h): h is HumanEvent => !!h && typeof h === "object").map((h) => ({ ...h, type: "human", at: h.at ?? now }));
+  const humans: Array<HumanEvent | HookEvent> = rawHumans
+    .filter((h): h is HumanEvent | HookEvent => !!h && typeof h === "object")
+    .map((h) => (h.type === "hook" ? { ...h, type: "hook", at: h.at ?? now } : { ...(h as HumanEvent), type: "human", at: h.at ?? now }));
   if (humans.length !== rawHumans.length) rt.log(`${id}: dropped ${rawHumans.length - humans.length} malformed humans entry(ies); each must be an object`);
 
   const demand = agentDemand(raw);

@@ -101,6 +101,8 @@ function parseTrace(text, extra = []) {
       case "human":
         items.push({ kind: "human", human: e, index: ++humans });
         break;
+      case "hook":
+        break;
       default:
         skipped++;
     }
@@ -113,7 +115,8 @@ var CLASSES = {
   exhausted: "fill:#fef3c7,stroke:#d97706,color:#78350f",
   over_budget: "fill:#fef3c7,stroke:#d97706,stroke-dasharray:4 2,color:#78350f",
   failed: "fill:#f3f4f6,stroke:#6b7280,stroke-dasharray:4 2,color:#111827",
-  human: "fill:#ede9fe,stroke:#7c3aed,color:#3b0764"
+  human: "fill:#ede9fe,stroke:#7c3aed,color:#3b0764",
+  self: "fill:#f5f3ff,stroke:#7c3aed,stroke-dasharray:4 2,color:#3b0764"
 };
 function nodeId(id) {
   const s = String(id).replace(/[^A-Za-z0-9_]/g, "_");
@@ -154,8 +157,9 @@ function renderTrace(text, extra = []) {
     if (item.kind === "human") {
       const h = item.human;
       const hid = `human_${item.index}`;
-      const title2 = [`human \xB7 ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `\u2192 ${short(h.answer, 40)}` : ""].filter(Boolean);
-      out.push(`  ${hid}([${JSON.stringify(title2.map(esc).join("<br/>"))}]):::human`);
+      const who = h.mode === "autonomous" ? "self" : "human";
+      const title2 = [`${who} \xB7 ${h.trigger}`, h.dispatch ? `on ${h.dispatch}` : "", short(h.question, 60), h.answer ? `\u2192 ${short(h.answer, 40)}` : ""].filter(Boolean);
+      out.push(`  ${hid}([${JSON.stringify(title2.map(esc).join("<br/>"))}]):::${who}`);
       if (h.dispatch && known.has(h.dispatch)) {
         edges.push(`  ${nodeId(h.dispatch)} --> ${hid}`);
         const list = humansByDispatch.get(h.dispatch) ?? [];

@@ -397,6 +397,19 @@ test("the scribe writes the dispatch's own trace file: humans first, stamped wit
   assert.deepEqual(out.results[0]!.scribe, { appended: 2, totalLines: 99 });
 });
 
+test("A-09: a hook entry in humans is written as a hook event, not an intervention", async () => {
+  const { out } = await wave([spec({ id: "w2-d1", topology: "single" })], {}, {
+    humans: [{ type: "hook", hook: "Stop", dispatch: "w1-d1", message: "Uncommitted changes: commit and push." }, { trigger: "blocked", question: "Which DB?", answer: "postgres" }],
+  });
+  const [hook, human, dispatch] = out.events as Array<{ type: string; at?: string; hook?: string; dispatch?: string }>;
+  assert.equal(hook!.type, "hook");
+  assert.equal(hook!.hook, "Stop");
+  assert.equal(hook!.dispatch, "w1-d1");
+  assert.equal(hook!.at, baseArgs.now);
+  assert.equal(human!.type, "human", "an untyped entry is still an intervention");
+  assert.equal(dispatch!.type, "dispatch");
+});
+
 test("trace files: one per dispatch id under <scratch>/trace, so parallel workflows never write the same file", () => {
   assert.equal(traceFileOf("/s/", "w1-d2"), "/s/trace/w1-d2.jsonl");
   assert.equal(traceFileOf("/s", "w 1/../x"), "/s/trace/w_1_.._x.jsonl");

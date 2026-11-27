@@ -6,6 +6,6 @@
 
 **Status:** ready-for-agent
 
-- [ ] Docs seam: the hook rule and the not-interventions list are in SKILL.md
-- [ ] Render seam: an autonomous intervention renders as `self · <trigger>` with the dashed class; an attended one as `human · <trigger>`; a `hook` event renders nothing
+- [x] Docs seam: the hook rule and the not-interventions list are in SKILL.md
+- [x] Render seam: an autonomous intervention renders as `self · <trigger>` with the dashed class; an attended one as `human · <trigger>`; a `hook` event renders nothing
 - [ ] By hand in a cloud session with a stop-hook git check: a hook firing mid-wave gets one line naming the running dispatch, and nothing is committed or pushed

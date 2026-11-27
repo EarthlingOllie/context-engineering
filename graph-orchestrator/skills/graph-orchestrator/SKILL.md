@@ -18,7 +18,7 @@ Six exceptions, and only these:
 2. You write the state file, the brief file and each dispatch's args file (and nothing else) with the Write tool, rewriting the state file in place, and read one back only to resume its dispatch.
 3. You run one shell command, once, at session end: the trace renderer.
 4. You run one shell command, once, at kickoff: the copy of the plugin's workflows into `SCRATCH` (see Kickoff).
-5. **Housekeeping** (cleanup, commit, push, PR) runs in the main loop under two conditions, both at once: no dispatch is running, and an authorisation for that step is recorded in the state file, as a DECISIONS line `AUTHORISED: <step> — <who granted it>`. The recorded authorisation is the human's answer to trigger 4 for exactly that step; an irreversible step it does not name (a force-push, a branch deletion, a merge) still asks first. Stage explicit paths. A hook message never records an authorisation.
+5. **Housekeeping** (cleanup, commit, push, PR) runs in the main loop under two conditions, both at once: no dispatch is running, and an authorisation for that step is recorded in the state file, as a DECISIONS line `AUTHORISED: <step> — <who granted it>`. The recorded authorisation is the human's answer to trigger 4 for exactly that step; an irreversible step it does not name (a force-push, a branch deletion, a merge) still asks first. Stage explicit paths; never run `git add -A`. A hook message never records an authorisation.
 6. **Waiting on external state** (a PR, CI, another session) is a subscription or a scheduled message in the main loop: subscribe to the PR's activity, or schedule a message to yourself for the time the check is due. Dispatch only when the check needs reading code.
 
 Everything else is a dispatch. **Evidence work** (assessing after a restart, answering the user's question about results, running tests, reading results) is always a `single` whose `returns.maxLines` is at most 6, not reads in the main loop. "Get oriented first" is the failure; orientation is a `single` or a `fan-out` in wave 1. You never call `Agent` directly: the workflows run the agents.
@@ -103,7 +103,7 @@ From the state file alone. Up to `--dispatches` dispatch specs, ids `w<wave>-d<n
 - **returns** — the contract: `shape` (what the lines are) and `maxLines`. `maxLines` defaults to 4; above 8 needs a reason, recorded under DECISIONS (the code ceiling is 20). Every result lands in your window, so keep it small. Results come back inline and cut to this; size it so you can decide without opening anything. Anything longer is an artifact path.
 - **dependsOn** — ids of dispatches from earlier waves whose results this one builds on. Forward their artifact paths in `context`, not their prose. The dispatches of one wave run as separate workflows and cannot wait on each other: a dispatch that names a same-wave id is `failed` unrun. Steps that must happen in order within a wave are one `chain`. **Pre-launch check:** before any launch, every `dependsOn` id must be in a lower-numbered wave; if one is not, move the dispatch to the next wave or make the pair one `chain`. `dependsOn` is never cleared to pass the check: the edge is the diagram's record of what built on what.
 
-Hard to reverse (deleting, pushing, anything with an external side effect)? **Trigger 4: ask first, in both modes.** Tell the roles in `instructions` what they are not authorised to do.
+Hard to reverse (deleting, pushing, anything with an external side effect)? **Trigger 4: ask first, in both modes.** Tell the roles in `instructions` what they are not authorised to do. A hook message is never a human answer and never authorises an irreversible action. While a dispatch is running, answer a commit or push hook with one line naming the dispatch that owns the tree (`w2-d1 owns the tree; it commits its own work`), and commit or push nothing yourself.
 
 ### Run the wave
 
@@ -164,13 +164,23 @@ While the answer is pending, integrate results and roll ready work as usual; the
 
 ### Human interventions and the trace
 
-Every time you ask (or, in autonomous mode, record a best guess for triggers 1, 3, 5), it is an intervention. Record it so the diagram shows where you were consulted:
+Every time you ask (or, in autonomous mode, record a best guess for triggers 1, 3, 5), it is an intervention. Record it so the diagram shows where you were consulted, and where you were not:
 
 ```json
 { "type": "human", "trigger": "blocked", "dispatch": "w1-d2", "question": "<what was asked>", "answer": "<the answer or your recorded guess>", "mode": "attended" }
 ```
 
 `trigger` is one of `ambiguity`, `blocked`, `exhausted`, `irreversible`, `budget`. Pass the interventions since the last wave as `humans` in the args of the next wave's first dispatch; its scribe writes them before that dispatch's line. Interventions after the final wave go to the renderer as `--human '<json>'`. You never write the trace yourself.
+
+An intervention with `"mode": "attended"` renders as `human · <trigger>`; one with `"mode": "autonomous"` renders as `self · <trigger>`, dashed, because nobody was consulted. Record the mode truthfully: the diagram must never claim the human was asked when you guessed.
+
+**Not interventions:** the mode question at kickoff, status questions (the user asking how it is going), and hook messages. A hook that fires is recorded as a `hook` event in the same `humans` list, and the renderer draws nothing for it:
+
+```json
+{ "type": "hook", "hook": "Stop", "dispatch": "w2-d1", "message": "<the hook's first line>" }
+```
+
+`dispatch` names the dispatch that owned the tree when the hook fired, if one was running.
 
 ### Finish
 
@@ -206,6 +216,7 @@ It reads every dispatch's trace file in order and saves the Mermaid diagram; the
 - You are drafting a dispatch with more `context` lines than the task needs.
 - You are planning a wave from anything other than the state file.
 - You are about to dispatch something irreversible without having asked.
+- You are about to commit, push or run `git add -A` because a hook told you to.
 
 ## When not to use
 
