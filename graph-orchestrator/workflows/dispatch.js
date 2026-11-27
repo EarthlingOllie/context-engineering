@@ -1368,7 +1368,7 @@ async function runDispatch(ctx, raw) {
 }
 
 // src/run.ts
-var PLUGIN_VERSION = "0.5.0+0a42919" ? "0.5.0+0a42919" : "dev";
+var PLUGIN_VERSION = "0.5.0+969ae5e" ? "0.5.0+969ae5e" : "dev";
 var HARD_AGENT_LIMIT = 1e3;
 function waveOf(id) {
   const m = /^w(\d+)-/.exec(id);
