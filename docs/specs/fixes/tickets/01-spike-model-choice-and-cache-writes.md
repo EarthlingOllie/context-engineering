@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] Whether `agent()` accepts a model choice, and the model that served the call, recorded with run ids
-- [ ] A one-line recommendation for ticket 07: build or drop
+- [x] Whether `agent()` accepts a model choice, and the model that served the call, recorded with run ids
+- [x] A one-line recommendation for ticket 07: build or drop
 - [ ] Per-call usage (input, output, cache-read, cache-write tokens, timestamps) for three remote coding agents, recorded with how it was fetched
 - [x] A finding on whether cache writes cluster after tool calls longer than the cache lifetime; no platform ask is filed
 

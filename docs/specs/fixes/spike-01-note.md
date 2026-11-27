@@ -1,6 +1,6 @@
 # Ticket 01 spike: model choice on agent(), and the cause of cache writes
 
-**Verdict: PENDING (Part 1 not run; Part 2 partly recorded 2026-11-27).** Part 1 needs a Workflow launch from a top-level cloud session; the 2026-11-27 attempt ran in a subagent without the Workflow tool, so no run ids exist and ticket 07 stays build-or-drop unknown. This note holds the probe and the empty result tables. Whoever runs it in a cloud session fills the tables, sets the verdict, and ticks the ticket's boxes.
+**Verdict: BUILD (Part 1 run 2026-11-27, Workflow run wf_80d0ef6f-bd7; Part 2 partly recorded 2026-11-27).** `agent()` accepts a `model` option and the agent is served by it; ticket 07 is go.
 
 What is known from disk (2026-11-27):
 - `AgentOptions` in `graph-orchestrator/src/types.ts` has `label`, `phase`, `schema` and `effort`, and no `model`. Today nothing in the plugin passes a model.
@@ -27,11 +27,13 @@ Pass: the `probe-haiku` call runs and is served by a Haiku model, and `probe-def
 
 | Call | Run id | Accepted? (error text if not) | Served model | Evidence (event id) |
 |---|---|---|---|---|
-| probe-default | | | | |
-| probe-haiku | | | | |
-| probe-bogus | | | | |
+| probe-default | wf_80d0ef6f-bd7 / agent af977ef26e1f9acde | yes | claude-opus-5-5 (session model) | assistant event a45d7912-8e45-4bb4-a3c2-6934fc2d8700 |
+| probe-haiku | wf_80d0ef6f-bd7 / agent a0fea1392e87580ad | yes | claude-haiku-5-5 | assistant event 9bfa3828-728d-444c-a5a7-2dc6623b228a |
+| probe-bogus | wf_80d0ef6f-bd7 / agent a4b3c1156c8353946 | no: agent failed, `agent()` returned `null` (not a throw); runtime error "There's an issue with the selected model (claude-undeclared-spike). It may not exist or you may not have access to it." | none (`<synthetic>` error message) | assistant event bc1ec116-be32-48cf-8747-8d87854dcf0d |
 
-**Recommendation for ticket 07:** _fill in one line: "build" if probe-haiku passes, else "drop" (model routing and scribe-on-Haiku leave the spec)._
+Served models read from each agent's transcript (`subagents/workflows/wf_80d0ef6f-bd7/agent-<id>.jsonl`, assistant `message.model`), not from the agents' replies. Note: an unknown model does not throw in the script; the call yields `null`, so callers must treat `null` as failure.
+
+**Recommendation for ticket 07:** **build** — probe-haiku was served by claude-haiku-5-5 and probe-default by the session model.
 
 ## Part 2: do cache writes follow tool calls that outlast the cache lifetime?
 
