@@ -6,7 +6,40 @@
 
 **Status:** ready-for-agent
 
-- [ ] The version is 0.4.0 in the plugin manifest and the package manifest
+- [x] The version is 0.4.0 in the plugin manifest and the package manifest
 - [ ] Every dispatch-eval scorecard required by tickets 02-15 is linked from its ticket and meets the merge rule
 - [ ] The by-hand checks in tickets 04 and 09-13 are done in one cloud session and recorded
-- [ ] The roadmap drops the items this spec covers and points to it
+- [x] The roadmap drops the items this spec covers and points to it
+
+The version moved in `graph-orchestrator/.claude-plugin/plugin.json`, `package.json` and `package-lock.json`; `graph-orchestrator/CHANGELOG.md` has the 0.4.0 entry; `graph-orchestrator/test/release.test.ts` checks the version, the changelog, the roadmap and the two tables below. The tag, the GitHub release and the marketplace update are not done: they wait for the two open criteria.
+
+## Dispatch-eval gates
+
+Each run is against the frozen baseline `3035a58f6828` (ADR-0005), on the ticket's own commit for a prompt change. The merge rule: the target rises above its baseline spread, every other sample stays within its spread, and a cost fix also drops dollars below the spread with no new false passes. Link the scorecard here and in the ticket, then set the status to `meets rule` or `fails rule`.
+
+| Ticket | Gate | Scorecard | Status |
+|---|---|---|---|
+| 02 | Sample 10 above its spread (0/5); others within | | not run |
+| 03 | Sample 4's false-pass rate below its spread; others within | | not run |
+| 04 | Evaluator stance: every sample within its spread | | not run |
+| 05 | Sample 9 above its spread, or holds if passing; others within | | not run |
+| 06 | Generator, worker and reducer stances: every sample within its spread | | not run |
+| 07 | Every sample's dollars below the spread; routing check clean | | not built: waits on ticket 01's live run (may close as dropped) |
+| 08 | Worker stance: every sample within its spread; sample 1's dollars below its spread | | not run |
+| 14 | Generator and worker stances: every sample within its spread | | not run |
+| 15 | One concurrency-sweep run recorded in ticket 15 (not a merge gate) | | not run |
+
+## By-hand checks
+
+All in one cloud session with the plugin at 0.4.0 installed. Record the session id and the date, then the result of each check.
+
+Session: (not yet run)
+
+| Ticket | Check | Result |
+|---|---|---|
+| 04 | An autonomous run with a check the evaluator cannot run (Bash denied for the test command) ends with the work labelled UNVERIFIED in DECISIONS and listed first in the final reply | not run |
+| 09 | With a stop-hook git check, a hook firing mid-wave gets one line naming the running dispatch; nothing is committed or pushed; the trace has a `hook` line and the diagram no node for it | not run |
+| 10 | A dispatch whose `dependsOn` names only a finished dispatch launches before its wave's slow dispatch returns; the state file is rewritten first; `dependsOn` is kept | not run |
+| 11 | Asked a question about results after its dispatches finish, the session dispatches a `single` (at most 6 lines) instead of reading files in the main loop | not run |
+| 12 | The final reply sends the diagram file with a summary of at most 3 lines; a question is asked only after every independent dispatch launched, with options and a recommended default | not run |
+| 13 | A ticket-set session's last wave before rendering is one acceptance dispatch whose numbered, countable criteria are the spec's acceptance criteria plus the full regression suite | not run |

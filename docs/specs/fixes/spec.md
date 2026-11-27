@@ -1,6 +1,6 @@
 # Spec: fixes — verification integrity, cost and orchestrator behaviour
 
-Status: ready for tickets. Decisions were settled in a design interview on 2026-11-26/27. This spec covers roadmap Groups 2, 3 and 4 (`docs/roadmap.md`): ranks 1, 2, 3, 4, 8, 9, 10, 11 (measurement only) and 12, and findings REL-06, REL-08, QUA-02, QUA-03, QUA-05, QUA-07, QUA-09, QUA-10, SPD-02, SPD-03 and COST-05. Finding ids refer to `docs/v1/graph-orchestrator/session-analysis-2026-11-18/findings.md`, which holds the evidence. Vocabulary follows `docs/v1/graph-orchestrator/CONTEXT.md`; **Unverified** and **Intervention** were added and **Wave** was redefined for this spec (ADR-0006, proposed). Its companion spec, `docs/specs/observability-evals/`, builds the session evals that later measure the orchestrator rules here.
+Status: ready for tickets. Decisions were settled in a design interview on 2026-11-26/27. This spec covers roadmap Groups 2, 3 and 4 (`docs/roadmap.md`): ranks 1, 2, 3, 4, 8, 9, 10, 11 (measurement only) and 12, and findings REL-06, REL-08, QUA-02, QUA-03, QUA-05, QUA-07, QUA-09, QUA-10, SPD-02, SPD-03 and COST-05. Finding ids refer to `docs/v1/graph-orchestrator/session-analysis-2026-11-18/findings.md`, which holds the evidence. Vocabulary follows `docs/v1/graph-orchestrator/CONTEXT.md`; **Unverified** and **Intervention** were added and **Wave** was redefined for this spec (ADR-0006, accepted with ticket 10). Its companion spec, `docs/specs/observability-evals/`, builds the session evals that later measure the orchestrator rules here.
 
 Ships as one release, 0.4.0.
 
@@ -167,4 +167,4 @@ A good test drives a seam from outside and asserts only on what comes out: the r
 - The roadmap's notes say rank 1 and QUA-05 change the same line; rank 1's change also completes QUA-05's third part, so QUA-05 here is only the fallback and the naming.
 - REL-08 and QUA-02 are one term, Unverified, defined from both sides: the evaluator blocks, the orchestrator labels what it accepts anyway.
 - Orchestrator rules shipped here are measured again once the companion spec's session evals exist; its first scenarios target the hook rule, blocked to Unverified, and rolling launches.
-- ADR-0006 is proposed; it becomes accepted with this release.
+- ADR-0006 was proposed when this spec was written; ticket 10 accepted it, and it ships with this release.
