@@ -1,0 +1,4 @@
+# Raw Inspect logs hold full transcripts: never committed.
+logs/
+sandbox/ca.crt
+__pycache__/

@@ -1,0 +1,6 @@
+# Host side of the session spike. inspect_swe 0.3.2 fails to import against
+# agent-client-protocol 1.1.0 (acp.schema.ConnectMcpResponse); <1.1 imports.
+inspect_ai==0.3.292
+anthropic==2.14.0
+inspect_swe==0.3.2
+agent-client-protocol==1.0.0
