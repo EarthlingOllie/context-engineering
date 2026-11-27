@@ -1,0 +1,18 @@
+TICKET T3: slug_title
+Depends on: T1 (uses toy.slugify.slugify; do not start until T1 is merged)
+Files: sandbox/toy-spec/toy/title.py, sandbox/toy-spec/tests/test_title.py
+
+Implement slug_title(s: str) -> str in toy/title.py, built on T1's slugify:
+return slugify(s) with each "-"-separated part capitalised and rejoined
+with "-". Must import slugify from toy.slugify, not reimplement it.
+
+Steps:
+  1. Write toy/title.py and tests/test_title.py.
+  2. Run the test command below.
+
+Pass criteria (5):
+  P1. slug_title("hello world") == "Hello-World"
+  P2. slug_title("") == ""
+  P3. toy/title.py imports slugify from toy.slugify (grep finds the import).
+  P4. tests/test_title.py contains at least 3 test methods.
+  P5. `python3 -m unittest discover -s sandbox/toy-spec -t .` exits 0.

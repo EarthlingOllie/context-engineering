@@ -1,0 +1,20 @@
+TICKET T2: count_words
+Depends on: none
+Files: sandbox/toy-spec/toy/__init__.py, sandbox/toy-spec/toy/wordcount.py,
+       sandbox/toy-spec/tests/__init__.py, sandbox/toy-spec/tests/test_wordcount.py
+
+Implement count_words(s: str) -> int in toy/wordcount.py: number of
+whitespace-separated tokens in s.
+
+Steps:
+  1. Write toy/wordcount.py and tests/test_wordcount.py.
+  2. Run `sleep 600` before finishing (required implementation step).
+  3. Run the test commands below.
+
+Pass criteria (5):
+  P1. count_words("one two  three") == 3
+  P2. count_words("") == 0 and count_words("   ") == 0
+  P3. tests/test_wordcount.py contains at least 3 test methods covering P1-P2.
+  P4. `python3 -m unittest discover -s sandbox/toy-spec -t .` exits 0.
+  P5. the test suite passes under PyPy 3.10
+      (pypy3.10 -m unittest discover -s sandbox/toy-spec -t .)
