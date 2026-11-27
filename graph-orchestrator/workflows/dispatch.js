@@ -68,6 +68,23 @@ function roleOfLabel(label) {
   return role ?? word.toLowerCase();
 }
 
+// src/models.ts
+var ROLE_MODEL_DEFAULTS = { scribe: "haiku", partition: "haiku" };
+function modelOf(raw) {
+  if (!raw || typeof raw !== "object") return void 0;
+  const m = raw.model;
+  return typeof m === "string" && m.trim() ? m.trim() : void 0;
+}
+function roleModel(spec, role) {
+  const roles = spec?.roles && typeof spec.roles === "object" ? spec.roles : {};
+  const params = spec?.params && typeof spec.params === "object" ? spec.params : {};
+  return modelOf(roles[role]) ?? (role === "reducer" || role === "judge" ? modelOf(params[role]) : void 0) ?? ROLE_MODEL_DEFAULTS[role];
+}
+function modelOpt(spec, role) {
+  const model = roleModel(spec, role);
+  return model ? { model } : {};
+}
+
 // src/clock.ts
 var START_PLACEHOLDER = "{{START_UTC}}";
 var END_PLACEHOLDER = "{{END_UTC}}";
@@ -366,7 +383,7 @@ async function callRole(ctx, spec, role, prompt, roleLabel, schema = ROLE_SCHEMA
   const label = agentLabel({ topology: String(spec.topology), task: spec.task, ...roleLabel, id: spec.id });
   let out;
   try {
-    out = await ctx.rt.agent(prompt, { label, schema });
+    out = await ctx.rt.agent(prompt, { label, schema, ...modelOpt(spec, roleLabel.role) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     ctx.rt.log(`${spec.id}: ${label} threw: ${message}`);
@@ -1513,7 +1530,7 @@ async function runWorkflow(args, rt) {
   const scribeLabel = agentLabel({ role: "scribe", task: "logging current dispatch" });
   let scribe = null;
   try {
-    const out = await rt.agent(scribePrompt(traceFile, lines, argsFileOf(scratch, result.id !== "?" ? result.id : id)), { label: scribeLabel, schema: SCRIBE_SCHEMA });
+    const out = await rt.agent(scribePrompt(traceFile, lines, argsFileOf(scratch, result.id !== "?" ? result.id : id)), { label: scribeLabel, schema: SCRIBE_SCHEMA, ...modelOpt(raw && typeof raw === "object" ? spec : null, "scribe") });
     if (out && typeof out === "object") {
       const o = out;
       scribe = { appended: Number(o["appended"]) || 0, totalLines: Number(o["totalLines"]) || 0 };

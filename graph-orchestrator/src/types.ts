@@ -7,8 +7,12 @@
 export const TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain", "relay", "best-of-n", "iterative-fan-out", "panel"] as const;
 export type Topology = (typeof TOPOLOGIES)[number];
 
-/** A role slot filled at dispatch time: the skill supplies the domain, the instructions the task. */
-export type RoleEntry = { skill?: string; instructions: string };
+/**
+ * A role slot filled at dispatch time: the skill supplies the domain, the instructions the task.
+ * `model` (ticket 07) overrides the model the role runs on (src/models.ts); without it scribe and partition
+ * run on Haiku and every other role on the session model.
+ */
+export type RoleEntry = { skill?: string; instructions: string; model?: string };
 
 export type ReturnContract = { shape: string; maxLines: number }; // maxLines ≤ 20
 
@@ -192,6 +196,8 @@ export type AgentOptions = {
   phase?: string;
   schema?: Record<string, unknown>;
   effort?: string;
+  /** The model the agent runs on ("haiku", "sonnet", or a full id); absent runs it on the session model. An unknown model makes `agent()` return null. */
+  model?: string;
 };
 export type Runtime = {
   agent: (prompt: string, opts?: AgentOptions) => Promise<unknown>;

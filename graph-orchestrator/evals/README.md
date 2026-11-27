@@ -9,7 +9,7 @@ Each sample is one **dispatch eval**: a fixed dispatch spec handed to the shippe
 uv venv .venv && VIRTUAL_ENV=.venv uv pip install -r graph-orchestrator/evals/requirements.txt
 # Behind a TLS-intercepting proxy, copy its CA to graph-orchestrator/evals/sandbox/ca.crt (git-ignored).
 
-# the suite, every role on claude-opus-5-5, 3 epochs, then the scorecard (paid; needs the API key in the environment):
+# the suite, each role on the plugin's model for it (scribe and partition on Haiku, the rest on claude-opus-5-5), 3 epochs, then the scorecard (paid; needs the API key in the environment):
 env -u ANTHROPIC_BASE_URL .venv/bin/python graph-orchestrator/evals/run.py
 
 # free dry run: canned engine, mockllm, no model call
@@ -213,7 +213,7 @@ Paid runs from the job:
 
 The bridge serves only the model names declared to it and silently sends any other name to the main model, so `suite.DECLARED_MODELS` declares Opus, Sonnet and Haiku (each priced in `suite.PRICES`) and the scorer fails a sample when any call's serving model differs from the requested one (`scoring.model_routing`).
 
-The baseline and routine runs force no role: every role is requested on `claude-opus-5-5`. To see the check work, force one role onto another declared model through the harness, without changing the plugin:
+The baseline and routine runs force no role: each role is requested on the model the plugin asks for it. Since ticket 07 (fixes spec) that is `claude-haiku-5-5` for scribe and partition (the plugin asks for `haiku`; the harness resolves the aliases `haiku`, `sonnet` and `opus` to their declared ids, `runtime.MODEL_ALIASES`) and `claude-opus-5-5` for every other role; the frozen baseline predates it and ran every role on Opus. To see the check work, force one role onto another declared model through the harness, without changing the plugin:
 
 ```sh
 python graph-orchestrator/evals/run.py --role-model evaluator=claude-haiku-5-5 --samples 03-generator-evaluator-python   # paid

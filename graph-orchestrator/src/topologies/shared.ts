@@ -6,6 +6,7 @@
 import type { DispatchResult, DispatchSpec, EvaluatorRound, ReturnContract, RoleEntry, Runtime, Topology, TraceEvent } from "../types.ts";
 import { ROLE_SCHEMAS, type RoleName } from "../roles.ts";
 import { type AgentLabelParts, agentLabel } from "../labels.ts";
+import { modelOpt } from "../models.ts";
 
 /** What a role call says about itself for its agent label; the stage and its topology (chain stages only) and, unless a branch names its own, the task come from the spec. */
 export type RoleLabel = Omit<AgentLabelParts, "id" | "topology">;
@@ -235,6 +236,8 @@ export function overBudget(spec: DispatchSpec, message: string): DispatchResult 
  * that throws is logged and counts as returning nothing, so the topology's
  * null path answers with what it had accumulated so far (artifacts, iterations);
  * its message is kept on the context for the `failed` result to report.
+ * The call carries the model its label role runs on (src/models.ts), and no
+ * `model` key when that role has none.
  */
 export async function callRole(
   ctx: TopologyContext,
@@ -247,7 +250,7 @@ export async function callRole(
   const label = agentLabel({ topology: String(spec.topology), task: spec.task, ...roleLabel, id: spec.id });
   let out: unknown;
   try {
-    out = await ctx.rt.agent(prompt, { label, schema });
+    out = await ctx.rt.agent(prompt, { label, schema, ...modelOpt(spec, roleLabel.role) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     ctx.rt.log(`${spec.id}: ${label} threw: ${message}`);

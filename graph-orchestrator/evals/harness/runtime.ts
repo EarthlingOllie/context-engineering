@@ -17,6 +17,15 @@ export type EngineRequest = { prompt: string; model: string; label?: string; sch
 export type EngineResult = { output: unknown; record?: unknown };
 export type Engine = (req: EngineRequest) => Promise<EngineResult>;
 
+/**
+ * The aliases the plugin requests a role model by (src/models.ts: scribe and
+ * partition default to "haiku"), resolved to the ids declared to the bridge
+ * (evals/suite.py DECLARED_MODELS). The bridge knows only declared ids and would
+ * silently fall back to the main model for an alias; resolving here also lets
+ * the routing check compare the requested id with the served one.
+ */
+export const MODEL_ALIASES: Record<string, string> = { haiku: "claude-haiku-5-5", sonnet: "claude-sonnet-5-5", opus: "claude-opus-5-5" };
+
 /** The options a role may pass; `model` is honoured when the plugin requests one. */
 export type HarnessAgentOptions = AgentOptions & { model?: string };
 
@@ -25,7 +34,7 @@ export type AgentRecord = {
   label: string | null;
   /** The role the label names (roleOf). */
   role: string;
-  /** The model this agent was requested on: a harness-forced role model, else the plugin's, else the main model. */
+  /** The model this agent was requested on: a harness-forced role model, else the plugin's, else the main model; an alias resolved to its id. */
   model: string;
   /** When agent() was called. */
   calledMs: number;
@@ -107,7 +116,8 @@ export function createRuntime(o: { engine: Engine; mainModel: string; cap: numbe
 
   const agent = async (prompt: string, opts: HarnessAgentOptions = {}): Promise<unknown> => {
     const role = roleOf(opts.label);
-    const model = o.roleModels?.[role] ?? opts.model ?? o.mainModel;
+    const requested = o.roleModels?.[role] ?? opts.model ?? o.mainModel;
+    const model = MODEL_ALIASES[requested] ?? requested;
     const rec: AgentRecord = { n: agents.length + 1, label: opts.label ?? null, role, model, calledMs: now(), startMs: null, endMs: null, queuedMs: null, error: null, engine: null };
     agents.push(rec);
     await acquire();

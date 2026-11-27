@@ -37,7 +37,7 @@ test("a bundle that does not begin with the meta literal is refused", () => {
   assert.throws(() => loadBundle("return 1"), /meta literal/);
 });
 
-test("sample 1 runs through the shipped bundle: every role on the main model, schema passed, result file written as data", async () => {
+test("sample 1 runs through the shipped bundle: the worker on the main model, the scribe on Haiku, schema passed, result file written as data", async () => {
   const t = { v: 0 };
   const { engine, seen } = stubEngine(t);
   const result = await runHarness({ bundleSource, args: sample1.args, engine, mainModel: "claude-opus-5-5", cap: 2, now: () => t.v });
@@ -54,14 +54,14 @@ test("sample 1 runs through the shipped bundle: every role on the main model, sc
     seen.map((r) => [r.model, typeof r.schema]),
     [
       ["claude-opus-5-5", "object"],
-      ["claude-opus-5-5", "object"],
+      ["claude-haiku-5-5", "object"],
     ],
   );
   assert.deepEqual(
     result.agents.map((a) => [a.label?.split(":")[0], a.model, a.startMs, a.endMs]),
     [
       ["Worker", "claude-opus-5-5", 0, 1000],
-      ["Grapher", "claude-opus-5-5", 1000, 2000],
+      ["Grapher", "claude-haiku-5-5", 1000, 2000],
     ],
   );
   assert.match(result.logs[0]!.message, /^w1-d1: single, up to 1 agent\(s\) \+ 1 scribe$/);
@@ -219,13 +219,13 @@ test("sample 11 with every lens failing still names all three lenses: the line l
   assert.deepEqual(String(result.return?.["result"]).split("\n").map((l) => l.split(":")[0]), ["FAIL (0/3)", "[correctness] FAIL", "[security] FAIL", "[readability] FAIL"]);
 });
 
-test("the baseline configuration (no forced role) requests every role of every sample on the main model, and the result records no role model", async () => {
+test("the baseline configuration (no forced role) requests scribe and partition on Haiku and every other role of every sample on the main model, and the result records no role model", async () => {
   const dir = new URL("../samples/", import.meta.url);
   for (const f of readdirSync(dir).filter((n) => n.endsWith(".json"))) {
     const args = { ...(JSON.parse(readFileSync(new URL(f, dir), "utf8")) as { args: Record<string, unknown> }).args, scratch: mkdtempSync(join(tmpdir(), "base-")) };
     const result = await runHarness({ bundleSource, args, engine: cannedStub(), mainModel: "claude-opus-5-5", cap: 2 });
     assert.ok(result.agents.length > 0, f);
-    assert.deepEqual([...new Set(result.agents.map((a) => a.model))], ["claude-opus-5-5"], f);
+    for (const a of result.agents) assert.equal(a.model, a.role === "scribe" || a.role === "partition" ? "claude-haiku-5-5" : "claude-opus-5-5", `${f} ${a.label}`);
     assert.deepEqual(result.roleModels, {}, f);
   }
 });
@@ -239,7 +239,7 @@ test("a role forced through the harness option is recorded on the result and req
     [
       ["generator", "claude-opus-5-5"],
       ["evaluator", "claude-haiku-5-5"],
-      ["scribe", "claude-opus-5-5"],
+      ["scribe", "claude-haiku-5-5"],
     ],
   );
 });

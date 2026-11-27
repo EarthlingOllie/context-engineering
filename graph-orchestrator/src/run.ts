@@ -14,6 +14,7 @@
  */
 import type { AgentUsage, DispatchArgs, DispatchResult, DispatchReturn, DispatchSpec, HookEvent, HumanEvent, Runtime, TraceEvent } from "./types.ts";
 import { agentLabel, roleOfLabel } from "./labels.ts";
+import { modelOpt } from "./models.ts";
 import { END_PLACEHOLDER, START_PLACEHOLDER, TOOLS_DENIED_PLACEHOLDER, WRITES_REFUSED_PLACEHOLDER, argsFileOf, clockSteps, hasPlaceholder } from "./clock.ts";
 import { agentDemand, dispatchEvent, fail, normaliseSpec, runDispatch, traceDetail, type TopologyContext } from "./topologies.ts";
 
@@ -226,7 +227,7 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   const scribeLabel = agentLabel({ role: "scribe", task: "logging current dispatch" });
   let scribe: DispatchReturn["scribe"] = null;
   try {
-    const out = await rt.agent(scribePrompt(traceFile, lines, argsFileOf(scratch, result.id !== "?" ? result.id : id)), { label: scribeLabel, schema: SCRIBE_SCHEMA });
+    const out = await rt.agent(scribePrompt(traceFile, lines, argsFileOf(scratch, result.id !== "?" ? result.id : id)), { label: scribeLabel, schema: SCRIBE_SCHEMA, ...modelOpt(raw && typeof raw === "object" ? spec : null, "scribe") });
     if (out && typeof out === "object") {
       const o = out as Record<string, unknown>;
       scribe = { appended: Number(o["appended"]) || 0, totalLines: Number(o["totalLines"]) || 0 };
