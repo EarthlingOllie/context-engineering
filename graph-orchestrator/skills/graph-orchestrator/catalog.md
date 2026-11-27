@@ -259,3 +259,32 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
   "returns": { "shape": "the chosen option, then the decisive reason in one line", "maxLines": 2 },
   "dependsOn": [] }
 ```
+
+---
+
+## Parallel code changes
+
+**Use when** two or more dispatches in one wave change code in the same repository. One working tree shared by parallel builders collides: overwritten files, duplicate migration numbers, a broken integration.
+
+**Each code dispatch gets a worktree.** Its generator (or worker) is told in `instructions` to create its own git worktree on a ticket branch, `git worktree add SCRATCH/wt/<id> -b ticket/<id>`, from the wave's base commit; to work, test and commit only there; and to return the branch name and its last commit.
+
+**Integration is its own dispatch.** The next wave runs one integrate `generator-evaluator` whose `dependsOn` names every ticket dispatch. Its generator merges the `ticket/<id>` branches into the working branch one at a time, resolves conflicts, and rebuilds generated files (bundles, lockfiles) after each merge instead of merging them by hand. Its `pass_criteria` run the full suite on the merged tree, so integration carries the regression floor.
+
+```json
+{ "id": "w4-d1", "title": "Integrate the wave 3 tickets", "topology": "generator-evaluator",
+  "task": "Merge ticket/w3-d1, ticket/w3-d2 and ticket/w3-d3 into the working branch so the full suite passes on the merged tree",
+  "context": ["branches and last commits from w3-d1..w3-d3: SCRATCH/w3-branches.txt"],
+  "roles": { "generator": { "instructions": "merge one branch at a time; rebuild the bundle after each merge; remove the worktrees when done" },
+             "evaluator": { "instructions": "run the full suite once; log it to SCRATCH/w4-d1-tests.log" } },
+  "params": { "pass_criteria": "1. git branch --merged lists ticket/w3-d1, ticket/w3-d2 and ticket/w3-d3; 2. npm test exits 0 with 0 failing tests (the full suite) on the merged tree; 3. git status --short prints nothing", "max_iterations": 3 },
+  "returns": { "shape": "the merged commit, then PASS or the last failing test name", "maxLines": 3 },
+  "dependsOn": ["w3-d1", "w3-d2", "w3-d3"] }
+```
+
+---
+
+## Tests per round
+
+**Use when** a dispatch's full test suite takes minutes: a `generator-evaluator`, a chain stage, an integrate or acceptance dispatch.
+
+**Generators run targeted tests**: the tests for what they changed, enough to know the change works. **The evaluator runs the full suite once per round**, at the generator's commit, and writes its output to `SCRATCH/<id>-tests.log` with that commit's sha on the first line. **A later stage at the same commit cites the log**: a chain's next stage, the integrate or acceptance dispatch reads `SCRATCH/<id>-tests.log` and checks the sha against `HEAD`; at the same commit it cites the log as its full-suite result, at any other commit it runs the suite and writes its own log. Say this in the roles' `instructions` and write it into the criteria, e.g. `1. npm test exits 0 with 0 failing tests (the full suite), logged to SCRATCH/w3-d2-tests.log whose first line is the HEAD sha`. One full-suite run per round keeps the regression floor that **Pass criteria** require.

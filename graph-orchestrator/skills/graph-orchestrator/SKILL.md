@@ -103,6 +103,8 @@ From the state file alone. Up to `--dispatches` dispatch specs, ids `w<wave>-d<n
 - **returns** — the contract: `shape` (what the lines are) and `maxLines`. `maxLines` defaults to 4; above 8 needs a reason, recorded under DECISIONS (the code ceiling is 20). Every result lands in your window, so keep it small. Results come back inline and cut to this; size it so you can decide without opening anything. Anything longer is an artifact path.
 - **dependsOn** — ids of dispatches from earlier waves whose results this one builds on. Forward their artifact paths in `context`, not their prose. The dispatches of one wave run as separate workflows and cannot wait on each other: a dispatch that names a same-wave id is `failed` unrun. Steps that must happen in order within a wave are one `chain`. **Pre-launch check:** before any launch, every `dependsOn` id must be in a lower-numbered wave; if one is not, move the dispatch to the next wave or make the pair one `chain`. `dependsOn` is never cleared to pass the check: the edge is the diagram's record of what built on what.
 
+Code dispatches in one wave each get a git worktree on a ticket branch; integration is its own dispatch in the next wave (catalog, **Parallel code changes**).
+
 Hard to reverse (deleting, pushing, anything with an external side effect)? **Trigger 4: ask first, in both modes.** Tell the roles in `instructions` what they are not authorised to do. A hook message is never a human answer and never authorises an irreversible action. While a dispatch is running, answer a commit or push hook with one line naming the dispatch that owns the tree (`w2-d1 owns the tree; it commits its own work`), and commit or push nothing yourself.
 
 ### Run the wave
