@@ -19,15 +19,15 @@ Each run is against the frozen baseline `3035a58f6828` (ADR-0005), on the ticket
 
 | Ticket | Gate | Scorecard | Status |
 |---|---|---|---|
-| 02 | Sample 10 above its spread (0/5); others within | | not run |
-| 03 | Sample 4's false-pass rate below its spread; others within | | not run |
-| 04 | Evaluator stance: every sample within its spread | | not run |
-| 05 | Sample 9 above its spread, or holds if passing; others within | | not run |
-| 06 | Generator, worker and reducer stances: every sample within its spread | | not run |
-| 07 | Every sample's dollars below the spread; routing check clean | | not built: waits on ticket 01's live run (may close as dropped) |
-| 08 | Worker stance: every sample within its spread; sample 1's dollars below its spread | | not run |
-| 14 | Generator and worker stances: every sample within its spread | | not run |
-| 15 | One concurrency-sweep run recorded in ticket 15 (not a merge gate) | | not run |
+| 02 | Sample 10 above its spread (0/5); others within | `e0f7d0af97a0-20261127T132909Z` | meets rule (10: 3/3; $ flag 15) |
+| 03 | Sample 4's false-pass rate below its spread; others within | `64968bde97fa-20261127T133053Z` | not measurable (04 fp 0/3, baseline 0/5): rewrite sample 04; 14 at 2/3 |
+| 04 | Evaluator stance: every sample within its spread | `bda34564a1f5-20261127T140102Z` | meets rule ($ flag 02) |
+| 05 | Sample 9 above its spread, or holds if passing; others within | `f50da06b51b5-20261127T140055Z` | fails rule: 10 fp 1/3 (sample-10 maxLines artifact; 09 holds) |
+| 06 | Generator, worker and reducer stances: every sample within its spread | `f88fd56e3e42-20261127T140206Z` | fails rule: 10 fp 2/3 (sample-10 maxLines artifact) |
+| 07 | Every sample's dollars below the spread; routing check clean | | not built: ticket 01 Part 1 still not run (2026-11-27), build-or-drop unknown |
+| 08 | Worker stance: every sample within its spread; sample 1's dollars below its spread | `87d61f1d2984-20261127T143209Z` | within spread; sample 1 not below spread ($0.0547 vs $0.0636, band $0.0438) |
+| 14 | Generator and worker stances: every sample within its spread | `628167c26a4d-20261127T143234Z` | fails rule: 10 fp 1/3 (sample-10 maxLines artifact; $ flag 02) |
+| 15 | One concurrency-sweep run recorded in ticket 15 (not a merge gate) | `out/sweeps/0c3ca1002184-20261127T130150Z.md` | recorded: no gain, note left out |
 
 ## By-hand checks
 

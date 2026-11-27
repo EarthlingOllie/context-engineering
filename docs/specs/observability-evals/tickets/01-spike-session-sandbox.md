@@ -31,3 +31,7 @@ Use `version="sandbox"` to run the pinned binary in the image, and `debug=True` 
 **Cost and wall clock: open (human step).** The mock run's figures are not real (mock tokens priced by Claude Code: 91,887 input tokens, $0.37). Its sample took 183 s, almost all sandbox setup. The live run (`-T mode=live`, `cost_limit=10`) records `cost_usd`, `duration_ms`, tokens and the recommendation in the score explanation.
 
 **Recommendation: build ticket 08, provisionally.** Nothing found blocks session evals: the skill loads, the Workflow tool runs headless and its notification drives the next turn. `probe.recommend` turns the live run's cost into the epochs that fit $75 over three scenarios (stop if one epoch does not fit). Confirm with the live run before ticket 08 starts its paid acceptance; if the live dispatch fails, stop and record it on the roadmap.
+
+## Paid live run attempt (2026-11-27)
+
+Started at 0c3ca10 with `-T mode=live -T cost_limit=10`; the key mapping worked (a live auth probe returned ok). The run did not finish before the session stopped it and left no log, and the API credit was exhausted later the same day, so cost and wall clock are still not recorded and the build-08 recommendation stays provisional. Re-run after a credit top-up.

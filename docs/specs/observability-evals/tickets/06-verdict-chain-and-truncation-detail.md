@@ -10,4 +10,10 @@
 
 - [x] Dispatch seam: a generator-evaluator line carries criteria and per-round verdicts; a chain line carries stage first lines; a cut result logs its dropped-line count
 - [x] Render seam: interventions render by `source` (`self | human`); old traces without it fall back to mode
-- [ ] Dispatch evals: pass rates stay within the baseline spread and dollars do not rise beyond it
+- [x] Dispatch evals: pass rates stay within the baseline spread and dollars do not rise beyond it
+
+## Dispatch-eval run (2026-11-27, claude-opus-5-5, 3 epochs, cap 2, vs frozen baseline 3035a58f6828 (5 epochs); same-day baseline rerun reproduced it)
+
+Scorecard: `graph-orchestrator/evals/out/scorecards/747cbc7178c2-20261127T143328Z.json` (local, gitignored; archived with its compare.py output and .eval logs outside the repo).
+
+**Meets rule.** Every sample holds (sample 10 3/3, 0 false passes); dollars within spread. Run cost $10.47.

@@ -11,3 +11,9 @@
 - [x] At the dispatch seam: a mid-chain panel FAIL stops the chain as `exhausted` naming the panel; with `gate: false` the chain continues
 - [x] The catalog's chain section describes the gate and its opt-out
 - [ ] Dispatch evals: sample 9 rises above its baseline spread, or holds if already passing, and every other sample stays within its spread
+
+## Dispatch-eval run (2026-11-27, claude-opus-5-5, 3 epochs, cap 2, vs frozen baseline 3035a58f6828 (5 epochs); same-day baseline rerun reproduced it)
+
+Scorecard: `graph-orchestrator/evals/out/scorecards/f50da06b51b5-20261127T140055Z.json` (local, gitignored; archived with its compare.py output and .eval logs outside the repo).
+
+**Fails rule as written.** Sample 9 holds at 3/3 (extra condition met). Sample 10: 2/3 correct, **1/3 false pass**. Sample 10 false passes in post-A-02 runs share one cause: with whole results visible the dispatch completes 2 rounds and the reducer merges 13-14 facts, over the sample's `maxLines: 12`; it then writes the list to a scratch file and returns a pointer, and the check reads only the returned result. Fix sample 10 (raise maxLines to >= 16, or let the check read the named file) and re-gate. Run cost $11.72.

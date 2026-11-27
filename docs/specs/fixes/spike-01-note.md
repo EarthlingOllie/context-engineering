@@ -1,6 +1,6 @@
 # Ticket 01 spike: model choice on agent(), and the cause of cache writes
 
-**Verdict: PENDING.** Every acceptance item needs a live cloud session, so none is recorded yet. This note holds the probe and the empty result tables. Whoever runs it in a cloud session fills the tables, sets the verdict, and ticks the ticket's boxes.
+**Verdict: PENDING (Part 1 not run; Part 2 partly recorded 2026-11-27).** Part 1 needs a Workflow launch from a top-level cloud session; the 2026-11-27 attempt ran in a subagent without the Workflow tool, so no run ids exist and ticket 07 stays build-or-drop unknown. This note holds the probe and the empty result tables. Whoever runs it in a cloud session fills the tables, sets the verdict, and ticks the ticket's boxes.
 
 What is known from disk (2026-11-27):
 - `AgentOptions` in `graph-orchestrator/src/types.ts` has `label`, `phase`, `schema` and `effort`, and no `model`. Today nothing in the plugin passes a model.
@@ -41,10 +41,10 @@ For each API call, record input, output, cache-read and cache-write tokens and t
 
 | Agent (session, agent id) | How fetched | Calls | Calls after a >5 min gap | Mean cache write after a long gap | Mean cache write after a short gap |
 |---|---|---|---|---|---|
-| | | | | | |
-| | | | | | |
-| | | | | | |
+| eznd orchestrator (session_016jSC3ezndKqpWLvw6rubcK) | `list_events` kinds assistant; usage on each event (`message.usage`, incl. 1h/5m split, `cache_miss_reason`); no `get_event` needed | 8 | 1 (2h57m) | 249,301 | 829 (6 calls; a 19-min gap wrote 420) |
+| efwY orchestrator (session_016jSC3efwYsrqKGWpoahfXf) | same | 2 | 1 (13h48m) | 144,843 | 1,622 (1 call) |
+| d6Vc whole session (session_016jSC3d6VcueRR7JYyZJPGP) | `/usage` event aggregate only (subagent per-call rows are not in the parent's events) | 33,335 requests / 7d | n/a | n/a | n/a: 269.0M of 274.1M write tokens (98.1%) on the 5m TTL |
 
-Keep the per-call rows (input, output, cache-read, cache-write, timestamp, gap) in a CSV next to this note, named `spike-01-usage.csv`.
+Keep the per-call rows (input, output, cache-read, cache-write, timestamp, gap) in a CSV next to this note, named `spike-01-usage.csv`. (2026-11-27: not written; only 10 orchestrator calls were reachable, and Workflow-subagent calls do not appear in `list_events`. Missing field: per-call usage of subagents.)
 
-**Finding:** _fill in: whether cache writes cluster after tool calls longer than the cache lifetime, with the numbers above._ This spec files no platform ask either way.
+**Finding (2026-11-27, partial):** cache writes do cluster after gaps longer than the cache lifetime: both >1h gaps rewrote the whole context (145k-249k tokens, `cache_miss_reason: previous_message_not_found`), while short-gap calls wrote 285-2,068 tokens. But the orchestrator thread caches on the 1h TTL, not 5m (a 19-minute gap still read 315k from cache). The 5m TTL belongs to Workflow subagents, which carry 98.1% of d6Vc's cache-write tokens, and their per-call rows are not reachable this way, so COST-03's 5-minute hypothesis is consistent but not proven per call. Small sample (10 calls). This spec files no platform ask either way.

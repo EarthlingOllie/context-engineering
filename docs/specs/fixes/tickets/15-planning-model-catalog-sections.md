@@ -7,11 +7,11 @@
 **Status:** ready-for-agent
 
 - [x] The catalog has the parallel-code-changes and tests-per-round sections, and SKILL.md's wave planning has the one-line pointer (docs seam)
-- [ ] One concurrency-sweep run is recorded here; the split-fan-out note is added only if it shows the gain, otherwise the result is recorded and the note left out
+- [x] One concurrency-sweep run is recorded here; the split-fan-out note is added only if it shows the gain, otherwise the result is recorded and the note left out
 
 ## Concurrency sweep
 
-**Status:** not yet run for this ticket (a paid run, left to a human). The split-fan-out note is not in the catalog, and `test/planning-model-docs.test.ts` asserts it stays out until this section records a run that shows the gain.
+**Status:** run 2026-11-27 at plugin commit `0c3ca10` (log `2026-11-27T12-55-00-00-00_concurrency-sweep_oNp2A5mfi8J4n9tvtkMsTD.eval`, `out/sweeps/0c3ca1002184-20261127T130150Z.md`; claude-opus-5-5, 4 CPUs, 8g, 1 epoch, $1.34). **No gain shown:** the split-fan-out note stays out of the catalog, and `test/planning-model-docs.test.ts` keeps asserting it stays out.
 
 **The run.** One pass of the existing sweep, defaults (samples 6 and 7, caps 2, 4, 8, 4 CPUs, 8g, 1 epoch; about $1.21 at the last pass):
 
@@ -29,4 +29,14 @@ It writes `graph-orchestrator/evals/out/sweeps/<plugin commit>-<UTC time>.md`; p
 
 | sample | cap | wall clock s | queue s | $ | epochs |
 |---|---|---|---|---|---|
-| (to fill from the run) | | | | | |
+| 06-fan-out-reducer-docs | 2 | 99.0 | 32.0 | 0.0972 | 1 |
+| 06-fan-out-reducer-docs | 4 | 113.3 | 1.2 | 0.1029 | 1 |
+| 06-fan-out-reducer-docs | 8 | 121.2 | 2.5 | 0.3033 | 1 |
+| 07-fan-out-partition-docs | 2 | 208.8 | 273.9 | 0.2599 | 1 |
+| 07-fan-out-partition-docs | 4 | 182.8 | 133.0 | 0.2675 | 1 |
+| 07-fan-out-partition-docs | 8 | 177.0 | 4.3 | 0.3112 | 1 |
+| total | | | | 1.3419 | |
+
+Every run reported `done` as expected, outcome correct and status truthful, no limit hit, all agents on the pinned model.
+
+**Reading this run.** Sample 7 fell from 208.8 s at cap 2 to 177.0 s at cap 8: 31.7 s (15.2%). The bar is 10% of 208.8 s (20.9 s) plus one reducer agent's wall clock; sample 6's reducer took 12.5 s at cap 2, 24.4 s at cap 4 and 31.2 s at cap 8 (agent start/end times in the Inspect log), so the bar is 33.4 s at the smallest. 31.7 s < 33.4 s: the gain is not shown, the note stays out. Queueing did vanish (273.9 s to 4.3 s), but each of sample 7's six workers took 70-95 s at cap 8 against 40-49 s at cap 2, which ate most of the saving. The run shared its 4-CPU host with other paid eval runs, so the per-agent slowdown may be partly host load.

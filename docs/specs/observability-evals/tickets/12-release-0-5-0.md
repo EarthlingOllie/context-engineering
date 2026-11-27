@@ -20,8 +20,8 @@ Each run is against the frozen baseline `3035a58f6828` (ADR-0005), on the ticket
 
 | Ticket | Commit | Gate | Scorecard | Status |
 |---|---|---|---|---|
-| 03 | 7c91465 | Every sample within its spread; dollars not above it | | not run |
+| 03 | 7c91465 | Every sample within its spread; dollars not above it | `7c914658b2b2-20261127T150236Z` | partial (2/3 epochs, credit out): rates hold; $ above spread on 05 |
 | 04 | 5c3cfdf | Every sample within its spread; dollars not above it (scribe and worker prompts changed) | | not run |
-| 05 | 915d025 | Every sample within its spread; dollars not above it | | not run |
-| 06 | 747cbc7 | Every sample within its spread; dollars not above it | | not run |
-| 07 | 97f1a6b | Every sample within its spread; dollars not above it (all four stances changed) | | not run |
+| 05 | 915d025 | Every sample within its spread; dollars not above it | `915d02521836-20261127T150230Z` | partial (2/3 epochs, credit out): fails rule, 10 fp 1/2 (sample-10 artifact); $ flag 02 |
+| 06 | 747cbc7 | Every sample within its spread; dollars not above it | `747cbc7178c2-20261127T143328Z` | meets rule |
+| 07 | 97f1a6b | Every sample within its spread; dollars not above it (all four stances changed) | `97f1a6b416d4-20261127T150246Z` | partial (2/3 epochs, credit out): rates hold; $ above spread on 01, 11 |
