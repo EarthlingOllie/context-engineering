@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] At the dispatch seam: a done chain's result has one line per stage, then the last stage's lines
-- [ ] At the dispatch seam: a chain whose stage 1 is exhausted lists the later stages under `not run:`
-- [ ] At the dispatch seam: a mid-chain panel FAIL stops the chain as `exhausted` naming the panel; with `gate: false` the chain continues
-- [ ] The catalog's chain section describes the gate and its opt-out
+- [x] At the dispatch seam: a done chain's result has one line per stage, then the last stage's lines
+- [x] At the dispatch seam: a chain whose stage 1 is exhausted lists the later stages under `not run:`
+- [x] At the dispatch seam: a mid-chain panel FAIL stops the chain as `exhausted` naming the panel; with `gate: false` the chain continues
+- [x] The catalog's chain section describes the gate and its opt-out
 - [ ] Dispatch evals: sample 9 rises above its baseline spread, or holds if already passing, and every other sample stays within its spread

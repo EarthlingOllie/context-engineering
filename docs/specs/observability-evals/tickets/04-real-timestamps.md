@@ -6,6 +6,6 @@
 
 **Status:** ready-for-agent
 
-- [ ] Dispatch seam: with no `now`, the dispatch line carries the placeholder (or a real time), and the scribe and worker prompts say how to replace it
-- [ ] Docs seam: SKILL.md no longer says the orchestrator has no clock or passes `now`
+- [x] Dispatch seam: with no `now`, the dispatch line carries the placeholder (or a real time), and the scribe and worker prompts say how to replace it
+- [x] Docs seam: SKILL.md no longer says the orchestrator has no clock or passes `now`
 - [ ] By hand: a session's rendered diagram shows wave times matching the session's wall clock

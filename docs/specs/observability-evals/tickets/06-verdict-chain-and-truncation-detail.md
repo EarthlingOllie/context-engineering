@@ -8,6 +8,6 @@
 
 **Status:** ready-for-agent
 
-- [ ] Dispatch seam: a generator-evaluator line carries criteria and per-round verdicts; a chain line carries stage first lines; a cut result logs its dropped-line count
-- [ ] Render seam: interventions render by `source` (`self | human`); old traces without it fall back to mode
+- [x] Dispatch seam: a generator-evaluator line carries criteria and per-round verdicts; a chain line carries stage first lines; a cut result logs its dropped-line count
+- [x] Render seam: interventions render by `source` (`self | human`); old traces without it fall back to mode
 - [ ] Dispatch evals: pass rates stay within the baseline spread and dollars do not rise beyond it

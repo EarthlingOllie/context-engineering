@@ -6,5 +6,5 @@
 
 **Status:** ready-for-agent
 
-- [ ] SKILL.md documents each rule; no document tells the orchestrator to paste the diagram verbatim (docs seam)
+- [x] SKILL.md documents each rule; no document tells the orchestrator to paste the diagram verbatim (docs seam)
 - [ ] By hand: a session's final reply sends the diagram file, and a question is asked only after independent dispatches launched

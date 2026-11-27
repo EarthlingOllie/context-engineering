@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] SKILL.md's exceptions name evidence work as a small `single` and housekeeping under the two conditions (docs seam)
-- [ ] A rationalisations row: "It's only a git push" (docs seam)
-- [ ] SKILL.md's "when not to use" and the rule's exception cover waiting on external state (docs seam)
+- [x] SKILL.md's exceptions name evidence work as a small `single` and housekeeping under the two conditions (docs seam)
+- [x] A rationalisations row: "It's only a git push" (docs seam)
+- [x] SKILL.md's "when not to use" and the rule's exception cover waiting on external state (docs seam)
 - [ ] By hand: a session asked a question about results after finishing dispatches a `single` rather than reading files in the main loop

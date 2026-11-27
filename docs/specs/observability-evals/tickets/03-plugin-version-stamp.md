@@ -10,3 +10,5 @@
 - [x] Dispatch seam: the returned data and the dispatch line carry the version
 - [x] Render seam: the diagram header shows it; an old trace without it still renders
 - [x] Docs seam: SKILL.md's mode line records it
+
+Note (stamp source): the commit in the stamp is the last commit that changed the bundle's inputs (`src/`, `package.json`, `package-lock.json`, `build.mjs`), not HEAD, so committing a rebuilt bundle no longer leaves it dirty.

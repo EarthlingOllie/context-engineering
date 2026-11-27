@@ -6,7 +6,7 @@
 
 **Status:** ready-for-agent
 
-- [ ] SKILL.md documents the rolling launch, the state-file rewrite, budgets counting launches, the pre-launch check and never clearing `dependsOn` (docs seam)
-- [ ] No document still says a wave is waited on in full before planning again (docs seam)
-- [ ] ADR-0006's status is accepted
+- [x] SKILL.md documents the rolling launch, the state-file rewrite, budgets counting launches, the pre-launch check and never clearing `dependsOn` (docs seam)
+- [x] No document still says a wave is waited on in full before planning again (docs seam)
+- [x] ADR-0006's status is accepted
 - [ ] By hand in a cloud session: a dispatch depending only on a finished dispatch launches before its wave's slow dispatch returns, with its `dependsOn` kept

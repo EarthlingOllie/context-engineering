@@ -6,5 +6,5 @@
 
 **Status:** ready-for-agent
 
-- [ ] At the dispatch seam: the round-2 evaluator's prompt contains each round-1 branch's whole result, including lines after the first
+- [x] At the dispatch seam: the round-2 evaluator's prompt contains each round-1 branch's whole result, including lines after the first
 - [ ] Dispatch evals: sample 10's pass rate rises above its baseline spread (0/5), and every other sample stays within its spread

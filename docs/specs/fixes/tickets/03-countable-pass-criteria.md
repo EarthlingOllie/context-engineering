@@ -6,8 +6,8 @@
 
 **Status:** ready-for-agent
 
-- [ ] The catalog's `pass_criteria` entry is required and defines a criterion: a numbered item naming a command or observable and its expected count or output, including the full regression suite or the later gate that runs it
-- [ ] The catalog lists the words that do not make criteria (relevant, targeted, touched-area, all checks, an except clause) and shows one good example
-- [ ] At the dispatch seam: a generator-evaluator spec with no pass criteria returns `failed` ("pass_criteria missing") and spends no agents
-- [ ] Docs seam: the catalog text is asserted
+- [x] The catalog's `pass_criteria` entry is required and defines a criterion: a numbered item naming a command or observable and its expected count or output, including the full regression suite or the later gate that runs it
+- [x] The catalog lists the words that do not make criteria (relevant, targeted, touched-area, all checks, an except clause) and shows one good example
+- [x] At the dispatch seam: a generator-evaluator spec with no pass criteria returns `failed` ("pass_criteria missing") and spends no agents
+- [x] Docs seam: the catalog text is asserted
 - [ ] Dispatch evals: sample 4's false-pass rate falls below its baseline spread, and every other sample stays within its spread
