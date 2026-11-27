@@ -1324,6 +1324,7 @@ async function runDispatch(ctx, raw) {
 }
 
 // src/run.ts
+var PLUGIN_VERSION = "0.4.0+08410f2" ? "0.4.0+08410f2" : "dev";
 var HARD_AGENT_LIMIT = 1e3;
 function waveOf(id) {
   const m = /^w(\d+)-/.exec(id);
@@ -1409,7 +1410,8 @@ async function runWorkflow(args, rt) {
   if (humans.length !== rawHumans.length) rt.log(`${id}: dropped ${rawHumans.length - humans.length} malformed humans entry(ies); each must be an object`);
   const demand = agentDemand(raw);
   rt.log(`${id}: ${String(spec.topology)}, up to ${demand} agent(s) + 1 scribe`);
-  const linesOf = (r, stages, fields2) => [...humans, ...stages, { ...dispatchEvent(wave, spec, r), ...fields2, at: now }].map((e) => JSON.stringify(e));
+  const stamped = (e) => e.type === "dispatch" ? { ...e, version: PLUGIN_VERSION } : e;
+  const linesOf = (r, stages, fields2) => [...humans, ...stages.map(stamped), stamped({ ...dispatchEvent(wave, spec, r), ...fields2, at: now })].map((e) => JSON.stringify(e));
   const meter = meteredRuntime(rt);
   const ctx = { rt: meter.runtime, artifactDir: scratch, wave, stageEvents: [] };
   if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
@@ -1430,7 +1432,7 @@ async function runWorkflow(args, rt) {
     if (self.lines.join("\n") === rolesOnly.join("\n")) {
       if (self.appended !== rolesOnly.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${rolesOnly.length}`);
       rt.log(`STATUS ${result.status}`);
-      return { ...result, ...spec.title ? { title: spec.title } : {}, scribe: { appended: self.appended ?? 0, totalLines: self.totalLines ?? 0 }, tracedBy: "worker" };
+      return { ...result, ...spec.title ? { title: spec.title } : {}, version: PLUGIN_VERSION, scribe: { appended: self.appended ?? 0, totalLines: self.totalLines ?? 0 }, tracedBy: "worker" };
     }
     rt.log(`${id}: worker appended ${self.appended} trace line(s) but the dispatch is ${result.status}; the scribe appends the true line(s)`);
   }
@@ -1449,7 +1451,7 @@ async function runWorkflow(args, rt) {
     rt.log(`${id}: scribe threw: ${err instanceof Error ? err.message : String(err)}; the trace lines were not written`);
   }
   rt.log(`STATUS ${result.status}`);
-  return { ...result, ...spec.title ? { title: spec.title } : {}, scribe, ...scribe ? { tracedBy: "scribe" } : {} };
+  return { ...result, ...spec.title ? { title: spec.title } : {}, version: PLUGIN_VERSION, scribe, ...scribe ? { tracedBy: "scribe" } : {} };
 }
 
 // --- script body: the harness supplies agent, parallel, log, budget and args ---

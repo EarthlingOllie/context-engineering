@@ -33,6 +33,8 @@ function normalise(raw) {
     if (parent) d.parent = parent;
     const question = str(e.question);
     if (question) d.question = question;
+    const version = str(e.version)?.replace(/[^A-Za-z0-9.+_-]/g, "");
+    if (version) d.version = version;
     return d;
   }
   if (e.type === "human") {
@@ -72,6 +74,7 @@ function parseTrace(text, extra = []) {
   const waves = /* @__PURE__ */ new Map();
   let current = null;
   let humans = 0;
+  const versions = [];
   const openWave = (n, at) => {
     let w = waves.get(n);
     if (!w) {
@@ -88,6 +91,7 @@ function parseTrace(text, extra = []) {
         current = openWave(e.wave, e.at);
         break;
       case "dispatch": {
+        if (e.version && !versions.includes(e.version)) versions.push(e.version);
         const w = Number.isFinite(e.wave) ? openWave(e.wave, e.at) : current ?? openWave(0, e.at);
         if (e.parent) {
           const list = w.stages.get(e.parent) ?? [];
@@ -108,7 +112,7 @@ function parseTrace(text, extra = []) {
         skipped++;
     }
   }
-  return { items, skipped };
+  return { items, skipped, versions };
 }
 var CLASSES = {
   done: "fill:#dcfce7,stroke:#16a34a,color:#14532d",
@@ -146,8 +150,9 @@ function statusClass(status) {
   return CLASSES[status] ? status : "failed";
 }
 function renderTrace(text, extra = []) {
-  const { items, skipped } = parseTrace(text, extra);
-  const out = ["flowchart TD"];
+  const { items, skipped, versions } = parseTrace(text, extra);
+  const header = versions.length ? ["---", `title: graph-orchestrator ${versions.join(", ")}`, "---"] : [];
+  const out = [...header, "flowchart TD"];
   for (const [name, style] of Object.entries(CLASSES)) out.push(`  classDef ${name} ${style}`);
   if (skipped) out.push(`  %% ${skipped} unreadable line(s) skipped`);
   const known = /* @__PURE__ */ new Set();

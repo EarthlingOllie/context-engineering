@@ -161,6 +161,8 @@ export type TraceEvent =
       rounds?: EvaluatorRound[];
       /** chain only: each run stage's `<id> <status>: <first line>`. */
       stageLines?: string[];
+      /** The build that wrote the line (B-03): `<package version>+<git short commit>`, `dev` from unbundled source. Absent on older lines. */
+      version?: string;
       /** Lines the dispatch's cuts dropped, in total; absent when none. A chain's line counts every cut under it. */
       dropped?: number;
     }
@@ -171,6 +173,8 @@ export type TraceEvent =
 /** What a dispatch workflow returns: the result, and whether its trace lines were written. */
 export type DispatchReturn = DispatchResult & {
   title?: string;
+  /** The build that ran the dispatch (B-03): `<package version>+<git short commit>`, `dev` from unbundled source. */
+  version: string;
   scribe: { appended: number; totalLines: number } | null;
   /** Who wrote the trace lines: a `single`'s worker as its final step, else the scribe; absent when none were written. */
   tracedBy?: "worker" | "scribe";

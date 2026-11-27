@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (dispatch-eval run vs the frozen baseline pending, ADR-0005)
 
-- [ ] Bundle test: the built script's version matches the package version
-- [ ] Dispatch seam: the returned data and the dispatch line carry the version
-- [ ] Render seam: the diagram header shows it; an old trace without it still renders
-- [ ] Docs seam: SKILL.md's mode line records it
+- [x] Bundle test: the built script's version matches the package version
+- [x] Dispatch seam: the returned data and the dispatch line carry the version
+- [x] Render seam: the diagram header shows it; an old trace without it still renders
+- [x] Docs seam: SKILL.md's mode line records it

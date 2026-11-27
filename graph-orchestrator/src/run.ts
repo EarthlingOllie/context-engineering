@@ -16,6 +16,14 @@ import type { AgentUsage, DispatchArgs, DispatchResult, DispatchReturn, Dispatch
 import { agentLabel, roleOfLabel } from "./labels.ts";
 import { agentDemand, dispatchEvent, fail, normaliseSpec, runDispatch, traceDetail, type TopologyContext } from "./topologies.ts";
 
+declare const __PLUGIN_VERSION__: string | undefined;
+
+/**
+ * The build that produced this run (B-03, REL-07): `<package version>+<git short commit>`,
+ * injected by build.mjs into workflows/dispatch.js. Unbundled source (tests) reads `dev`.
+ */
+export const PLUGIN_VERSION: string = typeof __PLUGIN_VERSION__ === "string" && __PLUGIN_VERSION__ ? __PLUGIN_VERSION__ : "dev";
+
 /** The runtime's hard limit on agents per run. */
 export const HARD_AGENT_LIMIT = 1000;
 
@@ -137,7 +145,9 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   rt.log(`${id}: ${String(spec.topology)}, up to ${demand} agent(s) + 1 scribe`);
 
   // Events: interventions, the chain stages, then the dispatch itself.
-  const linesOf = (r: DispatchResult, stages: TraceEvent[], fields: AgentFields) => [...humans, ...stages, { ...dispatchEvent(wave, spec, r), ...fields, at: now }].map((e) => JSON.stringify(e));
+  // Every dispatch line, chain stages included, names the build that wrote it (B-03).
+  const stamped = (e: TraceEvent): TraceEvent => (e.type === "dispatch" ? { ...e, version: PLUGIN_VERSION } : e);
+  const linesOf = (r: DispatchResult, stages: TraceEvent[], fields: AgentFields) => [...humans, ...stages.map(stamped), stamped({ ...dispatchEvent(wave, spec, r), ...fields, at: now })].map((e) => JSON.stringify(e));
 
   const meter = meteredRuntime(rt);
   const ctx: TopologyContext = { rt: meter.runtime, artifactDir: scratch, wave, stageEvents: [] };
@@ -166,7 +176,7 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
     if (self.lines.join("\n") === rolesOnly.join("\n")) {
       if (self.appended !== rolesOnly.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${rolesOnly.length}`);
       rt.log(`STATUS ${result.status}`);
-      return { ...result, ...(spec.title ? { title: spec.title } : {}), scribe: { appended: self.appended ?? 0, totalLines: self.totalLines ?? 0 }, tracedBy: "worker" };
+      return { ...result, ...(spec.title ? { title: spec.title } : {}), version: PLUGIN_VERSION, scribe: { appended: self.appended ?? 0, totalLines: self.totalLines ?? 0 }, tracedBy: "worker" };
     }
     rt.log(`${id}: worker appended ${self.appended} trace line(s) but the dispatch is ${result.status}; the scribe appends the true line(s)`);
   }
@@ -188,5 +198,5 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   }
 
   rt.log(`STATUS ${result.status}`);
-  return { ...result, ...(spec.title ? { title: spec.title } : {}), scribe, ...(scribe ? { tracedBy: "scribe" as const } : {}) };
+  return { ...result, ...(spec.title ? { title: spec.title } : {}), version: PLUGIN_VERSION, scribe, ...(scribe ? { tracedBy: "scribe" as const } : {}) };
 }

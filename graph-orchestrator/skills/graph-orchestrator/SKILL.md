@@ -60,7 +60,7 @@ Your whole memory. Fixed headings, fragments, one screen. Rewritten in place aft
 
 ```
 # <task>
-MODE:      attended | autonomous · waves 3/16 · dispatches/wave 9 · SCRATCH=<dir>
+MODE:      attended | autonomous · plugin <version> · waves 3/16 · dispatches/wave 9 · SCRATCH=<dir>
 GOAL:      <one line: what done looks like>
 STATUS:    <where we are now, one line>
 KNOWN:     <facts established this session, one line each; a path when the fact is a file>
@@ -68,6 +68,8 @@ RULED OUT: <hypothesis — the evidence that killed it, one line each>
 FRONTIER:  <what still needs doing, one line each; the next wave is drawn from here; a launched dispatch, until integrated: <id> <Topology>: <title> · run wf_… · args SCRATCH/args/<id>.json>
 DECISIONS: <choice — reason, one line each; best guesses made in autonomous mode go here>
 ```
+
+`plugin <version>` is the build that runs your dispatches: copy the `version` the first returned dispatch carries (the package version plus the git short commit, e.g. `0.5.0+1a2b3c4`); write `plugin ?` until one returns, and update it if a later dispatch returns a different one. The same stamp is on every dispatch trace line and in the diagram's title.
 
 A superseded fact is deleted, not struck through. If the file does not fit on a screen you are logging, not remembering. After compaction, the state file is the only thing you re-read, plus the args file it names for a dispatch you resume: it must be enough to plan the next wave.
 

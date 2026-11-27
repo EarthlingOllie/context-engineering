@@ -1,6 +1,17 @@
 // Bundles the TypeScript into the two plain JavaScript files the plugin ships.
 import { build } from "esbuild";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+
+// The version stamp (B-03, REL-07): the package version plus the git short commit the build ran at.
+const PKG_VERSION = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version;
+let commit = "nogit";
+try {
+  commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || commit;
+} catch {
+  // not a git checkout: the stamp says so rather than failing the build
+}
+const VERSION = `${PKG_VERSION}+${commit}`;
 
 const META = `export const meta = {
   name: 'dispatch',
@@ -26,6 +37,7 @@ const bundle = await build({
   target: "es2020",
   write: false,
   legalComments: "none",
+  define: { __PLUGIN_VERSION__: JSON.stringify(VERSION) },
 });
 let js = bundle.outputFiles[0].text;
 js = js.replace(/\nexport \{[^}]*\};?\s*$/, "\n");
@@ -46,4 +58,4 @@ await build({
   legalComments: "none",
 });
 
-console.log("built workflows/dispatch.js and scripts/render-trace.js");
+console.log(`built workflows/dispatch.js (${VERSION}) and scripts/render-trace.js`);

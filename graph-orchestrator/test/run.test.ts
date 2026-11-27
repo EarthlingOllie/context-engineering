@@ -455,3 +455,26 @@ test("a scribe that throws is logged and the workflow still returns its result",
   assert.equal(out.results[0]!.scribe, null);
   assert.ok(logs.some((l) => /scribe threw: disk full/.test(l)));
 });
+
+test("B-03: the returned data and every dispatch line, chain stages included, carry the plugin version", async () => {
+  const { out } = await wave([
+    spec({ id: "w1-d1", topology: "chain", params: { stages: [{ topology: "single", task: "a" }, { topology: "single", task: "b" }] } }),
+    spec({ id: "w1-d2", topology: "nonsense" as never }),
+  ]);
+  const dispatchLines = (out.events as Array<{ type: string; version?: string }>).filter((e) => e.type === "dispatch");
+  assert.equal(dispatchLines.length, 4);
+  for (const r of out.results) {
+    assert.equal(typeof r.version, "string");
+    assert.ok(r.version, "returned data names the build");
+  }
+  for (const e of dispatchLines) assert.equal(e.version, out.results[0]!.version);
+});
+
+test("B-03: a single whose worker appends its own lines writes the version too, so no scribe is needed", async () => {
+  const f = fakeRuntime({ Worker: (c: { prompt: string }) => ({ result: "ok", artifacts: [], blocked: false, traceAppended: c.prompt.split("\n").filter((l) => l.startsWith('{"type":"dispatch"')).length, traceTotalLines: 1 }) });
+  const out = await runWorkflow({ ...baseArgs, dispatch: spec({ id: "w1-d1", topology: "single" }) } as never, f.rt);
+  const worker = f.calls[0]!;
+  const line = worker.prompt.split("\n").find((l) => l.startsWith('{"type":"dispatch"'))!;
+  assert.equal(JSON.parse(line).version, out.version);
+  assert.ok(out.version);
+});

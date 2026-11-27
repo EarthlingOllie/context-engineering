@@ -4,6 +4,8 @@
  * nodes labelled with their title, id, topology and iteration count, `dependsOn` edges, status as node class, chain stages as a
  * nested subgraph, interventions as nodes (`human`, or `self` dashed, by
  * their `source`, else by mode: autonomous is `self`), `hook` lines as nothing.
+ * The builds that wrote the dispatch lines (their `version`, B-03) become the
+ * diagram's title, in a front-matter header; a trace without one has none.
  */
 import type { TraceEvent } from "../types.ts";
 
@@ -11,7 +13,7 @@ type Dispatch = Extract<TraceEvent, { type: "dispatch" }>;
 type Human = Extract<TraceEvent, { type: "human" }>;
 type Wave = { number: number; at?: string; dispatches: Dispatch[]; stages: Map<string, Dispatch[]>; end?: Extract<TraceEvent, { type: "wave_end" }> };
 
-export type ParsedTrace = { items: Array<{ kind: "wave"; wave: Wave } | { kind: "human"; human: Human; index: number }>; skipped: number };
+export type ParsedTrace = { items: Array<{ kind: "wave"; wave: Wave } | { kind: "human"; human: Human; index: number }>; skipped: number; versions: string[] };
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : []);
@@ -48,6 +50,9 @@ function normalise(raw: unknown): TraceEvent | null {
     if (parent) d.parent = parent;
     const question = str(e.question);
     if (question) d.question = question;
+    // Only characters a build stamp uses, so a hostile line cannot break out of the header.
+    const version = str(e.version)?.replace(/[^A-Za-z0-9.+_-]/g, "");
+    if (version) d.version = version;
     return d;
   }
   if (e.type === "human") {
@@ -89,6 +94,7 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
   const waves = new Map<number, Wave>();
   let current: Wave | null = null;
   let humans = 0;
+  const versions: string[] = [];
   const openWave = (n: number, at?: string): Wave => {
     let w = waves.get(n);
     if (!w) {
@@ -105,6 +111,7 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
         current = openWave(e.wave, e.at);
         break;
       case "dispatch": {
+        if (e.version && !versions.includes(e.version)) versions.push(e.version);
         const w = Number.isFinite(e.wave) ? openWave(e.wave, e.at) : current ?? openWave(0, e.at);
         if (e.parent) {
           const list = w.stages.get(e.parent) ?? [];
@@ -125,7 +132,7 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
         skipped++;
     }
   }
-  return { items, skipped };
+  return { items, skipped, versions };
 }
 
 const CLASSES: Record<string, string> = {
@@ -173,8 +180,9 @@ function statusClass(status: string): string {
 }
 
 export function renderTrace(text: string, extra: TraceEvent[] = []): string {
-  const { items, skipped } = parseTrace(text, extra);
-  const out: string[] = ["flowchart TD"];
+  const { items, skipped, versions } = parseTrace(text, extra);
+  const header = versions.length ? ["---", `title: graph-orchestrator ${versions.join(", ")}`, "---"] : [];
+  const out: string[] = [...header, "flowchart TD"];
   for (const [name, style] of Object.entries(CLASSES)) out.push(`  classDef ${name} ${style}`);
   if (skipped) out.push(`  %% ${skipped} unreadable line(s) skipped`);
 
