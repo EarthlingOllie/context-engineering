@@ -8,4 +8,4 @@
 
 - [ ] A stub run of the job completes without the secret and uploads a scorecard
 - [ ] One paid run is recorded in the evals README
-- [ ] The job refuses the baseline option
+- [x] The job refuses the baseline option

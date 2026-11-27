@@ -185,6 +185,26 @@ python3 graph-orchestrator/evals/compare.py <baseline.json> <fix.json> [--force]
 
 Prints one line per sample and metric: the baseline value, the fix value, the difference, the noise band and whether the move is `noise` or `MOVED`. Cost, time, tokens and agents compare the per-sample mean over epochs. The band is 10% of the baseline value, or, when the baseline has more than one epoch, the baseline's measured spread (max minus min over its epochs) for that sample; a difference no larger than the band is noise. Outcome correctness, false passes (a row's `false_pass`, else `done` reported while the hidden check failed) and status truthfulness compare as counts over epochs (`2/3` against `3/3`), never averaged, and any change in a count is shown. It refuses, exit 2, to compare scorecards whose `engine_version`, `inspect_version` or `model` differ, unless given `--force`. Tested in `tests/test_compare.py` with the hand-written scorecards in `tests/saved/scorecards/`.
 
+## GitHub Actions
+
+`.github/workflows/dispatch-evals.yml` runs the suite on demand (Actions, *Dispatch evals*, *Run workflow*) on a hosted runner with Docker. Its inputs go through `ci.py`, which checks each one and passes it to `run.py`:
+
+| Input | `run.py` option |
+|---|---|
+| `stub` (default on) | `--stub`: canned engine, mockllm, no model call, no cost, no secret |
+| `epochs` | `--epochs` (empty: the default) |
+| `samples` | `--samples` |
+| `role_models` | one `--role-model` per comma-separated `ROLE=MODEL` |
+| `baseline` | refused: the job exits 2 and runs nothing; freeze the baseline locally |
+
+A paid run (`stub` off) reads the API key from the `ANTHROPIC_API_KEY` repository secret, passed only to the suite step and only when `stub` is off; it is never printed, and the job refuses a paid run when the secret is missing. The job uploads `out/scorecards/` as the `scorecard` artifact and `logs/` as the `inspect-log` artifact, even when the run fails. It has read-only repository permissions and commits nothing.
+
+Paid runs from the job:
+
+| Date | Run | Plugin commit | Options | Run cost | Scorecard |
+|---|---|---|---|---|---|
+| none yet | | | | | |
+
 ## Pins
 
 `suite.py` pins the model (`claude-opus-5-5`, every role), Inspect (`inspect_ai==0.3.292`, also in `requirements.txt`) and the engine (`@anthropic-ai/claude-agent-sdk` 0.3.332 = Claude Code 2.1.332, also in `sandbox/package.json`), and pytest (8.3.5, in `sandbox/requirements.txt`). `tests/test_suite.py` checks they agree. Prices per model are in `suite.py` and are registered with Inspect's `set_model_cost`; Inspect ships none. Opus, Sonnet and Haiku are all declared to the bridge, so a role that requests one is served by it.
@@ -210,6 +230,7 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 | Path | What it is |
 |---|---|
 | `run.py` | the one command: runs the suite and writes the scorecard |
+| `ci.py` | the GitHub Actions entry point: workflow inputs to `run.py` options, the baseline refused |
 | `compare.py` | compares two scorecards per sample and metric, marking noise |
 | `baselines/` | frozen baseline scorecards, committed: `<plugin commit>.json` and `.md` |
 | `sweep.py` | on demand: the concurrency sweep, samples 6 and 7 at each cap, one table |
@@ -221,7 +242,7 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 | `fixtures/<name>/hidden/` | the hidden check; read by the scorer on the host, never in the sandbox while the agents run (hidden tests are copied in only after the dispatch) |
 | `harness/` | the Node harness: loads the built `workflows/dispatch.js` the way the Workflow harness does and supplies a real `Runtime` (`runtime.ts`), with the Agent SDK as its engine (`sdk-engine.ts`) or, for `--stub`, canned answers (`stub-engine.ts`); copied into the sandbox at run time |
 | `sandbox/` | the sandbox image (Python 3.12 with pytest from `sandbox/requirements.txt`, Node 22 copied from the Node image, the pinned Agent SDK); `run.py` writes its compose file to `out/` with the run's CPU count and memory |
-| `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`); spread, run cost, the budget cut, `--baseline` and committed baselines (`test_baseline.py`); the sweep (`test_sweep.py`); suite and sample tests, the catalog demand formula among them (`test_suite.py`); fixture tests (`test_python_fixture.py`, `test_typescript_fixture.py`, `test_python_bug_fixture.py`) |
+| `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`); spread, run cost, the budget cut, `--baseline` and committed baselines (`test_baseline.py`); the sweep (`test_sweep.py`); the GitHub Actions job and its inputs (`test_ci.py`); suite and sample tests, the catalog demand formula among them (`test_suite.py`); fixture tests (`test_python_fixture.py`, `test_typescript_fixture.py`, `test_python_bug_fixture.py`) |
 | `spike/` | ticket 01's throwaway spike |
 
 The harness changes nothing in the plugin: the bundle is read as text and run with `agent`, `parallel` and `log` as globals.
