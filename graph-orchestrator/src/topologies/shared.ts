@@ -33,6 +33,12 @@ export type TopologyContext = {
   stageEvents: TraceEvent[];
   /** What role agent calls threw, in order: `runDispatch` puts it in a `failed` result. */
   agentErrors?: string[];
+  /**
+   * `single` only: the trace lines its worker appends as a final step, set by
+   * run.ts for the top-level dispatch `id` (a chain's stages never match it).
+   * The worker's reported count lands in `appended`; 0 or absent runs the scribe.
+   */
+  selfTrace?: { id: string; file: string; lines: string[]; appended?: number; totalLines?: number };
 };
 
 /**

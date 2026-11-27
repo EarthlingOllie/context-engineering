@@ -5,7 +5,9 @@
  * dispatch's purpose; they run in parallel and cannot see each other. The run
  * executes the dispatch's topology, then asks one scribe agent to write the
  * dispatch's trace lines to its own file, <scratch>/trace/<id>.jsonl, so
- * parallel dispatches never write the same file. Its last log line, after
+ * parallel dispatches never write the same file. A `single`'s worker appends
+ * those lines itself as its final step; the scribe then runs only when the
+ * worker reports none appended (or the result is not the done one it wrote). Its last log line, after
  * the scribe, is `STATUS <status>`: the harness's notification says
  * "completed" for every run that returned, so this line is where a watcher
  * sees the real outcome.
@@ -71,17 +73,33 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   const demand = agentDemand(raw);
   rt.log(`${id}: ${String(spec.topology)}, up to ${demand} agent(s) + 1 scribe`);
 
+  // Events: interventions, the chain stages, then the dispatch itself.
+  const linesOf = (r: DispatchResult, stages: TraceEvent[]) => [...humans, ...stages, { ...dispatchEvent(wave, spec, r), at: now }].map((e) => JSON.stringify(e));
+
   const ctx: TopologyContext = { rt, artifactDir: scratch, wave, stageEvents: [] };
+  // A `single`'s worker appends the lines a done result would get, as its final step (fixes ticket 08).
+  if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
+    ctx.selfTrace = { id, file: traceFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, []) };
+  }
   let result: DispatchResult;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
   else result = refusal(spec, demand) ?? (await runDispatch(ctx, raw));
 
-  // Events: interventions, the chain stages, then the dispatch itself.
-  const events: TraceEvent[] = [...humans, ...ctx.stageEvents, { ...dispatchEvent(wave, spec, result), at: now }];
+  const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
+  const lines = linesOf(result, ctx.stageEvents);
+
+  // The worker wrote the lines: no scribe, provided what it wrote is what the result's lines are.
+  const self = ctx.selfTrace;
+  if (self && (self.appended ?? 0) > 0) {
+    if (self.lines.join("\n") === lines.join("\n")) {
+      if (self.appended !== lines.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${lines.length}`);
+      rt.log(`STATUS ${result.status}`);
+      return { ...result, ...(spec.title ? { title: spec.title } : {}), scribe: { appended: self.appended ?? 0, totalLines: self.totalLines ?? 0 }, tracedBy: "worker" };
+    }
+    rt.log(`${id}: worker appended ${self.appended} trace line(s) but the dispatch is ${result.status}; the scribe appends the true line(s)`);
+  }
 
   // The scribe: one agent, one write. A throw here must not lose the result.
-  const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
-  const lines = events.map((e) => JSON.stringify(e));
   const scribeLabel = agentLabel({ role: "scribe", task: "logging current dispatch" });
   let scribe: DispatchReturn["scribe"] = null;
   try {
@@ -98,5 +116,5 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   }
 
   rt.log(`STATUS ${result.status}`);
-  return { ...result, ...(spec.title ? { title: spec.title } : {}), scribe };
+  return { ...result, ...(spec.title ? { title: spec.title } : {}), scribe, ...(scribe ? { tracedBy: "scribe" as const } : {}) };
 }

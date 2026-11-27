@@ -318,16 +318,54 @@ function dispatchEvent(wave, spec, r, parent) {
 var TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain", "relay", "best-of-n", "iterative-fan-out", "panel"];
 
 // src/topologies/single.ts
+function traceStep(file, lines) {
+  return {
+    title: "TRACE (your final step, after the task is done)",
+    body: [
+      `Append the ${lines.length} line(s) between the markers below to the file ${file}, exactly as given, in order, each terminated by a newline.`,
+      "Create the directory and the file if they do not exist. Append with a single write; do not read, reorder, reformat or alter any existing line.",
+      "<<<TRACE",
+      ...lines,
+      "TRACE>>>",
+      "Report the number of lines you appended in `traceAppended` and the total number of lines in the file afterwards in `traceTotalLines`.",
+      "If you are blocked, or the write fails, append nothing and report 0: the lines then get written for you."
+    ].join("\n")
+  };
+}
+var workerSchema = ROLE_SCHEMAS.worker;
+var TRACING_WORKER_SCHEMA = {
+  ...workerSchema,
+  properties: {
+    ...workerSchema.properties,
+    traceAppended: { type: "number", description: "How many TRACE lines you appended. 0 if you appended none." },
+    traceTotalLines: { type: "number", description: "Total lines in the trace file afterwards. 0 if you appended none." }
+  },
+  required: [...workerSchema.required, "traceAppended"]
+};
 async function runSingle(ctx, spec) {
   const returns = contractOf(spec);
+  const trace = ctx.selfTrace && ctx.selfTrace.id === spec.id ? ctx.selfTrace : void 0;
   const out = await callRole(
     ctx,
     spec,
     "worker",
-    buildPrompt({ role: "worker", task: spec.task, context: spec.context, entry: roleEntry(spec, "worker"), returns, artifactDir: ctx.artifactDir }),
-    { role: "worker" }
+    buildPrompt({
+      role: "worker",
+      task: spec.task,
+      context: spec.context,
+      entry: roleEntry(spec, "worker"),
+      returns,
+      artifactDir: ctx.artifactDir,
+      ...trace ? { sections: [traceStep(trace.file, trace.lines)] } : {}
+    }),
+    { role: "worker" },
+    trace ? TRACING_WORKER_SCHEMA : ROLE_SCHEMAS.worker
   );
   if (!out) return fail(spec, "worker returned nothing", 1);
+  if (trace) {
+    trace.appended = Math.max(0, Math.floor(Number(out["traceAppended"]) || 0));
+    trace.totalLines = Math.max(0, Math.floor(Number(out["traceTotalLines"]) || 0));
+  }
   const { question, ...work } = readWorkOutput(out, returns.maxLines);
   const base = { id: spec.id, ...work, iterations: 1 };
   return question ? { ...base, status: "blocked", question } : { ...base, status: "done" };
@@ -1259,13 +1297,25 @@ async function runWorkflow(args, rt) {
   if (humans.length !== rawHumans.length) rt.log(`${id}: dropped ${rawHumans.length - humans.length} malformed humans entry(ies); each must be an object`);
   const demand = agentDemand(raw);
   rt.log(`${id}: ${String(spec.topology)}, up to ${demand} agent(s) + 1 scribe`);
+  const linesOf = (r, stages) => [...humans, ...stages, { ...dispatchEvent(wave, spec, r), at: now }].map((e) => JSON.stringify(e));
   const ctx = { rt, artifactDir: scratch, wave, stageEvents: [] };
+  if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
+    ctx.selfTrace = { id, file: traceFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, []) };
+  }
   let result;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
   else result = refusal(spec, demand) ?? await runDispatch(ctx, raw);
-  const events = [...humans, ...ctx.stageEvents, { ...dispatchEvent(wave, spec, result), at: now }];
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
-  const lines = events.map((e) => JSON.stringify(e));
+  const lines = linesOf(result, ctx.stageEvents);
+  const self = ctx.selfTrace;
+  if (self && (self.appended ?? 0) > 0) {
+    if (self.lines.join("\n") === lines.join("\n")) {
+      if (self.appended !== lines.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${lines.length}`);
+      rt.log(`STATUS ${result.status}`);
+      return { ...result, ...spec.title ? { title: spec.title } : {}, scribe: { appended: self.appended ?? 0, totalLines: self.totalLines ?? 0 }, tracedBy: "worker" };
+    }
+    rt.log(`${id}: worker appended ${self.appended} trace line(s) but the dispatch is ${result.status}; the scribe appends the true line(s)`);
+  }
   const scribeLabel = agentLabel({ role: "scribe", task: "logging current dispatch" });
   let scribe = null;
   try {
@@ -1281,7 +1331,7 @@ async function runWorkflow(args, rt) {
     rt.log(`${id}: scribe threw: ${err instanceof Error ? err.message : String(err)}; the trace lines were not written`);
   }
   rt.log(`STATUS ${result.status}`);
-  return { ...result, ...spec.title ? { title: spec.title } : {}, scribe };
+  return { ...result, ...spec.title ? { title: spec.title } : {}, scribe, ...scribe ? { tracedBy: "scribe" } : {} };
 }
 
 // --- script body: the harness supplies agent, parallel, log and args ---

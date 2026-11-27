@@ -124,6 +124,8 @@ export type TraceEvent =
 export type DispatchReturn = DispatchResult & {
   title?: string;
   scribe: { appended: number; totalLines: number } | null;
+  /** Who wrote the trace lines: a `single`'s worker as its final step, else the scribe; absent when none were written. */
+  tracedBy?: "worker" | "scribe";
 };
 
 /** What the harness gives the script. Injected so topologies run under test with fakes. */
