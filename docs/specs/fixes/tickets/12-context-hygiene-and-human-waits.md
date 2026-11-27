@@ -14,3 +14,6 @@
 Question part: T2's block (w2-d2, run wf_5a9148c5-8a9) was handled at 23:49:43Z, after both independent dispatches had launched (T1 w2-d1 23:37:46Z, T3 w3-d1 23:39:16Z) and finished; it carried 3 options with (a) recommended. Autonomous mode, nobody to answer, so it was recorded as a best guess rather than asked.
 Diagram part: SCRATCH/session.mmd was sent as a file (not pasted) at 23:52Z, but as a separate step before the final reply; the final reply (UNVERIFIED first, summary) is sent after this record. The ticket asks that the final reply send the diagram, so this ordering does not evidence it, and the <=3-line summary is unseen.
 Box left unticked: final-reply part pending; the question was never actually put to a person.
+Final reply (~23:55Z) sent SCRATCH/session.mmd as a file (SendUserFile, after re-render incl. w6) without the orchestrator opening it, but its summary was a ~12-row per-check table, not STATUS as one line plus at most 3 lines.
+T2's block was never asked of anyone: autonomous mode, recorded as best guess with 3 options (recommended first) after T1 and T3 had launched and finished.
+Box stays unticked. Failing parts: summary longer than 3 lines (~12-row table); no question was actually put to a person.

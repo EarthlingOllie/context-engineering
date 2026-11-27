@@ -48,3 +48,6 @@ Session: session_016jSC3fsMfuGLacrVjUTYMU, 2026-11-27 (plugin 0.5.0+eaf50f7 from
 
 Covered in one session with plugin 0.5.0+eaf50f7 run from the checkout (not 0.4.0 installed): 10 and 13 pass; 04 and 12 partial (final-reply parts pending); 09 not exercised (no hook fired); 11 pending (needs a question after finish). Results in the table above.
 Box 2 left unticked: wrong version, 09 failed to occur, 11 pending.
+Update after the final reply: 04 now pass (UNVERIFIED listed first); 11 pass (w7-d1 single answered the post-finish question, 23:56:34Z); 12 still partial (diagram sent as a file, but summary was a ~12-row table; no question put to a person).
+Finding: w4-d1's trace line records only status, not its review result; w4-d2 claimed a test log it never wrote.
+Box 2 stays unticked: plugin was 0.5.0, not 0.4.0; 09 failed (no hook fired); 12 partial.
