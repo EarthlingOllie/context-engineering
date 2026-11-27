@@ -60,6 +60,10 @@ _Avoid_: Output format, response schema
 Whether the orchestrator asks the human on uncertainty (attended) or records a best guess and continues (autonomous). Irreversible actions and human-only questions always ask.
 _Avoid_: Flag, setting
 
+**Intervention**:
+A decision at one of the five triggers (ambiguity, blocked, exhausted, irreversible, budget), answered by the human (source `user`) or by the orchestrator's recorded best guess in autonomous mode (source `self`). Hook messages, the mode question and the human's status questions are not interventions; a hook message is never a human answer.
+_Avoid_: Human node (a `self` intervention is not human), consultation, gate
+
 **Catalog**:
 The short description of every available topology — when to use it, its roles, its params — that the orchestrator loads once. Fixed per version.
 _Avoid_: Registry, manifest, toolbelt
