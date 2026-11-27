@@ -52,7 +52,7 @@ Then write the state file and plan wave 1.
 
 ## The state file: `SCRATCH/state.md`
 
-Your whole memory. Fixed headings, fragments, one screen. Rewritten in place after every wave; never appended.
+Your whole memory. Fixed headings, fragments, one screen. Rewritten in place after every integration and before every launch; never appended. `waves 3/16` counts launches: every wave number you have launched, rolling ones included.
 
 ```
 # <task>
@@ -70,7 +70,7 @@ A superseded fact is deleted, not struck through. If the file does not fit on a 
 ## The loop
 
 ```
-resume interrupted runs → assess → plan wave → run wave → integrate → (frontier empty? render : repeat)
+resume interrupted runs → assess → plan wave → run wave → integrate each result as it returns → (ready FRONTIER item? roll it : frontier empty and nothing running? render : wait)
 ```
 
 ### Resume interrupted runs
@@ -97,7 +97,7 @@ From the state file alone. Up to `--dispatches` dispatch specs, ids `w<wave>-d<n
 - **roles** — per role, the skill that supplies the domain (`tdd`, `code-review`, …) and the task-specific instructions. Name skills; never paste their text.
 - **params** — as the catalog narrows them.
 - **returns** — the contract: `shape` (what the lines are) and `maxLines` (≤ 20, usually 1–6). Results come back inline and cut to this; size it so you can decide without opening anything. Anything longer is an artifact path.
-- **dependsOn** — ids of dispatches from earlier waves whose results this one builds on. Forward their artifact paths in `context`, not their prose. The dispatches of one wave run as separate workflows and cannot wait on each other: a dispatch that names a same-wave id is `failed` unrun. Steps that must happen in order within a wave are one `chain`.
+- **dependsOn** — ids of dispatches from earlier waves whose results this one builds on. Forward their artifact paths in `context`, not their prose. The dispatches of one wave run as separate workflows and cannot wait on each other: a dispatch that names a same-wave id is `failed` unrun. Steps that must happen in order within a wave are one `chain`. **Pre-launch check:** before any launch, every `dependsOn` id must be in a lower-numbered wave; if one is not, move the dispatch to the next wave or make the pair one `chain`. `dependsOn` is never cleared to pass the check: the edge is the diagram's record of what built on what.
 
 Hard to reverse (deleting, pushing, anything with an external side effect)? **Trigger 4: ask first, in both modes.** Tell the roles in `instructions` what they are not authorised to do.
 
@@ -119,7 +119,7 @@ Workflow({
 
 Before the calls, write each dispatch's exact `args`, as JSON, to `SCRATCH/args/<id>.json`, and pass that same object in its call; resume needs it byte for byte. This is the only launch. The script is a two-line wrapper: its `meta` names the workflow after the dispatch, and it hands `args` to the copy of the plugin's dispatch script made at kickoff. Write it exactly as above with the title, id, topology and the scratch directory's absolute path substituted; `meta` must stay a plain literal. Never paste `dispatch.js` itself. `<Topology>` in the name is one of `Single`, `Generator-evaluator`, `Fan-out`, `Chain`, `Relay`, `Best-of-n`, `Iterative fan-out`, `Panel`, `Debate`: `name: 'Generator-evaluator: Add the HTTP retry policy'`. The agents inside are labelled by role only (`Generator (1 of 3): …`), except a chain's, which name their link (stage) and its topology (`Link 2 · Single, Worker: …`).
 
-**The dispatch line.** Say `Wave <n> dispatched: <title>; <title>.` only once every `Workflow` call of the wave has returned a run, and never in the message that makes the calls. A call that returned an error did not launch. A run id alone is not proof either: a refused `scriptPath` returns "Workflow launched in background" with a run id, then a `failed` notification a moment later whose text says the workflow failed to start (`scriptPath must be …`). Any launch error is fixed (redo the kickoff copy, correct the wrapper) and that dispatch relaunched before you say anything about the wave; the line then names only dispatches whose launch returned a run. Then wait. Each workflow notifies you when it finishes; integrate once every workflow of the wave has reported. Never poll a running workflow or ask how it is going. The notification says "completed" whenever the script returned, whatever the outcome: it is not the dispatch's status. The status is only in the returned data (and in the workflow's last log line, `STATUS <status>`); act on that.
+**The dispatch line.** Say `Wave <n> dispatched: <title>; <title>.` only once every `Workflow` call of the wave has returned a run, and never in the message that makes the calls. A call that returned an error did not launch. A run id alone is not proof either: a refused `scriptPath` returns "Workflow launched in background" with a run id, then a `failed` notification a moment later whose text says the workflow failed to start (`scriptPath must be …`). Any launch error is fixed (redo the kickoff copy, correct the wrapper) and that dispatch relaunched before you say anything about the wave; the line then names only dispatches whose launch returned a run. Then wait. Each workflow notifies you when it finishes; integrate each result as it reports (see **Rolling launches**). Never poll a running workflow or ask how it is going. The notification says "completed" whenever the script returned, whatever the outcome: it is not the dispatch's status. The status is only in the returned data (and in the workflow's last log line, `STATUS <status>`); act on that.
 
 **The run id.** Right after the wave's launches return, before you wait, rewrite the state file with each dispatch's run id on its FRONTIER line (`w3-d2 Generator-evaluator: Add the HTTP retry policy · run wf_8d319077-f95 · args SCRATCH/args/w3-d2.json`), so it survives compaction and a container restart. The dispatch script cannot learn its own run id (only the launch result carries it), so the trace does not record it: the state file alone holds it. A relaunch replaces the id and keeps the args file; integrating the result removes the line, except a `failed` result that reports a usage limit, whose line stays for **Resume interrupted runs**.
 
@@ -141,7 +141,11 @@ A stopped run (its container restarted, or it never reported) has no row because
 
 Then: update FRONTIER (remove what finished, add what the results opened), rewrite the state file, and plan the next wave from the state file alone.
 
-**Budgets (trigger 5).** Before planning a wave past `--waves`, or a wave wider than `--dispatches`: attended, ask; autonomous, record the overrun under DECISIONS and stop with what you have.
+### Rolling launches
+
+A wave is a launch batch, not a barrier (ADR-0006). When a dispatch returns, integrate it at once, while the rest of its wave runs. Any FRONTIER item whose `dependsOn` names only finished dispatches may launch straight away as the next wave number: plan it from the state file, pass the pre-launch check, rewrite the state file, then launch it exactly as **Run the wave** says (args file, dispatch line, run id on its FRONTIER line). Wave numbers stay strictly increasing. An item that depends on a dispatch still running waits for that dispatch's result.
+
+**Budgets (trigger 5).** Budgets count launches. Before any launch, rolling ones included, that would take a wave number past `--waves`, or a wave wider than `--dispatches`: attended, ask; autonomous, record the overrun under DECISIONS and stop with what you have.
 
 ### Human interventions and the trace
 
@@ -172,6 +176,7 @@ It reads every dispatch's trace file in order, prints the Mermaid diagram and sa
 | "The worker needs the conventions" | It loads them itself. Name the skill in `roles`. |
 | "I'll pass the whole result on to the next dispatch" | Pass the artifact path. Prose through you is context spent twice. |
 | "Append this wave to state.md so nothing is lost" | What you would delete was already false. Rewrite. |
+| "Drop its `dependsOn` so it can launch now" | The edge is the diagram's record. Move it to the next wave, or make the pair one `chain`. |
 | "A 20-line result is fine" | If you need 20 lines to decide, the contract is wrong. Ask for the verdict and the one piece of evidence that would kill it. |
 
 ## Red flags — stop

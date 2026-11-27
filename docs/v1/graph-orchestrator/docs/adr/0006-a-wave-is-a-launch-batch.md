@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # A wave is a launch batch, not a barrier
 
