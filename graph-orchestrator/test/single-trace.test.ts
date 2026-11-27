@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderTrace } from "../src/trace/render.ts";
+import { END_PLACEHOLDER } from "../src/clock.ts";
 import { baseArgs, eventsOf, spec, wave } from "./helpers.ts";
 
 // Ticket fixes/08 (COST-02(b)): a `single` dispatch's worker appends the
@@ -42,7 +43,7 @@ test("single: the worker is given exactly the lines the scribe would write: huma
   const { calls } = await wave([retry()], { Worker: appended(2) }, { humans });
   assert.deepEqual(eventsOf(calls[0]!.prompt), [
     { ...humans[0], at: baseArgs.now, source: "human" }, // B-06: an attended intervention carries source human
-    { type: "dispatch", wave: 2, id: "w2-d1", title: "Add the retry policy", topology: "single", iterations: 1, status: "done", dependsOn: ["w1-d2"], agents: [{ role: "worker" }], demand: 1, concurrency: 1, at: baseArgs.now, version: "dev" }, // B-03: unbundled source stamps dev
+    { type: "dispatch", wave: 2, id: "w2-d1", title: "Add the retry policy", topology: "single", iterations: 1, status: "done", dependsOn: ["w1-d2"], agents: [{ role: "worker" }], demand: 1, concurrency: 1, at: baseArgs.now, ended: END_PLACEHOLDER, version: "dev" }, // B-03: unbundled source stamps dev; B-04: the writer stamps the end
   ]);
 });
 

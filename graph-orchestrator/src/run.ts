@@ -14,6 +14,7 @@
  */
 import type { AgentUsage, DispatchArgs, DispatchResult, DispatchReturn, DispatchSpec, HookEvent, HumanEvent, Runtime, TraceEvent } from "./types.ts";
 import { agentLabel, roleOfLabel } from "./labels.ts";
+import { END_PLACEHOLDER, START_PLACEHOLDER, argsFileOf, clockSteps, hasPlaceholder } from "./clock.ts";
 import { agentDemand, dispatchEvent, fail, normaliseSpec, runDispatch, traceDetail, type TopologyContext } from "./topologies.ts";
 
 declare const __PLUGIN_VERSION__: string | undefined;
@@ -37,11 +38,13 @@ export function traceFileOf(scratch: string, id: string): string {
   return `${scratch.replace(/\/+$/, "") || "."}/trace/${id.replace(/[^A-Za-z0-9_.-]/g, "_")}.jsonl`;
 }
 
-export function scribePrompt(traceFile: string, lines: string[]): string {
+export function scribePrompt(traceFile: string, lines: string[], argsFile?: string): string {
+  const clock = argsFile && hasPlaceholder(lines) ? clockSteps(argsFile) : [];
   return [
     "ROLE: scribe",
-    `Append the ${lines.length} line(s) between the markers below to the file ${traceFile}, exactly as given, in order, each terminated by a newline.`,
+    `Append the ${lines.length} line(s) between the markers below to the file ${traceFile}, ${clock.length ? "exactly as given apart from the time placeholders" : "exactly as given"}, in order, each terminated by a newline.`,
     "Create the directory and the file if they do not exist. Append with a single write; do not read, reorder, reformat or alter any existing line. Do nothing else.",
+    ...clock,
     "<<<TRACE",
     ...lines,
     "TRACE>>>",
@@ -126,14 +129,15 @@ function refusal(spec: DispatchSpec, demand: number): DispatchResult | null {
 
 export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<DispatchReturn> {
   const a: Partial<DispatchArgs> = args && typeof args === "object" ? args : {};
-  const now = typeof a.now === "string" && a.now ? a.now : "unknown";
+  // The start: the orchestrator's `now` if it still sends one, else a placeholder the trace's writer replaces from the clock (B-04).
+  const now = typeof a.now === "string" && a.now ? a.now : START_PLACEHOLDER;
   const scratch = typeof a.scratch === "string" && a.scratch ? a.scratch : ".";
   const raw = a.dispatch;
   const spec = normaliseSpec(raw);
   const id = spec.id;
   const wave = waveOf(id);
 
-  // Interventions since the last wave: objects are kept (stamped with now when undated), anything else is dropped and logged.
+  // Interventions since the last wave: objects are kept (stamped with the start when undated), anything else is dropped and logged.
   // An entry typed `hook` stays a hook event (A-09: a hook is never an intervention); every other object is a human one.
   const rawHumans: unknown[] = Array.isArray(a.humans) ? a.humans : [];
   const humans: Array<HumanEvent | HookEvent> = rawHumans
@@ -147,14 +151,14 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   // Events: interventions, the chain stages, then the dispatch itself.
   // Every dispatch line, chain stages included, names the build that wrote it (B-03).
   const stamped = (e: TraceEvent): TraceEvent => (e.type === "dispatch" ? { ...e, version: PLUGIN_VERSION } : e);
-  const linesOf = (r: DispatchResult, stages: TraceEvent[], fields: AgentFields) => [...humans, ...stages.map(stamped), stamped({ ...dispatchEvent(wave, spec, r), ...fields, at: now })].map((e) => JSON.stringify(e));
+  const linesOf = (r: DispatchResult, stages: TraceEvent[], fields: AgentFields) => [...humans, ...stages.map(stamped), stamped({ ...dispatchEvent(wave, spec, r), ...fields, at: now, ended: END_PLACEHOLDER })].map((e) => JSON.stringify(e));
 
   const meter = meteredRuntime(rt);
   const ctx: TopologyContext = { rt: meter.runtime, artifactDir: scratch, wave, stageEvents: [] };
   // A `single`'s worker appends the lines a done result would get, as its final step (fixes ticket 08).
   // Its own usage is not known while it writes them, so its agent carries only its role.
   if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
-    ctx.selfTrace = { id, file: traceFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1 }) };
+    ctx.selfTrace = { id, file: traceFileOf(scratch, id), argsFile: argsFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1 }) };
   }
   let result: DispatchResult;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
@@ -185,7 +189,7 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   const scribeLabel = agentLabel({ role: "scribe", task: "logging current dispatch" });
   let scribe: DispatchReturn["scribe"] = null;
   try {
-    const out = await rt.agent(scribePrompt(traceFile, lines), { label: scribeLabel, schema: SCRIBE_SCHEMA });
+    const out = await rt.agent(scribePrompt(traceFile, lines, argsFileOf(scratch, result.id !== "?" ? result.id : id)), { label: scribeLabel, schema: SCRIBE_SCHEMA });
     if (out && typeof out === "object") {
       const o = out as Record<string, unknown>;
       scribe = { appended: Number(o["appended"]) || 0, totalLines: Number(o["totalLines"]) || 0 };

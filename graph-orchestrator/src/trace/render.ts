@@ -9,6 +9,11 @@
  */
 import type { TraceEvent } from "../types.ts";
 
+/** A time a trace's writer stamped; a placeholder it left unreplaced (B-04) is no time. */
+function timeOf(v: unknown): string | undefined {
+  return typeof v === "string" && v && !/^\{\{[A-Z_]+\}\}$/.test(v) ? v : undefined;
+}
+
 type Dispatch = Extract<TraceEvent, { type: "dispatch" }>;
 type Human = Extract<TraceEvent, { type: "human" }>;
 type Wave = { number: number; at?: string; dispatches: Dispatch[]; stages: Map<string, Dispatch[]>; end?: Extract<TraceEvent, { type: "wave_end" }> };
@@ -43,7 +48,7 @@ function normalise(raw: unknown): TraceEvent | null {
     };
     const title = str(e.title);
     if (title) d.title = title;
-    const at = str(e.at);
+    const at = timeOf(e.at);
     if (at) d.at = at;
     if (Array.isArray(e.stages)) d.stages = strs(e.stages);
     const parent = str(e.parent);
@@ -60,7 +65,7 @@ function normalise(raw: unknown): TraceEvent | null {
     const question = str(e.question);
     if (!trigger || !question) return null;
     const h: Human = { type: "human", trigger: trigger as Human["trigger"], question, answer: str(e.answer) ?? "" };
-    const at = str(e.at);
+    const at = timeOf(e.at);
     if (at) h.at = at;
     const dispatch = str(e.dispatch);
     if (dispatch) h.dispatch = dispatch;

@@ -38,7 +38,7 @@ export type TopologyContext = {
    * run.ts for the top-level dispatch `id` (a chain's stages never match it).
    * The worker's reported count lands in `appended`; 0 or absent runs the scribe.
    */
-  selfTrace?: { id: string; file: string; lines: string[]; appended?: number; totalLines?: number };
+  selfTrace?: { id: string; file: string; argsFile?: string; lines: string[]; appended?: number; totalLines?: number };
   /** Lines every cut under this context dropped, in total (B-06). A chain takes the difference across a stage for the stage's line. */
   dropped?: number;
   /** Trace detail a topology records for a dispatch id, put on that id's dispatch line (B-06). */
@@ -258,7 +258,7 @@ export async function callRole(
   return out as Record<string, unknown>;
 }
 
-export function dispatchEvent(wave: number, spec: DispatchSpec, r: DispatchResult, parent?: string): TraceEvent {
+export function dispatchEvent(wave: number, spec: DispatchSpec, r: DispatchResult, parent?: string): Extract<TraceEvent, { type: "dispatch" }> {
   const e: Extract<TraceEvent, { type: "dispatch" }> = {
     type: "dispatch",
     wave,

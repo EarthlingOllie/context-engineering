@@ -128,7 +128,7 @@ export type HookEvent = {
 
 /** The args of one dispatch workflow run. */
 export type DispatchArgs = {
-  now: string; // ISO timestamp supplied by the orchestrator; scripts cannot read the clock
+  now?: string; // optional start time; without it the trace's writer stamps the start and end from the clock (B-04)
   scratch: string; // the session scratch directory: artifacts go here, the trace line to <scratch>/trace/<id>.jsonl
   dispatch: DispatchSpec;
   humans?: Array<HumanEvent | HookEvent>; // interventions (and hook events) since the last wave, written by the scribe before the dispatch line
@@ -141,7 +141,9 @@ export type TraceEvent =
       wave: number;
       id: string;
       title?: string;
-      at?: string;
+      at?: string; // the start: UTC, from the clock via the trace's writer (B-04); invented by the orchestrator on older lines
+      /** The end: UTC, the time the trace's writer appended the line (B-04). Absent on older lines. */
+      ended?: string;
       topology: string;
       iterations: number;
       status: DispatchStatus;

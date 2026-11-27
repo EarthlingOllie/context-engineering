@@ -5,6 +5,9 @@
 import { appendFileSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 
 // src/trace/render.ts
+function timeOf(v) {
+  return typeof v === "string" && v && !/^\{\{[A-Z_]+\}\}$/.test(v) ? v : void 0;
+}
 var str = (v) => typeof v === "string" && v ? v : void 0;
 var strs = (v) => Array.isArray(v) ? v.filter((s) => typeof s === "string") : [];
 function normalise(raw) {
@@ -26,7 +29,7 @@ function normalise(raw) {
     };
     const title = str(e.title);
     if (title) d.title = title;
-    const at = str(e.at);
+    const at = timeOf(e.at);
     if (at) d.at = at;
     if (Array.isArray(e.stages)) d.stages = strs(e.stages);
     const parent = str(e.parent);
@@ -42,7 +45,7 @@ function normalise(raw) {
     const question = str(e.question);
     if (!trigger || !question) return null;
     const h = { type: "human", trigger, question, answer: str(e.answer) ?? "" };
-    const at = str(e.at);
+    const at = timeOf(e.at);
     if (at) h.at = at;
     const dispatch = str(e.dispatch);
     if (dispatch) h.dispatch = dispatch;

@@ -68,6 +68,24 @@ function roleOfLabel(label) {
   return role ?? word.toLowerCase();
 }
 
+// src/clock.ts
+var START_PLACEHOLDER = "{{START_UTC}}";
+var END_PLACEHOLDER = "{{END_UTC}}";
+var FORMAT = "+%Y-%m-%dT%H:%M:%SZ";
+function argsFileOf(scratch, id) {
+  return `${scratch.replace(/\/+$/, "") || "."}/args/${id.replace(/[^A-Za-z0-9_.-]/g, "_")}.json`;
+}
+function hasPlaceholder(lines) {
+  return lines.some((l) => l.includes(START_PLACEHOLDER) || l.includes(END_PLACEHOLDER));
+}
+function clockSteps(argsFile) {
+  return [
+    `Before appending, replace the time placeholders from the clock, in UTC. Change nothing else in the lines:`,
+    `- each ${END_PLACEHOLDER} with the time now: \`date -u ${FORMAT}\``,
+    `- each ${START_PLACEHOLDER} with the time the launch's args file was written: \`date -u -r ${argsFile} ${FORMAT}\`. If that file does not exist, use the end time for the start.`
+  ];
+}
+
 // src/roles.ts
 var blockedProps = {
   blocked: {
@@ -358,12 +376,14 @@ function dispatchEvent(wave, spec, r, parent) {
 var TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain", "relay", "best-of-n", "iterative-fan-out", "panel"];
 
 // src/topologies/single.ts
-function traceStep(file, lines) {
+function traceStep(file, lines, argsFile) {
+  const clock = argsFile && hasPlaceholder(lines) ? clockSteps(argsFile) : [];
   return {
     title: "TRACE (your final step, after the task is done)",
     body: [
-      `Append the ${lines.length} line(s) between the markers below to the file ${file}, exactly as given, in order, each terminated by a newline.`,
+      `Append the ${lines.length} line(s) between the markers below to the file ${file}, ${clock.length ? "exactly as given apart from the time placeholders" : "exactly as given"}, in order, each terminated by a newline.`,
       "Create the directory and the file if they do not exist. Append with a single write; do not read, reorder, reformat or alter any existing line.",
+      ...clock,
       "<<<TRACE",
       ...lines,
       "TRACE>>>",
@@ -396,7 +416,7 @@ async function runSingle(ctx, spec) {
       entry: roleEntry(spec, "worker"),
       returns,
       artifactDir: ctx.artifactDir,
-      ...trace ? { sections: [traceStep(trace.file, trace.lines)] } : {}
+      ...trace ? { sections: [traceStep(trace.file, trace.lines, trace.argsFile)] } : {}
     }),
     { role: "worker" },
     trace ? TRACING_WORKER_SCHEMA : ROLE_SCHEMAS.worker
@@ -1324,7 +1344,7 @@ async function runDispatch(ctx, raw) {
 }
 
 // src/run.ts
-var PLUGIN_VERSION = "0.4.0+08410f2" ? "0.4.0+08410f2" : "dev";
+var PLUGIN_VERSION = "0.4.0+6bae30b" ? "0.4.0+6bae30b" : "dev";
 var HARD_AGENT_LIMIT = 1e3;
 function waveOf(id) {
   const m = /^w(\d+)-/.exec(id);
@@ -1333,11 +1353,13 @@ function waveOf(id) {
 function traceFileOf(scratch, id) {
   return `${scratch.replace(/\/+$/, "") || "."}/trace/${id.replace(/[^A-Za-z0-9_.-]/g, "_")}.jsonl`;
 }
-function scribePrompt(traceFile, lines) {
+function scribePrompt(traceFile, lines, argsFile) {
+  const clock = argsFile && hasPlaceholder(lines) ? clockSteps(argsFile) : [];
   return [
     "ROLE: scribe",
-    `Append the ${lines.length} line(s) between the markers below to the file ${traceFile}, exactly as given, in order, each terminated by a newline.`,
+    `Append the ${lines.length} line(s) between the markers below to the file ${traceFile}, ${clock.length ? "exactly as given apart from the time placeholders" : "exactly as given"}, in order, each terminated by a newline.`,
     "Create the directory and the file if they do not exist. Append with a single write; do not read, reorder, reformat or alter any existing line. Do nothing else.",
+    ...clock,
     "<<<TRACE",
     ...lines,
     "TRACE>>>",
@@ -1399,7 +1421,7 @@ function refusal(spec, demand) {
 }
 async function runWorkflow(args, rt) {
   const a = args && typeof args === "object" ? args : {};
-  const now = typeof a.now === "string" && a.now ? a.now : "unknown";
+  const now = typeof a.now === "string" && a.now ? a.now : START_PLACEHOLDER;
   const scratch = typeof a.scratch === "string" && a.scratch ? a.scratch : ".";
   const raw = a.dispatch;
   const spec = normaliseSpec(raw);
@@ -1411,11 +1433,11 @@ async function runWorkflow(args, rt) {
   const demand = agentDemand(raw);
   rt.log(`${id}: ${String(spec.topology)}, up to ${demand} agent(s) + 1 scribe`);
   const stamped = (e) => e.type === "dispatch" ? { ...e, version: PLUGIN_VERSION } : e;
-  const linesOf = (r, stages, fields2) => [...humans, ...stages.map(stamped), stamped({ ...dispatchEvent(wave, spec, r), ...fields2, at: now })].map((e) => JSON.stringify(e));
+  const linesOf = (r, stages, fields2) => [...humans, ...stages.map(stamped), stamped({ ...dispatchEvent(wave, spec, r), ...fields2, at: now, ended: END_PLACEHOLDER })].map((e) => JSON.stringify(e));
   const meter = meteredRuntime(rt);
   const ctx = { rt: meter.runtime, artifactDir: scratch, wave, stageEvents: [] };
   if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
-    ctx.selfTrace = { id, file: traceFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1 }) };
+    ctx.selfTrace = { id, file: traceFileOf(scratch, id), argsFile: argsFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1 }) };
   }
   let result;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
@@ -1439,7 +1461,7 @@ async function runWorkflow(args, rt) {
   const scribeLabel = agentLabel({ role: "scribe", task: "logging current dispatch" });
   let scribe = null;
   try {
-    const out = await rt.agent(scribePrompt(traceFile, lines), { label: scribeLabel, schema: SCRIBE_SCHEMA });
+    const out = await rt.agent(scribePrompt(traceFile, lines, argsFileOf(scratch, result.id !== "?" ? result.id : id)), { label: scribeLabel, schema: SCRIBE_SCHEMA });
     if (out && typeof out === "object") {
       const o = out;
       scribe = { appended: Number(o["appended"]) || 0, totalLines: Number(o["totalLines"]) || 0 };

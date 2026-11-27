@@ -2,6 +2,12 @@
 
 Each release maps to one spec under `docs/specs/`. Ticket numbers below refer to that spec's `tickets/` folder.
 
+## Unreleased
+
+Spec: `docs/specs/observability-evals/` (planned for 0.5.0).
+
+- Real timestamps: the dispatch script no longer needs `now`. With none, it stamps placeholders for the dispatch's start (`at`) and end (new `ended`), and the agent that appends the trace lines (the scribe, or a `single`'s worker) replaces them with the clock's UTC time: the start from the launch's args file, the end from the time of the write. A `now` still sent is used as the start. SKILL.md no longer passes `now` or says the orchestrator has no clock; the renderer ignores a placeholder left unreplaced (ticket 04).
+
 ## 0.4.0
 
 Spec: `docs/specs/fixes/` (verification integrity, cost and orchestrator behaviour). Release ticket: 16.

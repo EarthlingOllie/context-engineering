@@ -1,15 +1,18 @@
 // ---------- single ----------
 import type { DispatchResult, DispatchSpec } from "../types.ts";
 import { ROLE_SCHEMAS, buildPrompt } from "../roles.ts";
+import { clockSteps, hasPlaceholder } from "../clock.ts";
 import { type TopologyContext, type TopologyImpl, callRole, contractOf, fail, readWorkOutput, roleEntry } from "./shared.ts";
 
 /** The worker's final step: append the dispatch's trace lines itself, so the dispatch needs no scribe. */
-export function traceStep(file: string, lines: string[]): { title: string; body: string } {
+export function traceStep(file: string, lines: string[], argsFile?: string): { title: string; body: string } {
+  const clock = argsFile && hasPlaceholder(lines) ? clockSteps(argsFile) : [];
   return {
     title: "TRACE (your final step, after the task is done)",
     body: [
-      `Append the ${lines.length} line(s) between the markers below to the file ${file}, exactly as given, in order, each terminated by a newline.`,
+      `Append the ${lines.length} line(s) between the markers below to the file ${file}, ${clock.length ? "exactly as given apart from the time placeholders" : "exactly as given"}, in order, each terminated by a newline.`,
       "Create the directory and the file if they do not exist. Append with a single write; do not read, reorder, reformat or alter any existing line.",
+      ...clock,
       "<<<TRACE",
       ...lines,
       "TRACE>>>",
@@ -44,7 +47,7 @@ async function runSingle(ctx: TopologyContext, spec: DispatchSpec): Promise<Disp
       entry: roleEntry(spec, "worker"),
       returns,
       artifactDir: ctx.artifactDir,
-      ...(trace ? { sections: [traceStep(trace.file, trace.lines)] } : {}),
+      ...(trace ? { sections: [traceStep(trace.file, trace.lines, trace.argsFile)] } : {}),
     }),
     { role: "worker" },
     trace ? TRACING_WORKER_SCHEMA : ROLE_SCHEMAS.worker,
