@@ -184,6 +184,8 @@ An intervention with `"mode": "attended"` renders as `human · <trigger>`; one w
 
 ### Finish
 
+**Acceptance dispatch.** Per-ticket passes can each be green while the spec they add up to fails. So when the task is a spec or a ticket set, the last wave before rendering is one acceptance dispatch, launched once every ticket dispatch is integrated: a `panel` (one lens per area of the spec) or a `single`. Its criteria are the spec's own acceptance criteria, checked end to end on the integrated result, each written countable as the catalog's **Pass criteria** defines (a numbered command or observable with its expected count or output), plus one that runs the full regression suite. A panel carries them as `pass_criteria`; a single carries them in its `task` and returns one line per criterion, PASS or FAIL. Its `dependsOn` names the ticket dispatches. A criterion that needs a human or a live run stays on the list: the evaluator reports it as a check it could not run, and **Integrate** handles the `blocked` result. Any failing criterion goes back on FRONTIER as a fix dispatch, after which the acceptance dispatch runs again; FRONTIER is empty only once it passes. On a budget stop the acceptance dispatch does not run, and the final reply lists the spec's acceptance criteria as UNVERIFIED.
+
 When FRONTIER is empty (or a budget stop), render the session, in both modes:
 
 ```
