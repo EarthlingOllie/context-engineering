@@ -7,7 +7,9 @@ async function runGeneratorEvaluator(ctx: TopologyContext, spec: DispatchSpec): 
   const returns = contractOf(spec);
   const params = spec.params as Partial<GeneratorEvaluatorParams>;
   const maxIterations = int(params.max_iterations, DEFAULT_ITERATIONS);
-  const criteria = typeof params.pass_criteria === "string" && params.pass_criteria ? params.pass_criteria : "the task is complete and correct";
+  // No default: an invented criterion lets the evaluator pass anything (QUA-01). Fail before any agent is spent.
+  const criteria = typeof params.pass_criteria === "string" ? params.pass_criteria.trim() : "";
+  if (!criteria) return fail(spec, "generator-evaluator: pass_criteria missing; give numbered, countable criteria");
   const genEntry = roleEntry(spec, "generator");
   const evalEntry = roleEntry(spec, "evaluator");
 

@@ -299,7 +299,7 @@ test("a role that throws mid-topology is logged and the result keeps what the to
   const { out, logs } = await wave(
     [
       spec({ id: "w1-d1", topology: "fan-out", params: { split: ["a", "b"] }, roles: { reducer: { instructions: "merge" } } }),
-      spec({ id: "w1-d2", topology: "generator-evaluator", params: { max_iterations: 3 } }),
+      spec({ id: "w1-d2", topology: "generator-evaluator", params: { max_iterations: 3, pass_criteria: "1. npm test exits 0" } }),
     ],
     {
       "Worker (1 of 2)": { result: "a done", artifacts: ["/scratch/t/a.md"], blocked: false },
@@ -346,7 +346,7 @@ test("demand log: each workflow logs its own dispatch's agent need, with the scr
 });
 
 test("hard limit: a dispatch whose demand and scribe exceed the 1000-agent run limit returns over_budget unrun", async () => {
-  const stage = { topology: "generator-evaluator", task: "s", params: { max_iterations: 5 } }; // 10 agents each
+  const stage = { topology: "generator-evaluator", task: "s", params: { max_iterations: 5, pass_criteria: "1. npm test exits 0" } }; // 10 agents each
   const big = spec({ id: "w1-d1", topology: "chain", params: { stages: Array.from({ length: 100 }, () => stage) } }); // 1000 + scribe
   const fits = spec({ id: "w1-d2", topology: "chain", params: { stages: Array.from({ length: 99 }, () => stage) } }); // 990 + scribe
   assert.equal(agentDemand(big), 1000);

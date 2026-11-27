@@ -26,7 +26,7 @@ export type DispatchSpec = {
 
 /** Narrowed params. Validated at runtime because the orchestrator writes them as JSON. */
 export type SingleParams = Record<string, never>;
-export type GeneratorEvaluatorParams = { max_iterations?: number; pass_criteria: string };
+export type GeneratorEvaluatorParams = { max_iterations?: number; pass_criteria: string }; // pass_criteria required: missing or blank → failed, no agent spent
 export type FanOutParams = {
   width?: number; // ≤ 9
   reducer?: boolean | RoleEntry; // or roles.reducer

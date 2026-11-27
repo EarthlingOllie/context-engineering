@@ -45,13 +45,16 @@ Each dispatch runs as its own workflow, named by its `title` (a few plain words 
 
 **Roles** `generator` (produces), `evaluator` (judges strictly against `pass_criteria`; changes nothing). Give each its own skill when the domain differs (e.g. `tdd` for the generator, `code-review` for the evaluator).
 
-**Params** `pass_criteria` (string, required in practice), `max_iterations` (default 3).
+**Params** `pass_criteria` (string, required), `max_iterations` (default 3).
+
+**Pass criteria** are what the evaluator counts, so write them countable. A criterion is a numbered item that names a command or an observable and its expected count or output. One criterion runs the full regression suite, or names the later gate that runs it. Good: `1. npm test from the repo root exits 0 with 0 failing tests (the full suite, not a subset); 2. grep -c "pass_criteria missing" src/topologies/generator-evaluator.ts prints 1; 3. git status --short lists only the ticket's files`.
+These words do not make criteria: relevant, targeted, touched-area, all checks, an except clause ("all pass except ..."). Each lets the evaluator pick its own subset and pass work that breaks something else. Replace them with the command and its count.
 
 **Demand** 2 × max_iterations (upper bound; stops early on pass).
 
 **Loop** generate → evaluate → if pass, done. Otherwise the next generator round sees the evaluator's numbered feedback and its own artifact paths, but not its previous inline output, so rounds converge instead of drifting.
 
-**Returns** `done` on the first pass (`iterations` = rounds used); `exhausted` at the cap with the last result and the last feedback line; `blocked` if either role blocks.
+**Returns** `done` on the first pass (`iterations` = rounds used); `exhausted` at the cap with the last result and the last feedback line; `blocked` if either role blocks; `failed` ("pass_criteria missing") when `pass_criteria` is missing or blank, with no agent spent. There is no default criterion.
 
 ```json
 { "id": "w2-d1", "title": "Build the trace renderer", "topology": "generator-evaluator",
@@ -59,7 +62,7 @@ Each dispatch runs as its own workflow, named by its `title` (a few plain words 
   "context": ["fixture files were written by w1-d2 at /scratch/fixtures/"],
   "roles": { "generator": { "instructions": "pure function, no I/O" },
              "evaluator": { "skill": "code-review", "instructions": "run npm test; fail on any failing fixture" } },
-  "params": { "pass_criteria": "npm test passes and no fixture is skipped", "max_iterations": 3 },
+  "params": { "pass_criteria": "1. npm test exits 0 with 0 failing tests (the full suite); 2. every fixture in test/fixtures renders: 0 skipped", "max_iterations": 3 },
   "returns": { "shape": "one line per file changed, then PASS or the last failing test name", "maxLines": 6 },
   "dependsOn": ["w1-d2"] }
 ```
@@ -113,7 +116,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
   "context": ["decision: keep sqlite for tests (w2-d1)"],
   "roles": {}, "params": { "stages": [
     { "topology": "fan-out", "task": "Research each store module", "params": { "split": ["pg", "sqlite", "memory"] }, "roles": { "reducer": { "instructions": "one paragraph per module" } }, "returns": { "shape": "path of the research note", "maxLines": 1 } },
-    { "topology": "generator-evaluator", "task": "Write docs/store.md from the research note", "params": { "pass_criteria": "every claim cites a file; under 400 words" }, "roles": { "evaluator": { "skill": "writing-for-agents", "instructions": "" } }, "returns": { "shape": "path of the note, then its word count", "maxLines": 2 } }
+    { "topology": "generator-evaluator", "task": "Write docs/store.md from the research note", "params": { "pass_criteria": "1. every claim in docs/store.md cites a file: 0 uncited claims; 2. wc -w docs/store.md prints under 400" }, "roles": { "evaluator": { "skill": "writing-for-agents", "instructions": "" } }, "returns": { "shape": "path of the note, then its word count", "maxLines": 2 } }
   ] },
   "returns": { "shape": "path of the note, then its word count", "maxLines": 2 },
   "dependsOn": ["w2-d1"] }

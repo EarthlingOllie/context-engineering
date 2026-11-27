@@ -378,7 +378,8 @@ async function runGeneratorEvaluator(ctx, spec) {
   const returns = contractOf(spec);
   const params = spec.params;
   const maxIterations = int(params.max_iterations, DEFAULT_ITERATIONS);
-  const criteria = typeof params.pass_criteria === "string" && params.pass_criteria ? params.pass_criteria : "the task is complete and correct";
+  const criteria = typeof params.pass_criteria === "string" ? params.pass_criteria.trim() : "";
+  if (!criteria) return fail(spec, "generator-evaluator: pass_criteria missing; give numbered, countable criteria");
   const genEntry = roleEntry(spec, "generator");
   const evalEntry = roleEntry(spec, "evaluator");
   let feedback = null;
