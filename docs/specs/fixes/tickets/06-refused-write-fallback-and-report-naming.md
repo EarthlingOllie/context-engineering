@@ -6,6 +6,6 @@
 
 **Status:** ready-for-agent
 
-- [ ] The generator, worker and reducer prompts carry the fallback sentence (dispatch seam)
-- [ ] SKILL.md and every catalog example name report artifacts with a non-`.md` extension (docs seam)
+- [x] The generator, worker and reducer prompts carry the fallback sentence (dispatch seam)
+- [x] SKILL.md and every catalog example name report artifacts with a non-`.md` extension (docs seam)
 - [ ] - [ ] Its own dispatch-eval run against the frozen baseline: every sample's pass rate and false passes stay within the baseline spread; the run's scorecard is linked here

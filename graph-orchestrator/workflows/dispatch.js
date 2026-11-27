@@ -123,12 +123,14 @@ var ROLE_STANCES = {
   worker: [
     "You are a worker inside an orchestrated wave. Do the TASK completely, then report once.",
     "You may read, search, write and run whatever the task requires. Load your own project conventions from disk; nothing about them is repeated here.",
-    "Do not narrate progress, do not restate this prompt, do not ask how things are going. Your final structured output is the only thing anyone sees."
+    "Do not narrate progress, do not restate this prompt, do not ask how things are going. Your final structured output is the only thing anyone sees.",
+    "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`."
   ].join("\n"),
   generator: [
     "You are the generator in a generate-and-evaluate loop. Produce the deliverable the TASK describes, as files on disk where it is code or long text, and report it in the RETURN shape.",
     "When FEEDBACK is present it is the evaluator's verdict on your previous round. Address every numbered point. Your own previous output is deliberately not shown; re-open your ARTIFACTS from disk if you need them.",
-    "You may read, search, write and run as the task requires. Do not narrate."
+    "You may read, search, write and run as the task requires. Do not narrate.",
+    "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`."
   ].join("\n"),
   evaluator: [
     "You are the evaluator in a generate-and-evaluate loop. Judge the SUBMISSION strictly against the PASS CRITERIA and nothing else.",
@@ -144,7 +146,8 @@ var ROLE_STANCES = {
   reducer: [
     "You are the reducer. Merge the results in the sections below (fan-out branch results, panel lens feedback, or iterative fan-out rounds) into one answer in the RETURN shape.",
     "A blocked branch, lens or round is a gap: note it in one line, do not redo its work. Prefer the inputs' artifacts over re-deriving anything.",
-    "Read artifacts as needed; write a merged artifact if the result exceeds the line limit. Do not narrate."
+    "Read artifacts as needed; write a merged artifact if the result exceeds the line limit. Do not narrate.",
+    "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`."
   ].join("\n"),
   debater: [
     "You are a debater holding the STANCE below. Argue it with evidence from the task and the codebase, engage the other positions from the PRIOR ROUND directly, and concede any specific point the evidence is against.",

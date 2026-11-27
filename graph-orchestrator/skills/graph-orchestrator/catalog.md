@@ -115,8 +115,8 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
   "task": "Produce the architecture note for the store layer",
   "context": ["decision: keep sqlite for tests (w2-d1)"],
   "roles": {}, "params": { "stages": [
-    { "topology": "fan-out", "task": "Research each store module", "params": { "split": ["pg", "sqlite", "memory"] }, "roles": { "reducer": { "instructions": "one paragraph per module" } }, "returns": { "shape": "path of the research note", "maxLines": 1 } },
-    { "topology": "generator-evaluator", "task": "Write docs/store.md from the research note", "params": { "pass_criteria": "1. every claim in docs/store.md cites a file: 0 uncited claims; 2. wc -w docs/store.md prints under 400" }, "roles": { "evaluator": { "skill": "writing-for-agents", "instructions": "" } }, "returns": { "shape": "path of the note, then its word count", "maxLines": 2 } }
+    { "topology": "fan-out", "task": "Research each store module", "params": { "split": ["pg", "sqlite", "memory"] }, "roles": { "reducer": { "instructions": "one paragraph per module" } }, "returns": { "shape": "path of the research note (.txt)", "maxLines": 1 } },
+    { "topology": "generator-evaluator", "task": "Write /scratch/store-note.txt from the research note", "params": { "pass_criteria": "1. every claim in /scratch/store-note.txt cites a file: 0 uncited claims; 2. wc -w /scratch/store-note.txt prints under 400" }, "roles": { "evaluator": { "skill": "writing-for-agents", "instructions": "" } }, "returns": { "shape": "path of the note, then its word count", "maxLines": 2 } }
   ] },
   "returns": { "shape": "path of the note, then its word count", "maxLines": 2 },
   "dependsOn": ["w2-d1"] }
@@ -144,7 +144,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
   "context": ["feature list written by w1-d1"],
   "roles": { "worker": { "skill": "tdd", "instructions": "one failing feature per session; update the progress file" },
              "evaluator": { "instructions": "run npm test; pass only if every listed feature passes" } },
-  "params": { "done_criteria": "all features pass and the progress file says DONE", "progress": "/scratch/progress.md", "max_sessions": 6, "check_every": 2 },
+  "params": { "done_criteria": "all features pass and the progress file says DONE", "progress": "/scratch/progress.txt", "max_sessions": 6, "check_every": 2 },
   "returns": { "shape": "features passing / total, then the last progress line", "maxLines": 3 },
   "dependsOn": ["w1-d1"] }
 ```
@@ -168,7 +168,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 ```json
 { "id": "w3-d2", "title": "Fix the flaky renderer test", "topology": "best-of-n",
   "task": "Propose a fix for the flaky trace-renderer test",
-  "context": ["failing test and log at /scratch/flake.md"],
+  "context": ["failing test and log at /scratch/flake.txt"],
   "roles": { "worker": { "skill": "diagnosing-bugs", "instructions": "write the patch to a new file; do not apply it" },
              "judge": { "instructions": "pick the patch most likely to remove the root cause with the smallest diff" } },
   "params": { "variants": ["minimal change", "fix the timing assumption", "restructure the test"], "criteria": "root cause addressed; no new flakiness; smallest diff", "mode": "select" },
@@ -250,7 +250,7 @@ With a partition instruction: `"params": { "split": "one branch per top-level pa
 ```json
 { "id": "w5-d1", "title": "Decide the relay done signal", "topology": "debate",
   "task": "Decide whether relay's done signal should be an evaluator check or a worker completion flag",
-  "context": ["roles are six fixed stances (K3)", "relay spec at /scratch/design-specs.md"],
+  "context": ["roles are six fixed stances (K3)", "relay spec at /scratch/design-specs.txt"],
   "roles": { "debater": { "instructions": "cite file:line for any claim about the code" },
              "judge": { "instructions": "weigh contract stability above agent cost" } },
   "params": { "participants": [ { "name": "check", "stance": "an evaluator done-check is better" },

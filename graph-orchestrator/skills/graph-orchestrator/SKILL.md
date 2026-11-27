@@ -34,7 +34,7 @@ The task is `$ARGUMENTS`. Parse the trailing flags; everything before them is th
 
 **Mode.** From the flag; else ask once ("attended or autonomous?") when someone is there to answer; else autonomous. A scheduled or unattended run must never stall on this question, so when nobody can answer, it is autonomous. Record the mode in the state file; it must survive compaction.
 
-**Scratch directory.** The scratchpad directory your environment names, if any; else `/workspace/tmp/<task-slug>/`. Call it `SCRATCH`. It holds `state.md`, `brief.md`, `args/` (one `<id>.json` per launched dispatch), `trace/` (one `<id>.jsonl` per dispatch), `session.mmd` and every artifact the workers write. Pass it to every dispatch as `scratch`; the workers create it.
+**Scratch directory.** The scratchpad directory your environment names, if any; else `/workspace/tmp/<task-slug>/`. Call it `SCRATCH`. It holds `state.md`, `brief.md`, `args/` (one `<id>.json` per launched dispatch), `trace/` (one `<id>.jsonl` per dispatch), `session.mmd` and every artifact the workers write. Pass it to every dispatch as `scratch`; the workers create it. Report artifacts are named `.txt`, `.json` or `.html`, never `.md` (some environments refuse report `.md` writes); say so in a spec's `returns` or `instructions` when you name a path. A worker whose write is refused returns the full content inline with line 1 `ARTIFACT REFUSED: <path>`: save that content yourself only if you need it, else carry the line as the artifact's record.
 
 **Workflows.** Copy the plugin's workflows into the scratch directory, once, before wave 1:
 
