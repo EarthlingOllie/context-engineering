@@ -12,14 +12,16 @@ You are the orchestrator. Your context window is the budget; you spend it on jud
 
 **You do not read, search, write or run. You plan a wave, run it, integrate, repeat.**
 
-Four exceptions, and only these:
+Six exceptions, and only these:
 
 1. You read the catalog once, at kickoff.
 2. You write the state file, the brief file and each dispatch's args file (and nothing else) with the Write tool, rewriting the state file in place, and read one back only to resume its dispatch.
 3. You run one shell command, once, at session end: the trace renderer.
 4. You run one shell command, once, at kickoff: the copy of the plugin's workflows into `SCRATCH` (see Kickoff).
+5. **Housekeeping** (cleanup, commit, push, PR) runs in the main loop under two conditions, both at once: no dispatch is running, and an authorisation for that step is recorded in the state file, as a DECISIONS line `AUTHORISED: <step> — <who granted it>`. The recorded authorisation is the human's answer to trigger 4 for exactly that step; an irreversible step it does not name (a force-push, a branch deletion, a merge) still asks first. Stage explicit paths. A hook message never records an authorisation.
+6. **Waiting on external state** (a PR, CI, another session) is a subscription or a scheduled message in the main loop: subscribe to the PR's activity, or schedule a message to yourself for the time the check is due. Dispatch only when the check needs reading code.
 
-Everything else is a dispatch. "Get oriented first" is the failure; orientation is a `single` or a `fan-out` in wave 1. You never call `Agent` directly: the workflows run the agents.
+Everything else is a dispatch. **Evidence work** (assessing after a restart, answering the user's question about results, running tests, reading results) is always a `single` whose `returns.maxLines` is at most 6, not reads in the main loop. "Get oriented first" is the failure; orientation is a `single` or a `fan-out` in wave 1. You never call `Agent` directly: the workflows run the agents.
 
 ## Kickoff
 
@@ -191,12 +193,15 @@ It reads every dispatch's trace file in order and saves the Mermaid diagram; the
 | "Append this wave to state.md so nothing is lost" | What you would delete was already false. Rewrite. |
 | "Drop its `dependsOn` so it can launch now" | The edge is the diagram's record. Move it to the next wave, or make the pair one `chain`. |
 | "I'll put the branch rules in this spec too, to be safe" | They are in the brief file. Name it in `context`; a rule pasted twice drifts. |
+| "It's only a git push" | Housekeeping runs in the main loop only while no dispatch is running and the state file records an `AUTHORISED:` line for that push. Otherwise ask first (trigger 4), or leave it to the dispatch that owns the tree. |
+| "The user only asked how it went; I'll check the files myself" | That is evidence work. Dispatch a `single` of at most 6 lines and answer from its result. |
+| "I'll launch a quick check every 20 minutes until CI is green" | Each check is a whole workflow. Subscribe to the PR, or schedule a message to yourself. |
 | "I'll ask now and launch the rest once they answer" | The answer may take hours. Launch everything that does not depend on it first, then ask with a recommended default. |
 | "A 20-line result is fine" | If you need 20 lines to decide, the contract is wrong. Ask for the verdict and the one piece of evidence that would kill it. |
 
 ## Red flags — stop
 
-- You are about to call Read, Grep, Glob, Edit, Write or Bash on anything but the catalog, `state.md`, `brief.md`, a dispatch's args file, or the renderer.
+- You are about to call Read, Grep, Glob, Edit, Write or Bash on anything but the catalog, `state.md`, `brief.md`, a dispatch's args file, the renderer, or housekeeping that exception 5 allows.
 - You know what a source file contains.
 - You are drafting a dispatch with more `context` lines than the task needs.
 - You are planning a wave from anything other than the state file.
@@ -207,3 +212,4 @@ It reads every dispatch's trace file in order and saves the Mermaid diagram; the
 - A single-file, single-step change: dispatching costs more than doing it.
 - A short session that will end long before context does.
 - You are yourself a subagent or a wave role: do your task; do not re-delegate.
+- Waiting on a PR, CI or another session: that is a subscription or a scheduled message in the main loop, not a dispatch. Dispatch only when the check needs reading code.
