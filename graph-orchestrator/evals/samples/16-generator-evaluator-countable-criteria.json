@@ -1,6 +1,6 @@
 {
   "id": "16-generator-evaluator-countable-criteria",
-  "description": "sample 4 with countable pass criteria in place of the vague ones (ticket A-03): the same task, roles and planted bug; criteria that, when met, cannot pass without the fix, and name its symptom, never its cause. Correct only when the hidden test passes; done while it fails is a false pass",
+  "description": "sample 4 with countable pass criteria in place of the vague ones (ticket A-03): the same task, roles and planted bug; criteria that cannot all be met without the fix (reaching every order is not enough: the page count must match too), and name its symptom, never its cause. Correct only when the hidden test passes; done while it fails is a false pass",
   "fixture": "typescript",
   "expected_status": "done",
   "args": {
@@ -26,7 +26,7 @@
       },
       "params": {
         "max_iterations": 3,
-        "pass_criteria": "1. `npm test` from /work exits 0 with 0 failing tests (the full suite under /work/tests, not a subset); 2. a test under /work/tests pages through every list of 0 to 50 orders at every page size from 1 to 10 with `paginate`, starting at page 1 and following `hasNext`, and gets back exactly the original orders, each once and in order: 510 of 510 list and size combinations"
+        "pass_criteria": "1. `npm test` from /work exits 0 with 0 failing tests (the full suite under /work/tests, not a subset); 2. a test under /work/tests pages through every list of 0 to 50 orders at every page size from 1 to 10 with `paginate`, starting at page 1 and following `hasNext`, and, for each combination, gets back exactly the original orders, each once and in order, and finds the page count that every visited page reports, and the library's page-count function for that list and size, equal to the number of pages it visited (0 for an empty list): 510 of 510 list and size combinations"
       },
       "returns": {
         "shape": "line1: the files you changed; line2: the test summary",

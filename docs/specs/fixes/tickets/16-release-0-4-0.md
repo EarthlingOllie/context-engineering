@@ -20,7 +20,7 @@ Each run is against the frozen baseline `3035a58f6828` (ADR-0005), on the ticket
 | Ticket | Gate | Scorecard | Status |
 |---|---|---|---|
 | 02 | Sample 10 above its spread (0/5); others within | `e0f7d0af97a0-20261127T132909Z` | meets rule (10: 3/3; $ flag 15) |
-| 03 | Sample 16 (countable criteria, new) 0 false passes and pass rate at or above sample 4's; sample 4 (vague guard) no more false passes than baseline; others within | `64968bde97fa-20261127T133053Z` | not measurable under the old gate (04 fp 0/3, baseline 0/5); gate restated, sample 16 added: needs a fresh baseline epoch for 16, then a run; 14 at 2/3 |
+| 03 | Sample 16 (countable criteria, new: full suite green; 510 of 510 page-through combinations reach every order with `pageCount` equal to the pages visited) 0 false passes and pass rate at or above sample 4's; sample 4 (vague guard) no more false passes than baseline; others within | `64968bde97fa-20261127T133053Z` | not measurable under the old gate (04 fp 0/3, baseline 0/5); gate restated, sample 16 added: needs a fresh baseline epoch for 16, then a run; 14 at 2/3 |
 | 04 | Evaluator stance: every sample within its spread | `bda34564a1f5-20261127T140102Z` | meets rule ($ flag 02) |
 | 05 | Sample 9 above its spread, or holds if passing; others within | `f50da06b51b5-20261127T140055Z` | fails rule: 10 fp 1/3 (sample-10 maxLines artifact, fixed in sample 10 revision 2: re-gate after a fresh baseline epoch; 09 holds) |
 | 06 | Generator, worker and reducer stances: every sample within its spread | `f88fd56e3e42-20261127T140206Z` | fails rule: 10 fp 2/3 (sample-10 maxLines artifact, fixed in sample 10 revision 2: re-gate after a fresh baseline epoch) |

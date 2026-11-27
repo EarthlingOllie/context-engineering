@@ -66,37 +66,56 @@ class TypeScriptFixture(unittest.TestCase):
         self.assertEqual(run(True, hidden=True).returncode, 0)
 
 
-# Sample 16's criterion 2, as a test a generator could write: page through 0-50 items at sizes 1-10 following hasNext.
+# Sample 16's criterion 2, as a test a generator could write: page through 0-50 items at sizes 1-10 following hasNext,
+# and check pageCount (the function and every page's field) against the number of pages visited (0 for an empty list).
 PAGE_THROUGH_TEST = """
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { paginate } from "../src/paginate.ts";
+import { pageCount, paginate } from "../src/paginate.ts";
 
-test("paging through every list reaches every item once, in order", () => {
+test("paging through every list reaches every item once, in order, and pageCount matches the pages visited", () => {
   let ok = 0;
+  const bad: string[] = [];
   for (let total = 0; total <= 50; total++) {
     for (let size = 1; size <= 10; size++) {
       const items = Array.from({ length: total }, (_, i) => i + 1);
       const seen: number[] = [];
+      const counts: number[] = [];
+      let visited = 0;
       for (let page = 1; ; page++) {
         const p = paginate(items, page, size);
+        visited++;
         seen.push(...p.items);
+        counts.push(p.pageCount);
         if (!p.hasNext) break;
       }
-      if (JSON.stringify(seen) === JSON.stringify(items)) ok++;
+      const want = total === 0 ? 0 : visited;
+      const countsOk = pageCount(total, size) === want && counts.every((c) => c === want);
+      if (JSON.stringify(seen) === JSON.stringify(items) && countsOk) ok++;
+      else if (bad.length < 3) bad.push(`total ${total} size ${size}: visited ${visited}, pageCount ${pageCount(total, size)}, page fields ${counts}`);
     }
   }
-  assert.equal(ok, 510);
+  assert.equal(ok, 510, bad.join("; "));
 });
 """
 
 
-def run_page_through(fixed: bool) -> subprocess.CompletedProcess:
+SHIPPED_HASNEXT = "hasNext: page < count"
+HASNEXT_ONLY = "hasNext: start + size < items.length"  # a patch that reaches every item but leaves pageCount rounding
+INLINE_CEIL = ("const count = pageCount(items.length, size);", "const count = Math.ceil(items.length / size);")  # fixes paginate, not pageCount
+
+
+def run_page_through(fixed: bool, *, patch: tuple[str, str] | None = None) -> subprocess.CompletedProcess:
     with tempfile.TemporaryDirectory() as d:
         work = Path(d) / "work"
         copy_sandbox(work)
         if fixed:
             shutil.copy(FIXTURE / "reference" / "fixed" / "src" / "paginate.ts", work / "src" / "paginate.ts")
+        if patch:
+            src = work / "src" / "paginate.ts"
+            text = src.read_text()
+            assert patch[0] in text, patch[0]
+            src.write_text(text.replace(patch[0], patch[1]))
         (work / "tests" / "pagethrough.test.ts").write_text(PAGE_THROUGH_TEST)
         cmd = ["node", "--experimental-strip-types", "--disable-warning=ExperimentalWarning", "--test", "tests/*.test.ts"]
         return subprocess.run(cmd, cwd=work, capture_output=True, text=True)
@@ -104,7 +123,7 @@ def run_page_through(fixed: bool) -> subprocess.CompletedProcess:
 
 @unittest.skipUnless(_node_major() >= 22, "Node 22+ is not installed")
 class CountableCriteriaCatchThePlantedBug(unittest.TestCase):
-    """Sample 16: meeting its countable criteria (full suite green, 510 of 510 page-through combinations) needs the fix."""
+    """Sample 16: meeting its countable criteria (full suite green; 510 of 510 page-through combinations, each with pageCount equal to the pages visited) needs the fix."""
 
     def test_the_shipped_code_fails_the_page_through_criterion(self):
         self.assertNotEqual(run_page_through(False).returncode, 0)
@@ -112,6 +131,15 @@ class CountableCriteriaCatchThePlantedBug(unittest.TestCase):
     def test_the_fix_meets_it_with_the_full_suite_green(self):
         res = run_page_through(True)
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+
+    def test_a_hasnext_only_patch_reaches_every_item_but_fails_the_page_count_condition(self):
+        res = run_page_through(False, patch=(SHIPPED_HASNEXT, HASNEXT_ONLY))
+        self.assertNotEqual(res.returncode, 0, res.stdout)
+        self.assertIn("pageCount", res.stdout + res.stderr)
+
+    def test_a_patch_to_paginate_alone_fails_the_page_count_condition(self):
+        res = run_page_through(False, patch=INLINE_CEIL)
+        self.assertNotEqual(res.returncode, 0, res.stdout)
 
 
 @unittest.skipUnless(shutil.which("git"), "git is not installed")
