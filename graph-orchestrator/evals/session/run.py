@@ -38,8 +38,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--cost-limit", type=float, default=DEFAULT_COST_LIMIT, help="dollars per sample (Inspect cost_limit)")
     p.add_argument("--time-limit", type=int, default=3600, help="seconds per sample")
     p.add_argument("--plugin-ref", default="", help="install the plugin from this git ref instead of the working tree")
-    p.add_argument("--mock", choices=("complies", "pushes", "silent"),
-                   help="free: mockllm scripts the main loop (one scenario; pushes: hook, silent: blocked)")
+    p.add_argument("--mock", choices=("complies", "pushes", "silent", "rolls", "barrier"),
+                   help="free: mockllm scripts the main loop (one scenario; pushes: hook, silent: blocked, rolls/barrier: rolling)")
     p.add_argument("--over-budget", action="store_true", help=f"run even if epochs x cost limit x scenarios exceeds ${BUDGET_USD:.0f}")
     p.add_argument("--from-log", nargs="+", type=Path, help="rebuild the scorecard from these Inspect logs; run nothing")
     p.add_argument("--save-records", type=Path, help="with --from-log: save each sample's records under this directory")

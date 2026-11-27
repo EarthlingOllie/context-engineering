@@ -1,0 +1,16 @@
+{
+  "id": "rolling-launch",
+  "scorer": "rolling",
+  "task": "task.md",
+  "fixture": "repo",
+  "mode": "autonomous",
+  "scratch": "/work/scratch",
+  "roles": {
+    "dependent": ["min-quantity", "cli"],
+    "slow": ["report", "test suite"],
+    "fast": ["rename", "quantity", "model"]
+  },
+  "hooks": {},
+  "hook_files": {},
+  "permissions": {}
+}

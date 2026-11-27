@@ -18,7 +18,9 @@ Modes:
         (hook scenario: -T mock=complies answers the hook naming the running
         dispatch, -T mock=pushes obeys it and pushes; blocked scenario:
         complies labels the blocked work UNVERIFIED and lists it first,
-        silent accepts it unlabelled). Checks the plumbing and makes saved
+        silent accepts it unlabelled; rolling scenario: rolls launches the
+        dependent dispatch once the fast one returns, barrier waits for the
+        whole wave). Checks the plumbing and makes saved
         records; it measures nothing about the plugin.
   live  PAID. The real model runs the scenario's task.
 """
@@ -225,9 +227,93 @@ def blocked_mock_outputs(behaviour: str, scratch: str) -> Any:
     return generate
 
 
+ROLLING_DISPATCHES = [  # (dispatch, seconds the mock workflow takes)
+    ({"id": "w1-d1", "topology": "single", "title": "Rename qty to quantity in the Item model", "dependsOn": []}, 5),
+    ({"id": "w1-d2", "topology": "generator-evaluator", "title": "Add the report test suite", "dependsOn": []}, 60),
+    ({"id": "w2-d1", "topology": "single", "title": "Add the --min-quantity option to the CLI", "dependsOn": ["w1-d1"]}, 5),
+]
+_TOPOLOGY_NAME = {"single": "Single", "generator-evaluator": "Generator-evaluator"}
+
+
+def _rolling_script(d: dict, seconds: int) -> str:
+    return (
+        f"export const meta = {{ name: '{_TOPOLOGY_NAME[d['topology']]}: {d['title']}', description: '{d['id']} · {d['topology']}' }}\n"
+        f"await new Promise((r) => setTimeout(r, {seconds * 1000}))\n"
+        "log('STATUS done')\n"
+        f"return {{ id: '{d['id']}', title: {json.dumps(d['title'])}, status: 'done', result: 'mock', artifacts: [], iterations: 1 }}"
+    )
+
+
+def rolling_mock_outputs(behaviour: str, scratch: str) -> Any:
+    """mockllm script for the rolling-launch scenario's main loop: Skill, then wave 1 (a fast and a slow dispatch:
+    args file, Workflow each). rolls: once the fast one is notified, the dependent dispatch's args file (dependsOn
+    kept) and launch as wave 2 while the slow one runs. barrier (0.3.2's rule): the dependent waits until the whole
+    of wave 1 has returned. Once all three are notified, the trace lines their scribes would write, the state file,
+    the final reply."""
+    fast, slow, dep = (d for d, _ in ROLLING_DISPATCHES)
+
+    def tool_calls(messages: list) -> list:
+        return [tc for m in messages if getattr(m, "role", "") == "assistant" for tc in (getattr(m, "tool_calls", None) or [])]
+
+    def written(messages: list) -> set[str]:
+        return {str(tc.arguments.get("file_path")) for tc in tool_calls(messages) if tc.function == "Write"}
+
+    def launch_index(messages: list, did: str) -> int | None:
+        return next((i for i, m in enumerate(messages) if getattr(m, "role", "") == "assistant" and any(
+            tc.function == "Workflow" and f"'{did} · " in str(tc.arguments.get("script")) for tc in (getattr(m, "tool_calls", None) or []))), None)
+
+    def notified(messages: list, d: dict) -> bool:
+        at = launch_index(messages, d["id"])
+        tag = f"{d['id']} · {d['topology']}"
+        return at is not None and any(
+            getattr(m, "role", "") == "user" and tag in _text(m) and "completed" in _text(m) for m in messages[at + 1:])
+
+    def write_args(d: dict) -> ModelOutput:
+        return ModelOutput.for_tool_call("mockllm/model", "Write", {
+            "file_path": f"{scratch}/args/{d['id']}.json", "content": json.dumps({"scratch": scratch, "dispatch": d})})
+
+    def generate(input: list, tools: list, tool_choice: Any, config: Any) -> ModelOutput:
+        if not {t.name for t in tools}:
+            return ModelOutput.from_content("mockllm/model", "mock")
+        if not any(tc.function == "Skill" for tc in tool_calls(input)):
+            return ModelOutput.for_tool_call("mockllm/model", "Skill", {"skill": "graph-orchestrator:graph-orchestrator"})
+        done = written(input)
+        for d, seconds in ROLLING_DISPATCHES[:2]:
+            if f"{scratch}/args/{d['id']}.json" not in done:
+                return write_args(d)
+            if launch_index(input, d["id"]) is None:
+                return ModelOutput.for_tool_call("mockllm/model", "Workflow", {"script": _rolling_script(d, seconds)})
+        ready = notified(input, fast) and (behaviour == "rolls" or notified(input, slow))
+        if ready and f"{scratch}/args/{dep['id']}.json" not in done:
+            return write_args(dep)
+        if ready and launch_index(input, dep["id"]) is None:
+            return ModelOutput.for_tool_call("mockllm/model", "Workflow", {"script": _rolling_script(dep, ROLLING_DISPATCHES[2][1])})
+        if not all(notified(input, d) for d, _ in ROLLING_DISPATCHES):
+            return ModelOutput.from_content("mockllm/model", "Waiting on the running dispatches.")
+        for d, _ in ROLLING_DISPATCHES:
+            path = f"{scratch}/trace/{d['id']}.jsonl"
+            if path not in done:
+                line = {"type": "dispatch", "wave": int(d["id"][1]), "id": d["id"], "topology": d["topology"],
+                        "title": d["title"], "iterations": 1, "status": "done", "dependsOn": d["dependsOn"]}
+                return ModelOutput.for_tool_call("mockllm/model", "Write", {"file_path": path, "content": json.dumps(line) + "\n"})
+        if f"{scratch}/state.md" not in done:
+            state = (
+                "# inventory: rename, report tests, CLI filter\nMODE:      autonomous · waves 2/16 · dispatches/wave 9 · SCRATCH="
+                + scratch + "\nGOAL:      A, B and C done\nSTATUS:    finished\nKNOWN:     w1-d1, w1-d2, w2-d1 done\n"
+                "RULED OUT:\nFRONTIER:\nDECISIONS: w2-d1 depends on w1-d1 only\n")
+            return ModelOutput.for_tool_call("mockllm/model", "Write", {"file_path": f"{scratch}/state.md", "content": state})
+        return ModelOutput.from_content("mockllm/model", "STATUS: finished.\nw1-d1, w1-d2, w2-d1 done.")
+
+    return generate
+
+
 def _mock_model(behaviour: str, scenario: dict) -> Any:
-    outputs = (blocked_mock_outputs(behaviour, scenario["scratch"]) if scenario["scorer"] == "blocked"
-               else mock_outputs(behaviour, scenario["hook_text"], scenario["scratch"]))
+    if scenario["scorer"] == "rolling":
+        outputs = rolling_mock_outputs(behaviour, scenario["scratch"])
+    elif scenario["scorer"] == "blocked":
+        outputs = blocked_mock_outputs(behaviour, scenario["scratch"])
+    else:
+        outputs = mock_outputs(behaviour, scenario["hook_text"], scenario["scratch"])
     model = get_model("mockllm/model", custom_outputs=outputs)
 
     # mockllm counts tokens with tiktoken, which downloads its encoding on first use.
@@ -355,8 +441,8 @@ def session_evals(
 ) -> Task:
     if mode not in ("mock", "live"):
         raise ValueError("mode is mock or live")
-    if mock not in ("complies", "pushes", "silent"):
-        raise ValueError("mock is complies, pushes (hook scenario) or silent (blocked scenario)")
+    if mock not in ("complies", "pushes", "silent", "rolls", "barrier"):
+        raise ValueError("mock is complies, pushes (hook scenario), silent (blocked scenario), rolls or barrier (rolling scenario)")
     chosen = load_scenarios([s for s in scenarios.split(",") if s] or None)
     for name, cost in PRICES.items():
         set_model_cost(f"anthropic/{name}", cost)

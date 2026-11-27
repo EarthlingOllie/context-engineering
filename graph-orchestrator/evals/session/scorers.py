@@ -5,6 +5,7 @@ Each scorer returns {"passed", "checks": {name: bool}, "reasons": [one line per 
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -265,3 +266,120 @@ def score_blocked(rec: SessionRecord, scenario: dict) -> dict:
 
 
 SCORERS["blocked"] = lambda scenario, rec: score_blocked(rec, scenario)
+
+
+# --- rolling launch ---------------------------------------------------------------------------------------------
+
+_WAVE_IN_ID = re.compile(r"^w(\d+)-")
+_ROLE_ORDER = ("dependent", "slow", "fast")  # most specific first: the dependent's title may carry a fast hint too
+
+
+def _role(text: str, roles: dict[str, list[str]]) -> str | None:
+    """The scenario role whose hints (case-insensitive substrings) the text matches; the dependent's hints first."""
+    low = (text or "").lower()
+    for role in _ROLE_ORDER:
+        if any(h.lower() in low for h in roles.get(role) or []):
+            return role
+    return None
+
+
+def _dispatches(rec: SessionRecord, msgs: list[dict]) -> dict[str, dict]:
+    """Every dispatch the session planned or launched, by id: title, task, dependsOn as each record holds it (the
+    args file, the trace line), its wave (the trace line's, else the id's `w<n>-`), first launch and last return."""
+    out: dict[str, dict] = {}
+
+    def entry(did: str) -> dict:
+        return out.setdefault(did, {"id": did, "title": None, "task": "", "args_depends_on": None,
+                                    "trace_depends_on": None, "wave": None, "launched_at": None, "ended_at": None,
+                                    "returned": True})
+
+    for rel, text in rec.scratch.items():
+        if rel.startswith("args/") and rel.endswith(".json"):
+            try:
+                d = (json.loads(text) or {}).get("dispatch") or {}
+            except (json.JSONDecodeError, AttributeError):
+                continue
+            if d.get("id"):
+                e = entry(str(d["id"]))
+                e["title"] = d.get("title") or e["title"]
+                e["task"] = str(d.get("task") or "")
+                e["args_depends_on"] = list(d.get("dependsOn") or [])
+    for t in trace_events(rec):
+        if t.get("type") == "dispatch" and t.get("id"):
+            e = entry(str(t["id"]))
+            e["title"] = e["title"] or t.get("title")
+            e["trace_depends_on"] = list(t.get("dependsOn") or [])
+            if isinstance(t.get("wave"), int):
+                e["wave"] = t["wave"]
+    for l in _launches(msgs).values():
+        if not l["dispatch"]:
+            continue
+        e = entry(l["dispatch"])
+        e["title"] = e["title"] or l["title"]
+        e["launched_at"] = l["launched_at"] if e["launched_at"] is None else min(e["launched_at"], l["launched_at"])
+        if l["ended_at"] is None:
+            e["returned"] = False
+        else:
+            e["ended_at"] = max(e["ended_at"] or 0, l["ended_at"])
+    for e in out.values():
+        if e["launched_at"] is None:
+            e["returned"] = False
+        if not e["returned"]:
+            e["ended_at"] = None
+        if e["wave"] is None:
+            m = _WAVE_IN_ID.match(e["id"])
+            e["wave"] = int(m.group(1)) if m else None
+    return out
+
+
+def score_rolling(rec: SessionRecord, scenario: dict) -> dict:
+    """Rolling launch: wave 1 holds a fast and a slow dispatch, and a third depends only on the fast one. Passes if the
+    third launched before the slow one returned, kept the fast one in its `dependsOn` (args file and trace line), and
+    has a higher wave number. The roles are found by title (scenario `roles` hints); all three must have launched, and
+    the fast and slow ones must share a wave, or the session did not exercise the rule."""
+    msgs = messages(rec.transcript)
+    found: dict[str, dict] = {}
+    for d in sorted(_dispatches(rec, msgs).values(), key=lambda e: (e["launched_at"] is None, e["launched_at"] or 0, e["id"])):
+        role = _role(d["title"] or "", scenario["roles"]) or _role(d["task"], scenario["roles"])
+        if role and role not in found:
+            found[role] = d
+    fast, slow, dep = (found.get(r) for r in ("fast", "slow", "dependent"))
+    missing = [r for r in ("fast", "slow", "dependent") if r not in found or found[r]["launched_at"] is None]
+
+    deps = [x for x in (dep["args_depends_on"], dep["trace_depends_on"]) if x is not None] if dep else []
+    kept = bool(fast and dep and deps and all(fast["id"] in x for x in deps))
+    before = bool(dep and slow and dep["launched_at"] is not None and slow["launched_at"] is not None
+                  and slow["launched_at"] < dep["launched_at"]
+                  and (slow["ended_at"] is None or dep["launched_at"] < slow["ended_at"]))
+    pair = bool(fast and slow and fast["wave"] is not None and fast["wave"] == slow["wave"])
+    higher = bool(fast and slow and dep and None not in (fast["wave"], slow["wave"], dep["wave"])
+                  and dep["wave"] > max(fast["wave"], slow["wave"]))
+
+    checks = {
+        "roles_found": not missing,
+        "fast_and_slow_in_one_wave": pair,
+        "launched_before_slow_returned": before,
+        "depends_on_kept": kept,
+        "higher_wave": higher,
+    }
+    sid = slow["id"] if slow else "the slow dispatch"
+    did = dep["id"] if dep else "the dependent dispatch"
+    fid = fast["id"] if fast else "the fast dispatch"
+    why = {
+        "roles_found": "not launched or not found by title: " + ", ".join(missing),
+        "fast_and_slow_in_one_wave": f"{fid} (wave {fast and fast['wave']}) and {sid} (wave {slow and slow['wave']}) are not in one wave",
+        "launched_before_slow_returned": f"{did} did not launch while {sid} was running (it waited for {sid} to return, or never launched)",
+        "depends_on_kept": f"{did}'s dependsOn does not keep {fid}: args {dep and dep['args_depends_on']}, trace {dep and dep['trace_depends_on']}",
+        "higher_wave": f"{did}'s wave ({dep and dep['wave']}) is not above wave {fast and fast['wave']}",
+    }
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "reasons": [why[k] for k, ok in checks.items() if not ok],
+        "roles": {r: found[r]["id"] for r in ("fast", "slow", "dependent") if r in found},
+        "waves": {r: found[r]["wave"] for r in ("fast", "slow", "dependent") if r in found},
+        "depends_on": (dep["args_depends_on"] if dep and dep["args_depends_on"] is not None else dep and dep["trace_depends_on"]),
+    }
+
+
+SCORERS["rolling"] = lambda scenario, rec: score_rolling(rec, scenario)

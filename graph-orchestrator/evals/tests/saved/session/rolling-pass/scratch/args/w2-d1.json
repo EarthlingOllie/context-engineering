@@ -1,0 +1,1 @@
+{"scratch": "/work/scratch", "dispatch": {"id": "w2-d1", "topology": "single", "title": "Add the --min-quantity option to the CLI", "dependsOn": ["w1-d1"]}}
