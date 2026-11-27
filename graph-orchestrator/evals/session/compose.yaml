@@ -1,0 +1,12 @@
+# Inspect docker sandbox for the session evals. The bridge listens inside the
+# container on localhost, so the container needs no outbound network at run time.
+services:
+  default:
+    build:
+      context: ./sandbox
+    image: session-evals:local
+    init: true
+    command: ["sleep", "infinity"]
+    network_mode: none
+    cpus: 4
+    mem_limit: 8g

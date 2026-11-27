@@ -1,0 +1,5 @@
+# Raw Inspect logs hold full transcripts; scorecards are generated per run.
+logs/
+out/
+sandbox/ca.crt
+__pycache__/

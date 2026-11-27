@@ -225,6 +225,10 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 
 `--role-model` takes a role from `suite.ROLES` (the plugin's label roles) and a declared model, and may be repeated. In the sandbox the SDK engine also pins Claude Code's small fast model to the requested model, so its background calls do not show up as misrouted.
 
+## Session evals
+
+The session evals are a separate, on-demand Inspect task: `python graph-orchestrator/evals/session/run.py` (paid; `--mock complies` for a free plumbing run). Neither `run.py` nor the GitHub Actions job runs them. See `session/README.md`.
+
 ## Layout
 
 | Path | What it is |
@@ -244,6 +248,7 @@ python graph-orchestrator/evals/run.py --stub --stub-evaluator fail --epochs 1 -
 | `sandbox/` | the sandbox image (Python 3.12 with pytest from `sandbox/requirements.txt`, Node 22 copied from the Node image, the pinned Agent SDK); `run.py` writes its compose file to `out/` with the run's CPU count and memory |
 | `tests/` | scorer tests over saved samples in `tests/saved/`; run-parameter tests (`test_run_parameters.py`); spread, run cost, the budget cut, `--baseline` and committed baselines (`test_baseline.py`); the sweep (`test_sweep.py`); the GitHub Actions job and its inputs (`test_ci.py`); suite and sample tests, the catalog demand formula among them (`test_suite.py`); fixture tests (`test_python_fixture.py`, `test_typescript_fixture.py`, `test_python_bug_fixture.py`) |
 | `spike/` | ticket 01's throwaway spike |
+| `session/` | on demand, never in the routine run: the session evals (headless Claude Code with the plugin runs a whole orchestrated session over a fixture; scenarios scored by code over transcript, scratch directory and git state). Command and scenarios: `session/README.md` |
 
 The harness changes nothing in the plugin: the bundle is read as text and run with `agent`, `parallel` and `log` as globals.
 
