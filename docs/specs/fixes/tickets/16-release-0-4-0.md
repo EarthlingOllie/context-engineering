@@ -33,13 +33,18 @@ Each run is against the frozen baseline `3035a58f6828` (ADR-0005), on the ticket
 
 All in one cloud session with the plugin at 0.4.0 installed. Record the session id and the date, then the result of each check.
 
-Session: (not yet run)
+Session: session_016jSC3fsMfuGLacrVjUTYMU, 2026-11-27 (plugin 0.5.0+eaf50f7 from the checkout, not 0.4.0 installed; partial)
 
 | Ticket | Check | Result |
 |---|---|---|
-| 04 | An autonomous run with a check the evaluator cannot run (Bash denied for the test command) ends with the work labelled UNVERIFIED in DECISIONS and listed first in the final reply | not run |
-| 09 | With a stop-hook git check, a hook firing mid-wave gets one line naming the running dispatch; nothing is committed or pushed; the trace has a `hook` line and the diagram no node for it | not run |
-| 10 | A dispatch whose `dependsOn` names only a finished dispatch launches before its wave's slow dispatch returns; the state file is rewritten first; `dependsOn` is kept | not run |
-| 11 | Asked a question about results after its dispatches finish, the session dispatches a `single` (at most 6 lines) instead of reading files in the main loop | not run |
-| 12 | The final reply sends the diagram file with a summary of at most 3 lines; a question is asked only after every independent dispatch launched, with options and a recommended default | not run |
-| 13 | A ticket-set session's last wave before rendering is one acceptance dispatch whose numbered, countable criteria are the spec's acceptance criteria plus the full regression suite | not run |
+| 04 | An autonomous run with a check the evaluator cannot run (Bash denied for the test command) ends with the work labelled UNVERIFIED in DECISIONS and listed first in the final reply | partial: blocked + UNVERIFIED + review next wave seen; final-reply order pending |
+| 09 | With a stop-hook git check, a hook firing mid-wave gets one line naming the running dispatch; nothing is committed or pushed; the trace has a `hook` line and the diagram no node for it | not exercised: no hook fired |
+| 10 | A dispatch whose `dependsOn` names only a finished dispatch launches before its wave's slow dispatch returns; the state file is rewritten first; `dependsOn` is kept | pass (w3-d1 launched 23:39:16Z, T2 ended 23:49:26Z) |
+| 11 | Asked a question about results after its dispatches finish, the session dispatches a `single` (at most 6 lines) instead of reading files in the main loop | pending: question arrives after finish |
+| 12 | The final reply sends the diagram file with a summary of at most 3 lines; a question is asked only after every independent dispatch launched, with options and a recommended default | partial: question after launches; diagram sent before final reply |
+| 13 | A ticket-set session's last wave before rendering is one acceptance dispatch whose numbered, countable criteria are the spec's acceptance criteria plus the full regression suite | pass (w5-d1) |
+
+**By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
+
+Covered in one session with plugin 0.5.0+eaf50f7 run from the checkout (not 0.4.0 installed): 10 and 13 pass; 04 and 12 partial (final-reply parts pending); 09 not exercised (no hook fired); 11 pending (needs a question after finish). Results in the table above.
+Box 2 left unticked: wrong version, 09 failed to occur, 11 pending.

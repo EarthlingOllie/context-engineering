@@ -19,3 +19,10 @@
 Scorecard: `graph-orchestrator/evals/out/scorecards/bda34564a1f5-20261127T140102Z.json` (local, gitignored; archived with its compare.py output and .eval logs outside the repo).
 
 **Meets rule (pass rates and false passes).** Every sample holds; sample 10 3/3. Dollar flag: sample 02 +$0.034 (band $0.024), cache writes with flat output tokens. Run cost $11.80.
+
+**By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
+
+Autonomous run on toy set sandbox/toy-spec/ (T2 has a PyPy 3.10 criterion; pypy3.10 not installed). T2 dispatch w2-d2 (run wf_5a9148c5-8a9, 23:37:53Z-23:49:26Z) ended `blocked`, evaluator round 1 verdict blocked with a question naming P5 (`pypy3.10 -m unittest ...`), not a pass.
+Not resolved silently: self intervention recorded at 23:49:43Z with 3 options, recommended (a); state-file DECISIONS line reads "T2 UNVERIFIED — accepted without passing evaluator (P5 pypy3.10 unrunnable)".
+Next wave had a review-only dispatch for T2: w4-d1 (run wf_69e4a25a-be2): P1-P4 PASS, P5 CANNOT RUN, label kept. Acceptance w5-d1 (run wf_d3703b99-f3c) also kept A1 UNVERIFIED.
+Box left unticked: "listed first in the final reply" is not yet evidenced (the final reply is sent after this record); variant used was a missing tool, not Bash denied.

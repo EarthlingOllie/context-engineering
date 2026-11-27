@@ -8,3 +8,9 @@
 
 - [x] SKILL.md documents each rule; no document tells the orchestrator to paste the diagram verbatim (docs seam)
 - [ ] By hand: a session's final reply sends the diagram file, and a question is asked only after independent dispatches launched
+
+**By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
+
+Question part: T2's block (w2-d2, run wf_5a9148c5-8a9) was handled at 23:49:43Z, after both independent dispatches had launched (T1 w2-d1 23:37:46Z, T3 w3-d1 23:39:16Z) and finished; it carried 3 options with (a) recommended. Autonomous mode, nobody to answer, so it was recorded as a best guess rather than asked.
+Diagram part: SCRATCH/session.mmd was sent as a file (not pasted) at 23:52Z, but as a separate step before the final reply; the final reply (UNVERIFIED first, summary) is sent after this record. The ticket asks that the final reply send the diagram, so this ordering does not evidence it, and the <=3-line summary is unseen.
+Box left unticked: final-reply part pending; the question was never actually put to a person.

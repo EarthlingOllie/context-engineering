@@ -6,6 +6,11 @@
 
 **Status:** ready-for-agent
 
-- [ ] A stub run of the job completes without the secret and uploads a scorecard
+- [x] A stub run of the job completes without the secret and uploads a scorecard
 - [ ] One paid run is recorded in the evals README
 - [x] The job refuses the baseline option
+
+**By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
+
+Run 46083507859 (https://github.com/EarthlingOllie/context-engineering/actions/runs/46083507859): workflow_dispatch on main f92aa10 with stub=true, 23:37:15Z-23:43:16Z, completed/success. With stub=true the workflow passes an empty ANTHROPIC_API_KEY (no secret used).
+Artifacts uploaded: `scorecard` (id 15237713593, 7024 B) and `inspect-log` (id 15237843399). Box 2 (paid run) not attempted: no paid runs in this session.

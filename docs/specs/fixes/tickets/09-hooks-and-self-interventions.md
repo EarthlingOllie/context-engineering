@@ -9,3 +9,8 @@
 - [x] Docs seam: the hook rule and the not-interventions list are in SKILL.md
 - [x] Render seam: an autonomous intervention renders as `self · <trigger>` with the dashed class; an attended one as `human · <trigger>`; a `hook` event renders nothing
 - [ ] By hand in a cloud session with a stop-hook git check: a hook firing mid-wave gets one line naming the running dispatch, and nothing is committed or pushed
+
+**By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
+
+Not exercised: no Stop hook (or any hook) message reached the orchestrator at any point, although it ended its turn 5 times with dispatches running (w2-d2 ran ~11.5 min). The trace has no `hook` line, so there is nothing to check the one-line reply or the diagram against.
+Box left unticked: no hook fired in this environment.

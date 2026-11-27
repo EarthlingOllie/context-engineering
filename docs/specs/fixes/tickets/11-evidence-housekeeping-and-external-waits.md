@@ -10,3 +10,7 @@
 - [x] A rationalisations row: "It's only a git push" (docs seam)
 - [x] SKILL.md's "when not to use" and the rule's exception cover waiting on external state (docs seam)
 - [ ] By hand: a session asked a question about results after finishing dispatches a `single` rather than reading files in the main loop
+
+**By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
+
+Pending: the user's question about results arrives after this session's dispatches finish (after the final reply), so the `single` that answers it has not happened yet. Box left unticked until that dispatch and its trace line are recorded.

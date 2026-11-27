@@ -8,4 +8,10 @@
 
 - [x] Dispatch seam: with no `now`, the dispatch line carries the placeholder (or a real time), and the scribe and worker prompts say how to replace it
 - [x] Docs seam: SKILL.md no longer says the orchestrator has no clock or passes `now`
-- [ ] By hand: a session's rendered diagram shows wave times matching the session's wall clock
+- [x] By hand: a session's rendered diagram shows wave times matching the session's wall clock
+
+**By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
+
+Trace lines carry real UTC `at`/`ended` (no `{{START_UTC}}`/`{{END_UTC}}` left; no `now` in any args file). Rendered diagram (SCRATCH/session.mmd, 23:52Z) wave times vs wall clock (args-file mtime at launch):
+wave 1 23:36:27Z (w1-d1 args 23:36:27Z); wave 2 23:37:46Z (w2-d1 args 23:37:46Z); wave 3 23:39:16Z (w3-d1 args 23:39:16Z); wave 4 23:49:43Z (w4-d1 args 23:49:43Z); wave 5 23:51:09Z (w5-d1 args 23:51:09Z) — all within 1 s.
+Durations agree with the orchestrator's clock: T2 w2-d2 23:37:53Z-23:49:26Z = 693 s vs 678 s observed; acceptance w5-d1 ended 23:51:58Z vs ~23:51:50Z observed — within a minute.
