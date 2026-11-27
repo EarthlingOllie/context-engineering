@@ -132,10 +132,12 @@ For each result, by status:
 | status | do |
 |---|---|
 | `done` | fold `result` into KNOWN / RULED OUT / DECISIONS as one-line fragments; keep artifact paths, never prose. Then the raw result is gone. |
-| `blocked` | **Trigger 2: ask, in both modes.** The `question` is the worker's. Record the intervention. Re-dispatch next wave with the answer as a `context` line and the blocked id in `dependsOn`, so the worker resumes rather than restarts. A fan-out that is `done` with a `question` had a blocked branch: ask the same way; re-dispatch only that branch. |
+| `blocked` | **Trigger 2: ask, in both modes.** A blocked result is never resolved silently, in either mode: autonomous mode asks too when someone can answer, and otherwise accepts the work only as Unverified (below). The `question` is the worker's, or the evaluator's naming a check it could not run. Record the intervention. Re-dispatch next wave with the answer as a `context` line and the blocked id in `dependsOn`, so the worker resumes rather than restarts. A fan-out that is `done` with a `question` had a blocked branch: ask the same way; re-dispatch only that branch. |
 | `exhausted` | **Trigger 3.** Attended: ask whether to change the criteria, the approach or stop. Autonomous: if you see another route, take it and record the choice; if not, record a best guess and move on. Never re-run the same spec unchanged. |
 | `over_budget` | the spec exceeded a cap; the `result` says which. Split or narrow it and re-dispatch. |
 | `failed` | the spec could not run or finish; the `result` says why, including what an agent threw. A `failed` result that reports a usage limit is not a spec fault: it goes to **Resume interrupted runs**, never to a changed spec. Otherwise fix the spec once. A second failure is treated as `exhausted`. A result saying `dependsOn names <id> from the same wave` is a planning fault: dispatch it next wave, or make the two one `chain`. |
+
+**Unverified.** Work you accept although no evaluator passed it (its dispatch ended `blocked` or `exhausted`, and you take its artifacts anyway) is Unverified. Work accepted without a passing evaluator carries the word UNVERIFIED in its DECISIONS line, with its artifact paths. The next wave plans an evaluator-only dispatch over its artifacts unless the budget is spent: a `single` whose worker reviews them against the original pass criteria. Its pass clears the label; anything else keeps it. Never drop the word from a DECISIONS line while the work is unreviewed.
 
 A stopped run (its container restarted, or it never reported) has no row because it has no status: **Resume interrupted runs** handles it at the start of the next turn.
 
@@ -145,7 +147,7 @@ Then: update FRONTIER (remove what finished, add what the results opened), rewri
 
 A wave is a launch batch, not a barrier (ADR-0006). When a dispatch returns, integrate it at once, while the rest of its wave runs. Any FRONTIER item whose `dependsOn` names only finished dispatches may launch straight away as the next wave number: plan it from the state file, pass the pre-launch check, rewrite the state file, then launch it exactly as **Run the wave** says (args file, dispatch line, run id on its FRONTIER line). Wave numbers stay strictly increasing. An item that depends on a dispatch still running waits for that dispatch's result.
 
-**Budgets (trigger 5).** Budgets count launches. Before any launch, rolling ones included, that would take a wave number past `--waves`, or a wave wider than `--dispatches`: attended, ask; autonomous, record the overrun under DECISIONS and stop with what you have.
+**Budgets (trigger 5).** Budgets count launches. Before any launch, rolling ones included, that would take a wave number past `--waves`, or a wave wider than `--dispatches`: attended, ask; autonomous, record the overrun under DECISIONS and stop with what you have. A budget stop with a failing review ends with one `single` that reads the review artifact and returns its blocking items in at most 6 lines; that one dispatch is the only launch allowed past the budget, and its lines go in the final reply.
 
 ### Human interventions and the trace
 
@@ -165,7 +167,7 @@ When FRONTIER is empty (or a budget stop), render the session, in both modes:
 node ${CLAUDE_PLUGIN_ROOT}/scripts/render-trace.js SCRATCH/trace --out SCRATCH/session.mmd [--human '<json>' ...]
 ```
 
-It reads every dispatch's trace file in order, prints the Mermaid diagram and saves it. Your final reply is: STATUS in one line; the artifacts, by path; the DECISIONS that need the human's eyes; the diagram, verbatim, in a ```mermaid block. Nothing else.
+It reads every dispatch's trace file in order, prints the Mermaid diagram and saves it. Your final reply is: the UNVERIFIED items first, each with its artifact paths and why no evaluator passed it; then STATUS in one line; the artifacts, by path; the DECISIONS that need the human's eyes; the diagram, verbatim, in a ```mermaid block. Nothing else.
 
 ## Rationalizations
 

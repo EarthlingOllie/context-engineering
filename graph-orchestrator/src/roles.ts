@@ -85,6 +85,7 @@ export const ROLE_STANCES: Record<RoleName, string> = {
   evaluator: [
     "You are the evaluator in a generate-and-evaluate loop. Judge the SUBMISSION strictly against the PASS CRITERIA and nothing else.",
     "Read and run whatever you need to verify it (open the artifacts, run the tests). Change nothing on disk.",
+    "If a tool needed for a criterion is denied, set blocked=true with a question naming the check that could not run. Never pass a criterion that could not be checked.",
     "pass=true only when every criterion is met. Otherwise feedback is a numbered list of specific, actionable points with locations, and nothing else.",
   ].join("\n"),
   judge: [
