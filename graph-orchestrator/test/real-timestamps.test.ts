@@ -49,6 +49,8 @@ test("dispatch seam: the scribe prompt says how to replace each placeholder from
   assert.ok(p.includes(`date -u +%Y-%m-%dT%H:%M:%SZ`), "end: the clock now, in UTC");
   assert.ok(p.includes(START_PLACEHOLDER) && p.includes(END_PLACEHOLDER));
   assert.match(p, /If that file does not exist, use the end time for the start/);
+  assert.ok(p.includes(`date -u -r "$(stat -f %m /scratch/t/args/w2-d1.json)" +%Y-%m-%dT%H:%M:%SZ`), "start: the BSD/macOS form, where -r takes epoch seconds");
+  assert.match(p, /If neither command works, use the end time for the start/);
   assert.match(p, /Change nothing else/);
   assert.equal(eventsOf(p).filter((e) => (e as Line).ended === END_PLACEHOLDER).length, 1, "the lines themselves still carry the placeholder");
 });
@@ -82,6 +84,8 @@ test("render: a replaced start time is the wave's time", () => {
 
 const skill = readFileSync(new URL("../skills/graph-orchestrator/SKILL.md", import.meta.url), "utf8");
 const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+const buildScript = readFileSync(new URL("../build.mjs", import.meta.url), "utf8");
+const bundle = readFileSync(new URL("../workflows/dispatch.js", import.meta.url), "utf8");
 
 test("docs seam: SKILL.md no longer says the orchestrator has no clock or passes `now`", () => {
   assert.doesNotMatch(skill, /no clock/i);
@@ -93,4 +97,11 @@ test("docs seam: the README launch args no longer carry `now`, and say who stamp
   assert.doesNotMatch(readme, /\{ now, scratch/);
   assert.doesNotMatch(readme, /orchestrator supplies `now`/);
   assert.match(readme, /clock's UTC time/);
+});
+
+test("docs seam: the dispatch skill's whenToUse (build.mjs and the built bundle) names the args without `now`", () => {
+  for (const [name, text] of [["build.mjs", buildScript], ["workflows/dispatch.js", bundle]] as const) {
+    assert.doesNotMatch(text, /\{ now,/, name);
+    assert.ok(text.includes("with { scratch, dispatch, humans } as args"), name);
+  }
 });

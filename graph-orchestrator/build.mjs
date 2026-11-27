@@ -16,7 +16,7 @@ const VERSION = `${PKG_VERSION}+${commit}`;
 const META = `export const meta = {
   name: 'dispatch',
   description: 'graph-orchestrator: run one dispatch through its topology (single, generator-evaluator, fan-out, chain, relay, best-of-n, iterative-fan-out, panel, debate) and write its trace lines',
-  whenToUse: 'Invoked by the graph-orchestrator skill once per dispatch, from a wrapper script that names the workflow, with { now, scratch, dispatch, humans } as args. Not for direct use.',
+  whenToUse: 'Invoked by the graph-orchestrator skill once per dispatch, from a wrapper script that names the workflow, with { scratch, dispatch, humans } as args. Not for direct use.',
 }
 `;
 

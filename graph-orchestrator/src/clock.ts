@@ -26,6 +26,6 @@ export function clockSteps(argsFile: string): string[] {
   return [
     `Before appending, replace the time placeholders from the clock, in UTC. Change nothing else in the lines:`,
     `- each ${END_PLACEHOLDER} with the time now: \`date -u ${FORMAT}\``,
-    `- each ${START_PLACEHOLDER} with the time the launch's args file was written: \`date -u -r ${argsFile} ${FORMAT}\`. If that file does not exist, use the end time for the start.`,
+    `- each ${START_PLACEHOLDER} with the time the launch's args file was written: \`date -u -r ${argsFile} ${FORMAT}\` (GNU date), or on BSD/macOS, where -r takes epoch seconds, \`date -u -r "$(stat -f %m ${argsFile})" ${FORMAT}\`. If that file does not exist, use the end time for the start. If neither command works, use the end time for the start.`,
   ];
 }
