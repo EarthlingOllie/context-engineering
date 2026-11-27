@@ -7,6 +7,7 @@ Each release maps to one spec under `docs/specs/`. Ticket numbers below refer to
 Spec: `docs/specs/observability-evals/` (planned for 0.5.0).
 
 - Real timestamps: the dispatch script no longer needs `now`. With none, it stamps placeholders for the dispatch's start (`at`) and end (new `ended`), and the agent that appends the trace lines (the scribe, or a `single`'s worker) replaces them with the clock's UTC time: the start from the launch's args file (GNU or BSD `date`, falling back to the end time), the end from the time of the write. A `now` still sent is used as the start. SKILL.md and the dispatch skill's description no longer pass `now` or say the orchestrator has no clock; the renderer ignores a placeholder left unreplaced (ticket 04).
+- Refusal counts: the worker, generator, reducer and evaluator stances and schemas ask for `writesRefused` and `toolsDenied`; each agent's counts go on its entry in the dispatch line's `agents`, and their totals on the line as `writes_refused` and `tools_denied` (absent when no agent reported them), and are logged. A `single`'s worker fills its own into the line it writes from `{{WRITES_REFUSED}}` and `{{TOOLS_DENIED}}` placeholders. SKILL.md: while waiting on a human, CI or a restart, the state file holds one `WAITING: <cause> since <time>` line, removed when the wait ends (ticket 07).
 
 ## 0.4.0
 

@@ -61,7 +61,8 @@ test("dispatch seam: a `single` worker's trace step says how to replace the plac
   const w = calls[0]!.prompt;
   assert.ok(w.includes(`date -u -r /scratch/t/args/w2-d1.json +%Y-%m-%dT%H:%M:%SZ`));
   assert.ok(w.includes(`date -u +%Y-%m-%dT%H:%M:%SZ`));
-  assert.deepEqual(eventsOf(calls[1]!.prompt), eventsOf(w));
+  // B-07: apart from the worker's refusal-count placeholders (this worker reported no counts).
+  assert.deepEqual(eventsOf(calls[1]!.prompt), eventsOf(w).map(({ writes_refused: _w, tools_denied: _t, ...e }: Record<string, unknown>) => e));
 });
 
 test("dispatch seam: the worker that appended its lines still runs no scribe when the lines carry placeholders", async () => {

@@ -29,3 +29,24 @@ export function clockSteps(argsFile: string): string[] {
     `- each ${START_PLACEHOLDER} with the time the launch's args file was written: \`date -u -r ${argsFile} ${FORMAT}\` (GNU date), or on BSD/macOS, where -r takes epoch seconds, \`date -u -r "$(stat -f %m ${argsFile})" ${FORMAT}\`. If that file does not exist, use the end time for the start. If neither command works, use the end time for the start.`,
   ];
 }
+
+/**
+ * Refusal counts (B-07): a `single`'s worker writes its own dispatch line
+ * before its counts are known to the script, so the line carries these as
+ * JSON strings and the worker replaces each, quotes included, with the number
+ * it reports.
+ */
+export const WRITES_REFUSED_PLACEHOLDER = "{{WRITES_REFUSED}}";
+export const TOOLS_DENIED_PLACEHOLDER = "{{TOOLS_DENIED}}";
+
+/** True when any line carries a refusal-count placeholder. */
+export function hasRefusalPlaceholder(lines: string[]): boolean {
+  return lines.some((l) => l.includes(WRITES_REFUSED_PLACEHOLDER) || l.includes(TOOLS_DENIED_PLACEHOLDER));
+}
+
+/** How the worker fills in its refusal counts, for its trace step. */
+export function refusalSteps(): string[] {
+  return [
+    `Also replace "${WRITES_REFUSED_PLACEHOLDER}", quotes included, with the bare number you report in \`writesRefused\`, and "${TOOLS_DENIED_PLACEHOLDER}", quotes included, with the bare number you report in \`toolsDenied\`.`,
+  ];
+}

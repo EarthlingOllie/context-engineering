@@ -14,7 +14,7 @@
  */
 import type { AgentUsage, DispatchArgs, DispatchResult, DispatchReturn, DispatchSpec, HookEvent, HumanEvent, Runtime, TraceEvent } from "./types.ts";
 import { agentLabel, roleOfLabel } from "./labels.ts";
-import { END_PLACEHOLDER, START_PLACEHOLDER, argsFileOf, clockSteps, hasPlaceholder } from "./clock.ts";
+import { END_PLACEHOLDER, START_PLACEHOLDER, TOOLS_DENIED_PLACEHOLDER, WRITES_REFUSED_PLACEHOLDER, argsFileOf, clockSteps, hasPlaceholder } from "./clock.ts";
 import { agentDemand, dispatchEvent, fail, normaliseSpec, runDispatch, traceDetail, type TopologyContext } from "./topologies.ts";
 
 declare const __PLUGIN_VERSION__: string | undefined;
@@ -67,7 +67,7 @@ const SCRIBE_SCHEMA = {
  * left out. `concurrency` is the most agents running at once.
  */
 export function meteredRuntime(rt: Runtime): { runtime: Runtime; agents: () => AgentUsage[]; concurrency: () => number } {
-  type Rec = { role: string; overlapped: boolean; before?: number; after?: number };
+  type Rec = { role: string; overlapped: boolean; before?: number; after?: number; writes_refused?: number; tools_denied?: number };
   const recs: Rec[] = [];
   const running = new Set<Rec>();
   let peak = 0;
@@ -90,7 +90,9 @@ export function meteredRuntime(rt: Runtime): { runtime: Runtime; agents: () => A
     running.add(rec);
     peak = Math.max(peak, running.size);
     try {
-      return await rt.agent(prompt, opts);
+      const out = await rt.agent(prompt, opts);
+      Object.assign(rec, refusalsOf(out));
+      return out;
     } finally {
       running.delete(rec);
       const after = spent();
@@ -100,13 +102,44 @@ export function meteredRuntime(rt: Runtime): { runtime: Runtime; agents: () => A
   const agents = () =>
     recs.map((r): AgentUsage => {
       const delta = !r.overlapped && r.before !== undefined && r.after !== undefined ? r.after - r.before : undefined;
-      return delta !== undefined && delta >= 0 ? { role: r.role, output_tokens: delta } : { role: r.role };
+      return {
+        role: r.role,
+        ...(delta !== undefined && delta >= 0 ? { output_tokens: delta } : {}),
+        ...(r.writes_refused !== undefined ? { writes_refused: r.writes_refused } : {}),
+        ...(r.tools_denied !== undefined ? { tools_denied: r.tools_denied } : {}),
+      };
     });
   return { runtime: { ...rt, agent }, agents, concurrency: () => peak };
 }
 
-/** The per-agent fields of a dispatch line, and the detail its topology recorded (B-06). */
-type AgentFields = { agents: AgentUsage[]; demand: number; concurrency: number } & ReturnType<typeof traceDetail>;
+/** A count an agent reported in its structured output: a non-negative whole number, else undefined. */
+function count(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : undefined;
+}
+
+/** The refusal counts (B-07) an agent's structured output reports; a missing or malformed count is left out. */
+function refusalsOf(out: unknown): { writes_refused?: number; tools_denied?: number } {
+  if (!out || typeof out !== "object") return {};
+  const o = out as Record<string, unknown>;
+  const w = count(o["writesRefused"]);
+  const t = count(o["toolsDenied"]);
+  return { ...(w !== undefined ? { writes_refused: w } : {}), ...(t !== undefined ? { tools_denied: t } : {}) };
+}
+
+/** A dispatch line's refusal totals: each count summed over the agents that reported it, absent when none did. */
+export function refusalTotals(agents: AgentUsage[]): { writes_refused?: number; tools_denied?: number } {
+  const sum = (k: "writes_refused" | "tools_denied") => {
+    const xs = agents.map((a) => a[k]).filter((n): n is number => n !== undefined);
+    return xs.length ? { [k]: xs.reduce((a, b) => a + b, 0) } : {};
+  };
+  return { ...sum("writes_refused"), ...sum("tools_denied") };
+}
+
+/** A `single`'s worker fills in its own counts on the line it writes (B-07). */
+const REFUSAL_PLACEHOLDERS = { writes_refused: WRITES_REFUSED_PLACEHOLDER, tools_denied: TOOLS_DENIED_PLACEHOLDER } as unknown as { writes_refused: number; tools_denied: number };
+
+/** The per-agent fields of a dispatch line, the detail its topology recorded (B-06) and the refusal totals (B-07). */
+type AgentFields = { agents: AgentUsage[]; demand: number; concurrency: number; writes_refused?: number; tools_denied?: number } & ReturnType<typeof traceDetail>;
 
 /**
  * A human intervention's `source` (B-06): a valid one as given, else from the
@@ -158,7 +191,7 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   // A `single`'s worker appends the lines a done result would get, as its final step (fixes ticket 08).
   // Its own usage is not known while it writes them, so its agent carries only its role.
   if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
-    ctx.selfTrace = { id, file: traceFileOf(scratch, id), argsFile: argsFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1 }) };
+    ctx.selfTrace = { id, file: traceFileOf(scratch, id), argsFile: argsFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1, ...REFUSAL_PLACEHOLDERS }) };
   }
   let result: DispatchResult;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
@@ -168,15 +201,19 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   // Cuts that dropped lines are logged, and counted on the dispatch line (B-06).
   const dropped = ctx.dropped ?? 0;
   if (dropped > 0) rt.log(`${id}: cuts dropped ${dropped} line(s)`);
-  const fields: AgentFields = { agents: meter.agents(), demand, concurrency: meter.concurrency(), ...traceDetail(ctx, id, dropped) };
+  const agents = meter.agents();
+  const refusals = refusalTotals(agents);
+  if (Object.keys(refusals).length) rt.log(`${id}: ${refusals.writes_refused ?? "?"} write(s) refused, ${refusals.tools_denied ?? "?"} tool(s) denied`);
+  const fields: AgentFields = { agents, demand, concurrency: meter.concurrency(), ...traceDetail(ctx, id, dropped), ...refusals };
   const lines = linesOf(result, ctx.stageEvents, fields);
 
   // The worker wrote the lines: no scribe, provided what it wrote is what the result's lines are (its usage and the
-  // count its result's cut dropped aside, which it could not know; the log line above records that count).
+  // count its result's cut dropped aside, which it could not know; the log line above records that count). Its
+  // refusal counts it filled in itself from the placeholders.
   const self = ctx.selfTrace;
   if (self && (self.appended ?? 0) > 0) {
-    const { dropped: _cut, ...unknowable } = fields;
-    const rolesOnly = linesOf(result, ctx.stageEvents, { ...unknowable, agents: fields.agents.map((a) => ({ role: a.role })) });
+    const { dropped: _cut, writes_refused: _w, tools_denied: _t, ...unknowable } = fields;
+    const rolesOnly = linesOf(result, ctx.stageEvents, { ...unknowable, agents: fields.agents.map((a) => ({ role: a.role })), ...REFUSAL_PLACEHOLDERS });
     if (self.lines.join("\n") === rolesOnly.join("\n")) {
       if (self.appended !== rolesOnly.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${rolesOnly.length}`);
       rt.log(`STATUS ${result.status}`);

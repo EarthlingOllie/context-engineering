@@ -67,9 +67,12 @@ KNOWN:     <facts established this session, one line each; a path when the fact 
 RULED OUT: <hypothesis — the evidence that killed it, one line each>
 FRONTIER:  <what still needs doing, one line each; the next wave is drawn from here; a launched dispatch, until integrated: <id> <Topology>: <title> · run wf_… · args SCRATCH/args/<id>.json>
 DECISIONS: <choice — reason, one line each; best guesses made in autonomous mode go here>
+WAITING:   <cause> since <time>   (only while waiting; see below)
 ```
 
 `plugin <version>` is the build that runs your dispatches: copy the `version` the first returned dispatch carries (the package version plus the git short commit, e.g. `0.5.0+1a2b3c4`); write `plugin ?` until one returns, and update it if a later dispatch returns a different one. The same stamp is on every dispatch trace line and in the diagram's title.
+
+While the session is waiting on a human (an open question, an approval), on CI or another external check, or on a restart (a usage limit to reset, a run to resume), the state file holds one `WAITING: <cause> since <time>` line, e.g. `WAITING: CI on PR #42 since 2026-11-27T14:05:00Z`, with the time in UTC from `date -u +%Y-%m-%dT%H:%M:%SZ`. Write it when the wait starts, keep one line only (a second cause joins the first: `WAITING: human answer on the cache key; CI on PR #42 since …`, keeping the earliest time), and remove it in the rewrite that integrates the answer, the check or the resumed run. Running dispatches are not a wait: they are on FRONTIER.
 
 A superseded fact is deleted, not struck through. If the file does not fit on a screen you are logging, not remembering. After compaction, the state file is the only thing you re-read, plus the args file it names for a dispatch you resume: it must be enough to plan the next wave.
 

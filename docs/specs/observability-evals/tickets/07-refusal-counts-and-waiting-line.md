@@ -6,6 +6,6 @@
 
 **Status:** ready-for-agent
 
-- [ ] Dispatch seam: refusal counts returned by scripted agents appear on the dispatch line
-- [ ] Docs seam: SKILL.md documents the WAITING line
-- [ ] Its own dispatch-eval run against the frozen baseline: every sample's pass rate stays within its spread
+- [x] Dispatch seam: refusal counts returned by scripted agents appear on the dispatch line
+- [x] Docs seam: SKILL.md documents the WAITING line
+- [ ] Its own dispatch-eval run against the frozen baseline: every sample's pass rate stays within its spread (paid run: left to a human)

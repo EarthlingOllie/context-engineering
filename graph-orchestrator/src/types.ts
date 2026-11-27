@@ -92,7 +92,8 @@ export type DispatchResult = {
  * left out, never zeroed. The pool behind `budget.spent()` is shared by every
  * workflow in the turn, so a dispatch running beside others can over-count.
  */
-export type AgentUsage = { role: string; output_tokens?: number };
+/** One agent on a dispatch line: its role, its readable usage (B-05), and the refusal counts it reported (B-07); a field is absent when not known. */
+export type AgentUsage = { role: string; output_tokens?: number; writes_refused?: number; tools_denied?: number };
 
 /**
  * One evaluator round as a dispatch line records it (B-06): its verdict and,
@@ -167,6 +168,9 @@ export type TraceEvent =
       version?: string;
       /** Lines the dispatch's cuts dropped, in total; absent when none. A chain's line counts every cut under it. */
       dropped?: number;
+      /** Writes refused and tools denied, totalled over the agents that reported them (B-07); absent when none did. A `single`'s worker fills in its own. */
+      writes_refused?: number;
+      tools_denied?: number;
     }
   | { type: "wave_end"; wave: number; at: string; done: number; blocked: number; exhausted: number; over_budget: number; failed: number } // v0.2 traces only
   | HumanEvent

@@ -29,7 +29,9 @@ test("single: a worker that reports appended trace lines runs no scribe; the ret
 test("single: a worker that reports none appended runs the scribe, with the same lines the worker was given", async () => {
   const { out, roles, calls } = await wave([retry()], { Worker: appended(0) }, { humans });
   assert.deepEqual(roles(), ["Worker", "Grapher"]);
-  assert.deepEqual(eventsOf(calls[1]!.prompt), eventsOf(calls[0]!.prompt));
+  // B-07: the worker's line carries refusal-count placeholders; this worker reported no counts, so the scribe's has none.
+  const noCounts = eventsOf(calls[0]!.prompt).map(({ writes_refused: _w, tools_denied: _t, ...e }: Record<string, unknown>) => e);
+  assert.deepEqual(eventsOf(calls[1]!.prompt), noCounts);
   assert.equal(out.results[0]!.tracedBy, "scribe");
   assert.deepEqual(out.results[0]!.scribe, { appended: 2, totalLines: 99 });
 });
@@ -43,7 +45,7 @@ test("single: the worker is given exactly the lines the scribe would write: huma
   const { calls } = await wave([retry()], { Worker: appended(2) }, { humans });
   assert.deepEqual(eventsOf(calls[0]!.prompt), [
     { ...humans[0], at: baseArgs.now, source: "human" }, // B-06: an attended intervention carries source human
-    { type: "dispatch", wave: 2, id: "w2-d1", title: "Add the retry policy", topology: "single", iterations: 1, status: "done", dependsOn: ["w1-d2"], agents: [{ role: "worker" }], demand: 1, concurrency: 1, at: baseArgs.now, ended: END_PLACEHOLDER, version: "dev" }, // B-03: unbundled source stamps dev; B-04: the writer stamps the end
+    { type: "dispatch", wave: 2, id: "w2-d1", title: "Add the retry policy", topology: "single", iterations: 1, status: "done", dependsOn: ["w1-d2"], agents: [{ role: "worker" }], demand: 1, concurrency: 1, at: baseArgs.now, ended: END_PLACEHOLDER, writes_refused: "{{WRITES_REFUSED}}", tools_denied: "{{TOOLS_DENIED}}", version: "dev" }, // B-03: unbundled source stamps dev; B-04: the writer stamps the end; B-07: the worker fills in its refusal counts
   ]);
 });
 

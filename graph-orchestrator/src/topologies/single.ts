@@ -1,18 +1,21 @@
 // ---------- single ----------
 import type { DispatchResult, DispatchSpec } from "../types.ts";
 import { ROLE_SCHEMAS, buildPrompt } from "../roles.ts";
-import { clockSteps, hasPlaceholder } from "../clock.ts";
+import { clockSteps, hasPlaceholder, hasRefusalPlaceholder, refusalSteps } from "../clock.ts";
 import { type TopologyContext, type TopologyImpl, callRole, contractOf, fail, readWorkOutput, roleEntry } from "./shared.ts";
 
 /** The worker's final step: append the dispatch's trace lines itself, so the dispatch needs no scribe. */
 export function traceStep(file: string, lines: string[], argsFile?: string): { title: string; body: string } {
   const clock = argsFile && hasPlaceholder(lines) ? clockSteps(argsFile) : [];
+  const counts = hasRefusalPlaceholder(lines) ? refusalSteps() : [];
+  const asGiven = clock.length || counts.length ? `exactly as given apart from the ${clock.length ? "time " : ""}${clock.length && counts.length ? "and " : ""}${counts.length ? "count " : ""}placeholders` : "exactly as given";
   return {
     title: "TRACE (your final step, after the task is done)",
     body: [
-      `Append the ${lines.length} line(s) between the markers below to the file ${file}, ${clock.length ? "exactly as given apart from the time placeholders" : "exactly as given"}, in order, each terminated by a newline.`,
+      `Append the ${lines.length} line(s) between the markers below to the file ${file}, ${asGiven}, in order, each terminated by a newline.`,
       "Create the directory and the file if they do not exist. Append with a single write; do not read, reorder, reformat or alter any existing line.",
       ...clock,
+      ...counts,
       "<<<TRACE",
       ...lines,
       "TRACE>>>",

@@ -85,6 +85,16 @@ function clockSteps(argsFile) {
     `- each ${START_PLACEHOLDER} with the time the launch's args file was written: \`date -u -r ${argsFile} ${FORMAT}\` (GNU date), or on BSD/macOS, where -r takes epoch seconds, \`date -u -r "$(stat -f %m ${argsFile})" ${FORMAT}\`. If that file does not exist, use the end time for the start. If neither command works, use the end time for the start.`
   ];
 }
+var WRITES_REFUSED_PLACEHOLDER = "{{WRITES_REFUSED}}";
+var TOOLS_DENIED_PLACEHOLDER = "{{TOOLS_DENIED}}";
+function hasRefusalPlaceholder(lines) {
+  return lines.some((l) => l.includes(WRITES_REFUSED_PLACEHOLDER) || l.includes(TOOLS_DENIED_PLACEHOLDER));
+}
+function refusalSteps() {
+  return [
+    `Also replace "${WRITES_REFUSED_PLACEHOLDER}", quotes included, with the bare number you report in \`writesRefused\`, and "${TOOLS_DENIED_PLACEHOLDER}", quotes included, with the bare number you report in \`toolsDenied\`.`
+  ];
+}
 
 // src/roles.ts
 var blockedProps = {
@@ -94,6 +104,11 @@ var blockedProps = {
   },
   question: { type: "string", description: "The single question for the human. Empty unless blocked." }
 };
+var refusalProps = {
+  writesRefused: { type: "number", description: "How many of your file writes or edits were refused (permission denied, outside the sandbox, a hook blocked them). 0 if none." },
+  toolsDenied: { type: "number", description: "How many tool calls were denied to you (permission prompts refused, tools unavailable or blocked). 0 if none." }
+};
+var REFUSAL_KEYS = ["writesRefused", "toolsDenied"];
 var workOutput = {
   type: "object",
   properties: {
@@ -103,9 +118,10 @@ var workOutput = {
       items: { type: "string" },
       description: "Absolute paths of files you wrote or that carry the full result. Empty if none."
     },
-    ...blockedProps
+    ...blockedProps,
+    ...refusalProps
   },
-  required: ["result", "artifacts", "blocked"]
+  required: ["result", "artifacts", "blocked", ...REFUSAL_KEYS]
 };
 var ROLE_SCHEMAS = {
   worker: workOutput,
@@ -119,9 +135,10 @@ var ROLE_SCHEMAS = {
         type: "string",
         description: "At most 10 lines. Numbered, specific, actionable; each point names where (file:line or section). Empty when pass is true."
       },
-      ...blockedProps
+      ...blockedProps,
+      ...refusalProps
     },
-    required: ["pass", "feedback", "blocked"]
+    required: ["pass", "feedback", "blocked", ...REFUSAL_KEYS]
   },
   judge: {
     type: "object",
@@ -151,6 +168,7 @@ var ROLE_STANCES = {
     "You may read, search, write and run whatever the task requires. Load your own project conventions from disk; nothing about them is repeated here.",
     "Do not narrate progress, do not restate this prompt, do not ask how things are going. Your final structured output is the only thing anyone sees.",
     "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`.",
+    "Report in `writesRefused` how many of your writes were refused and in `toolsDenied` how many tool calls were denied to you; 0 when none.",
     "To wait on a long command, run it in the foreground with a timeout, or start it in the background and wait once on its exit status; never loop on `pgrep -f`, which matches itself."
   ].join("\n"),
   generator: [
@@ -158,13 +176,15 @@ var ROLE_STANCES = {
     "When FEEDBACK is present it is the evaluator's verdict on your previous round. Address every numbered point. Your own previous output is deliberately not shown; re-open your ARTIFACTS from disk if you need them.",
     "You may read, search, write and run as the task requires. Do not narrate.",
     "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`.",
+    "Report in `writesRefused` how many of your writes were refused and in `toolsDenied` how many tool calls were denied to you; 0 when none.",
     "To wait on a long command, run it in the foreground with a timeout, or start it in the background and wait once on its exit status; never loop on `pgrep -f`, which matches itself."
   ].join("\n"),
   evaluator: [
     "You are the evaluator in a generate-and-evaluate loop. Judge the SUBMISSION strictly against the PASS CRITERIA and nothing else.",
     "Read and run whatever you need to verify it (open the artifacts, run the tests). Change nothing on disk.",
     "If a tool needed for a criterion is denied, set blocked=true with a question naming the check that could not run. Never pass a criterion that could not be checked.",
-    "pass=true only when every criterion is met. Otherwise feedback is a numbered list of specific, actionable points with locations, and nothing else."
+    "pass=true only when every criterion is met. Otherwise feedback is a numbered list of specific, actionable points with locations, and nothing else.",
+    "Report in `writesRefused` how many of your writes were refused and in `toolsDenied` how many tool calls were denied to you; 0 when none."
   ].join("\n"),
   judge: [
     "You are the judge. You receive the task and the candidates or debate transcript; you return one verdict in the RETURN shape.",
@@ -175,7 +195,8 @@ var ROLE_STANCES = {
     "You are the reducer. Merge the results in the sections below (fan-out branch results, panel lens feedback, or iterative fan-out rounds) into one answer in the RETURN shape.",
     "A blocked branch, lens or round is a gap: note it in one line, do not redo its work. Prefer the inputs' artifacts over re-deriving anything.",
     "Read artifacts as needed; write a merged artifact if the result exceeds the line limit. Do not narrate.",
-    "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`."
+    "If a write is refused, put the full content in the result and make line 1 `ARTIFACT REFUSED: <path>`.",
+    "Report in `writesRefused` how many of your writes were refused and in `toolsDenied` how many tool calls were denied to you; 0 when none."
   ].join("\n"),
   debater: [
     "You are a debater holding the STANCE below. Argue it with evidence from the task and the codebase, engage the other positions from the PRIOR ROUND directly, and concede any specific point the evidence is against.",
@@ -378,12 +399,15 @@ var TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain",
 // src/topologies/single.ts
 function traceStep(file, lines, argsFile) {
   const clock = argsFile && hasPlaceholder(lines) ? clockSteps(argsFile) : [];
+  const counts = hasRefusalPlaceholder(lines) ? refusalSteps() : [];
+  const asGiven = clock.length || counts.length ? `exactly as given apart from the ${clock.length ? "time " : ""}${clock.length && counts.length ? "and " : ""}${counts.length ? "count " : ""}placeholders` : "exactly as given";
   return {
     title: "TRACE (your final step, after the task is done)",
     body: [
-      `Append the ${lines.length} line(s) between the markers below to the file ${file}, ${clock.length ? "exactly as given apart from the time placeholders" : "exactly as given"}, in order, each terminated by a newline.`,
+      `Append the ${lines.length} line(s) between the markers below to the file ${file}, ${asGiven}, in order, each terminated by a newline.`,
       "Create the directory and the file if they do not exist. Append with a single write; do not read, reorder, reformat or alter any existing line.",
       ...clock,
+      ...counts,
       "<<<TRACE",
       ...lines,
       "TRACE>>>",
@@ -1344,7 +1368,7 @@ async function runDispatch(ctx, raw) {
 }
 
 // src/run.ts
-var PLUGIN_VERSION = "0.4.0+9e1f9f2" ? "0.4.0+9e1f9f2" : "dev";
+var PLUGIN_VERSION = "0.4.0+5c3cfdf" ? "0.4.0+5c3cfdf" : "dev";
 var HARD_AGENT_LIMIT = 1e3;
 function waveOf(id) {
   const m = /^w(\d+)-/.exec(id);
@@ -1394,7 +1418,9 @@ function meteredRuntime(rt) {
     running.add(rec);
     peak = Math.max(peak, running.size);
     try {
-      return await rt.agent(prompt, opts);
+      const out = await rt.agent(prompt, opts);
+      Object.assign(rec, refusalsOf(out));
+      return out;
     } finally {
       running.delete(rec);
       const after = spent();
@@ -1403,10 +1429,33 @@ function meteredRuntime(rt) {
   };
   const agents = () => recs.map((r) => {
     const delta = !r.overlapped && r.before !== void 0 && r.after !== void 0 ? r.after - r.before : void 0;
-    return delta !== void 0 && delta >= 0 ? { role: r.role, output_tokens: delta } : { role: r.role };
+    return {
+      role: r.role,
+      ...delta !== void 0 && delta >= 0 ? { output_tokens: delta } : {},
+      ...r.writes_refused !== void 0 ? { writes_refused: r.writes_refused } : {},
+      ...r.tools_denied !== void 0 ? { tools_denied: r.tools_denied } : {}
+    };
   });
   return { runtime: { ...rt, agent }, agents, concurrency: () => peak };
 }
+function count(v) {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : void 0;
+}
+function refusalsOf(out) {
+  if (!out || typeof out !== "object") return {};
+  const o = out;
+  const w = count(o["writesRefused"]);
+  const t = count(o["toolsDenied"]);
+  return { ...w !== void 0 ? { writes_refused: w } : {}, ...t !== void 0 ? { tools_denied: t } : {} };
+}
+function refusalTotals(agents) {
+  const sum = (k) => {
+    const xs = agents.map((a) => a[k]).filter((n) => n !== void 0);
+    return xs.length ? { [k]: xs.reduce((a, b) => a + b, 0) } : {};
+  };
+  return { ...sum("writes_refused"), ...sum("tools_denied") };
+}
+var REFUSAL_PLACEHOLDERS = { writes_refused: WRITES_REFUSED_PLACEHOLDER, tools_denied: TOOLS_DENIED_PLACEHOLDER };
 function withSource(h) {
   const { source, ...rest } = h;
   const s = source === "self" || source === "human" ? source : h.mode === "autonomous" ? "self" : h.mode === "attended" ? "human" : void 0;
@@ -1437,7 +1486,7 @@ async function runWorkflow(args, rt) {
   const meter = meteredRuntime(rt);
   const ctx = { rt: meter.runtime, artifactDir: scratch, wave, stageEvents: [] };
   if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
-    ctx.selfTrace = { id, file: traceFileOf(scratch, id), argsFile: argsFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1 }) };
+    ctx.selfTrace = { id, file: traceFileOf(scratch, id), argsFile: argsFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1, ...REFUSAL_PLACEHOLDERS }) };
   }
   let result;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
@@ -1445,12 +1494,15 @@ async function runWorkflow(args, rt) {
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
   const dropped = ctx.dropped ?? 0;
   if (dropped > 0) rt.log(`${id}: cuts dropped ${dropped} line(s)`);
-  const fields = { agents: meter.agents(), demand, concurrency: meter.concurrency(), ...traceDetail(ctx, id, dropped) };
+  const agents = meter.agents();
+  const refusals = refusalTotals(agents);
+  if (Object.keys(refusals).length) rt.log(`${id}: ${refusals.writes_refused ?? "?"} write(s) refused, ${refusals.tools_denied ?? "?"} tool(s) denied`);
+  const fields = { agents, demand, concurrency: meter.concurrency(), ...traceDetail(ctx, id, dropped), ...refusals };
   const lines = linesOf(result, ctx.stageEvents, fields);
   const self = ctx.selfTrace;
   if (self && (self.appended ?? 0) > 0) {
-    const { dropped: _cut, ...unknowable } = fields;
-    const rolesOnly = linesOf(result, ctx.stageEvents, { ...unknowable, agents: fields.agents.map((a2) => ({ role: a2.role })) });
+    const { dropped: _cut, writes_refused: _w, tools_denied: _t, ...unknowable } = fields;
+    const rolesOnly = linesOf(result, ctx.stageEvents, { ...unknowable, agents: fields.agents.map((a2) => ({ role: a2.role })), ...REFUSAL_PLACEHOLDERS });
     if (self.lines.join("\n") === rolesOnly.join("\n")) {
       if (self.appended !== rolesOnly.length) rt.log(`${id}: worker reported ${self.appended} trace line(s) appended, expected ${rolesOnly.length}`);
       rt.log(`STATUS ${result.status}`);
