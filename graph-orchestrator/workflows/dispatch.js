@@ -967,9 +967,9 @@ async function branchRound(ctx, spec, round, rounds, split, width) {
   const branches = await branchStep(ctx, spec, tasks, { branchReturns: contractOf(spec), workerEntry, context, label: (i, n, task) => ({ role: "worker", round, rounds, index: i, count: n, task }), kind: "an iterative fan-out round" });
   return { ok: true, tasks, branches };
 }
-function findingsText(findings, full) {
+function findingsText(findings) {
   return findings.map((f) => `round ${f.round} branch ${f.index} (${f.status}) \u2014 ${f.task}
-${f.status === "done" ? `${full ? f.result : firstLine(f.result)}
+${f.status === "done" ? `${f.result}
 artifacts: ${f.artifacts.length ? f.artifacts.join(", ") : "none"}` : `GAP: ${f.question ?? f.result}`}`).join("\n\n");
 }
 async function runIterativeFanOut(ctx, spec) {
@@ -1000,7 +1000,7 @@ async function runIterativeFanOut(ctx, spec) {
     if (round === 1 && !step.branches.some((b) => b.status === "done")) return noBranchFinished(spec, step.branches, returns.maxLines);
     for (const t of step.tasks) ran.add(norm(t));
     findings.push(...step.branches.map((b) => ({ ...b, round, index: b.index + 1 })));
-    const body = findingsText(findings, false);
+    const body = findingsText(findings);
     const ev = await callRole(
       ctx,
       spec,
@@ -1036,7 +1036,7 @@ async function runIterativeFanOut(ctx, spec) {
     if (fresh.length > width) ctx.rt.log(`${spec.id}: round ${round + 1} keeps ${width} of ${fresh.length} gap sub-tasks; dropped: ${fresh.slice(width).join("; ")}`);
     split = fresh.slice(0, width);
   }
-  const sections = [{ title: "BRANCH RESULTS", body: findingsText(findings, true) }];
+  const sections = [{ title: "BRANCH RESULTS", body: findingsText(findings) }];
   if (!passed) sections.push({ title: "OPEN GAPS", body: openGaps.length ? openGaps.map((g) => `- ${g}`).join("\n") : "(the evaluator named none)" });
   const red = await callRole(
     ctx,
