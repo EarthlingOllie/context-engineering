@@ -1,6 +1,6 @@
 {
   "id": "04-generator-evaluator-false-pass",
-  "description": "generator-evaluator on the TypeScript fixture with vague pass criteria over a planted bug the obviously relevant tests miss: correct only when the hidden test passes; done while it fails is a false pass (QUA-01)",
+  "description": "generator-evaluator on the TypeScript fixture with vague pass criteria (\"The relevant tests pass.\", the wording the catalog forbids) over a planted bug the obviously relevant tests miss: the vague-criteria guard, which must not false-pass; correct only when the hidden test passes; done while it fails is a false pass (QUA-01). Its countable-criteria twin is 16-generator-evaluator-countable-criteria",
   "fixture": "typescript",
   "expected_status": "done",
   "args": {

@@ -12,7 +12,7 @@ from pathlib import Path
 import contextlib
 import io
 
-from compare import Mismatch, compare, main
+from compare import Mismatch, compare, main, revisions
 
 CARDS = Path(__file__).resolve().parent / "saved" / "scorecards"
 
@@ -136,3 +136,53 @@ class Command(unittest.TestCase):
             code, out, _ = self.run_main(CARDS / "base-1-epoch.json", p, "--force")
             self.assertEqual(code, 0)
             self.assertIn("WARNING", out)
+
+
+def _rows(sample: str, n: int, **kw) -> list[dict]:
+    base = card("base-3-epochs")["rows"][0]
+    return [{**base, "sample": sample, "epoch": e, **kw} for e in range(1, n + 1)]
+
+
+class SamplesWithoutABaseline(unittest.TestCase):
+    """A sample added or revised after the baseline was frozen is reported, never gated against a stale baseline."""
+
+    def test_a_new_sample_is_reported_with_its_counts_and_not_compared(self):
+        fix = card("fix-3-epochs")
+        fix["rows"] += _rows("16-new", 3, outcome_correct=False, reported_status="done")
+        result = compare(card("base-3-epochs"), fix)
+        self.assertFalse([m for m in result["lines"] if m["sample"] == "16-new"])
+        self.assertEqual(result["only_in_fix"], ["16-new"])
+        self.assertEqual(result["no_baseline"], [{"sample": "16-new", "reason": "new", "epochs": 3,
+                                                  "outcome_correct": 0, "false_pass": 3, "status_truthful": 3}])
+
+    def test_revisions_default_to_1_for_every_sample_in_a_card_that_records_none(self):
+        self.assertEqual(revisions(card("base-3-epochs")), {"01-single-docs": 1})
+
+    def test_a_sample_revised_since_the_baseline_is_reported_with_its_counts_and_not_compared(self):
+        fix = card("fix-3-epochs")
+        fix["header"]["sample_revisions"] = {"01-single-docs": 2}
+        result = compare(card("base-3-epochs"), fix)
+        self.assertFalse(result["lines"])
+        self.assertEqual(result["no_baseline"], [{"sample": "01-single-docs", "reason": "revised (baseline r1, fix r2)", "epochs": 3,
+                                                  "outcome_correct": 3, "false_pass": 0, "status_truthful": 3}])
+
+    def test_the_same_revision_on_both_sides_is_compared_as_before(self):
+        base, fix = card("base-3-epochs"), card("fix-3-epochs")
+        base["header"]["sample_revisions"] = fix["header"]["sample_revisions"] = {"01-single-docs": 2}
+        result = compare(base, fix)
+        self.assertEqual(result["no_baseline"], [])
+        self.assertTrue(result["lines"])
+
+    def test_the_command_says_which_samples_need_a_fresh_baseline(self):
+        import tempfile
+        fix = card("fix-3-epochs")
+        fix["rows"] += _rows("16-new", 3)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "fix.json"
+            p.write_text(json.dumps(fix))
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = main([str(CARDS / "base-3-epochs.json"), str(p)])
+        self.assertEqual(code, 0)
+        self.assertIn("not gated (no baseline at this revision; freeze a fresh baseline epoch before gating on it)", out.getvalue())
+        self.assertIn("| 16-new | new | 3/3 | 0/3 | 3/3 |", out.getvalue())

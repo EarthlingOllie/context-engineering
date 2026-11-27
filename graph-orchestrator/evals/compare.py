@@ -10,6 +10,13 @@ Outcome correctness, status truthfulness and false passes compare as counts over
 epochs ("2/3" against "3/3"), never as averages, and every change in a count is
 reported. Scorecards whose engine version, Inspect version or model differ are
 refused unless --force is given.
+
+A sample with no baseline at its revision (new since the baseline, or its
+`revision` in the fix's header `sample_revisions` differs from the baseline's;
+a card that records none has every sample at revision 1) is not compared: it is
+listed under "not gated" with its own counts, so it can never read as a
+regression against a baseline that ran a different sample. Freeze a fresh
+baseline epoch before gating on it.
 """
 
 from __future__ import annotations
@@ -65,13 +72,23 @@ def _count(rows: list[dict], metric: str) -> int:
     return sum(bool(r.get(metric)) for r in rows)
 
 
+def revisions(card: dict) -> dict[str, int]:
+    """Each sample's revision as the card records it (header `sample_revisions`); 1 for a sample it does not name."""
+    recorded = (card.get("header") or {}).get("sample_revisions") or {}
+    return {s: int(recorded.get(s, 1)) for s in _by_sample(card)}
+
+
+def _report_only(sample: str, reason: str, rows: list[dict]) -> dict:
+    return {"sample": sample, "reason": reason, "epochs": len(rows), **{m: _count(rows, m) for m in COUNTED}}
+
+
 def mismatches(base: dict, fix: dict) -> list[str]:
     hb, hf = base["header"], fix["header"]
     return [f"{k}: {hb.get(k)!r} vs {hf.get(k)!r}" for k in MUST_MATCH if hb.get(k) != hf.get(k)]
 
 
 def compare(base: dict, fix: dict, *, force: bool = False) -> dict:
-    """Return {"mismatches", "lines", "only_in_baseline", "only_in_fix"}; raise Mismatch unless force."""
+    """Return {"mismatches", "lines", "only_in_baseline", "only_in_fix", "no_baseline"}; raise Mismatch unless force."""
     diffs = mismatches(base, fix)
     if diffs and not force:
         raise Mismatch(
@@ -80,8 +97,16 @@ def compare(base: dict, fix: dict, *, force: bool = False) -> dict:
             + "\npass --force to compare them anyway"
         )
     bs, fs = _by_sample(base), _by_sample(fix)
+    brev, frev = revisions(base), revisions(fix)
     lines: list[dict] = []
-    for sample in [s for s in bs if s in fs]:
+    no_baseline: list[dict] = []
+    for sample in fs:
+        if sample not in bs:
+            no_baseline.append(_report_only(sample, "new", fs[sample]))
+        elif brev[sample] != frev[sample]:
+            no_baseline.append(_report_only(sample, f"revised (baseline r{brev[sample]}, fix r{frev[sample]})", fs[sample]))
+    skip = {n["sample"] for n in no_baseline}
+    for sample in [s for s in bs if s in fs and s not in skip]:
         brows, frows = bs[sample], fs[sample]
         for metric in COUNTED:
             b, f = _count(brows, metric), _count(frows, metric)
@@ -110,6 +135,7 @@ def compare(base: dict, fix: dict, *, force: bool = False) -> dict:
         "lines": lines,
         "only_in_baseline": [s for s in bs if s not in fs],
         "only_in_fix": [s for s in fs if s not in bs],
+        "no_baseline": no_baseline,
     }
 
 
@@ -143,6 +169,12 @@ def render(result: dict, base: dict, fix: dict) -> str:
         out.append(f"\nonly in baseline: {s}")
     for s in result["only_in_fix"]:
         out.append(f"\nonly in fix: {s}")
+    if result.get("no_baseline"):
+        out += ["", "not gated (no baseline at this revision; freeze a fresh baseline epoch before gating on it)", "",
+                "| sample | why | outcome_correct | false_pass | status_truthful |", "|---|---|---|---|---|"]
+        for n in result["no_baseline"]:
+            e = n["epochs"]
+            out.append(f"| {n['sample']} | {n['reason']} | {n['outcome_correct']}/{e} | {n['false_pass']}/{e} | {n['status_truthful']}/{e} |")
     return "\n".join(out) + "\n"
 
 

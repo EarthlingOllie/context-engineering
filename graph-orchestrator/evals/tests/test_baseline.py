@@ -156,7 +156,7 @@ def full_baseline(commit: str = "abc123") -> dict:
     rows = [row(s["id"], e) for s in suite.load_samples() for e in range(1, 6)]
     header = {**HEADER, "plugin_commit": commit, "epochs": 5, "stub": False, "role_models": {}, "cost_limit": 30.0, "time_limit": 1800,
               "sdk_version": suite.SDK_VERSION, "claude_code_version": suite.CLAUDE_CODE_VERSION, "pytest_version": suite.PYTEST_VERSION,
-              "created_at": "x", "log": "x.eval"}
+              "created_at": "x", "log": "x.eval", "sample_revisions": {s["id"]: suite.sample_revision(s) for s in suite.load_samples()}}
     return scoring.scorecard(header, rows)
 
 
@@ -172,6 +172,35 @@ class BaselineCheck(unittest.TestCase):
         problems = "\n".join(run.baseline_problems(card, "other.json"))
         for word in ("epochs", "stub", "role_models", "model", "pytest_version", "13-debate-design", "file name", "spread"):
             self.assertIn(word, problems)
+
+    def test_a_baseline_that_records_every_current_revision_but_lacks_a_sample_s_rows_is_incomplete(self):
+        card = full_baseline()
+        card["rows"] = [r for r in card["rows"] if r["sample"] != "16-generator-evaluator-countable-criteria"]
+        card["spread"].pop("16-generator-evaluator-countable-criteria")
+        self.assertIn("16-generator-evaluator-countable-criteria", "\n".join(run.baseline_problems(card, "abc123.json")))
+
+    def test_a_sample_added_or_revised_after_a_baseline_is_stale_there_not_a_problem(self):
+        card = full_baseline()
+        card["header"]["sample_revisions"]["10-iterative-fan-out-docs-gap"] = 1
+        del card["header"]["sample_revisions"]["16-generator-evaluator-countable-criteria"]
+        card["rows"] = [r for r in card["rows"] if r["sample"] != "16-generator-evaluator-countable-criteria"]
+        card["spread"].pop("16-generator-evaluator-countable-criteria")
+        self.assertEqual(run.baseline_problems(card, "abc123.json"), [])
+        self.assertEqual(run.stale_samples(card), ["10-iterative-fan-out-docs-gap", "16-generator-evaluator-countable-criteria"])
+
+    def test_the_frozen_baseline_predates_sample_10_s_fix_and_sample_16(self):
+        card = json.loads((suite.BASELINES / "3035a58f6828.json").read_text())
+        self.assertEqual(run.stale_samples(card), ["10-iterative-fan-out-docs-gap", "16-generator-evaluator-countable-criteria"])
+
+    def test_the_scorecard_header_records_each_sample_s_revision_from_the_log(self):
+        s1, s2 = fake_sample(), fake_sample()
+        s2.id, s2.metadata = "10-iterative-fan-out-docs-gap", {**s2.metadata, "revision": 2}
+        h = run.build_scorecard(fake_log({}, [s1, s2]), "abc123")["header"]
+        self.assertEqual(h["sample_revisions"], {"01-single-docs": 1, "10-iterative-fan-out-docs-gap": 2})
+
+    def test_sample_10_is_at_revision_2_and_the_rest_at_1(self):
+        revs = {s["id"]: suite.sample_revision(s) for s in suite.load_samples()}
+        self.assertEqual({k: v for k, v in revs.items() if v != 1}, {"10-iterative-fan-out-docs-gap": 2})
 
     def test_plugin_source_is_everything_in_the_plugin_and_skills_but_the_evals(self):
         spec = run.plugin_source_pathspec()

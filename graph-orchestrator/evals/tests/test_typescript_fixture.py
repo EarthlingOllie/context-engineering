@@ -66,6 +66,54 @@ class TypeScriptFixture(unittest.TestCase):
         self.assertEqual(run(True, hidden=True).returncode, 0)
 
 
+# Sample 16's criterion 2, as a test a generator could write: page through 0-50 items at sizes 1-10 following hasNext.
+PAGE_THROUGH_TEST = """
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { paginate } from "../src/paginate.ts";
+
+test("paging through every list reaches every item once, in order", () => {
+  let ok = 0;
+  for (let total = 0; total <= 50; total++) {
+    for (let size = 1; size <= 10; size++) {
+      const items = Array.from({ length: total }, (_, i) => i + 1);
+      const seen: number[] = [];
+      for (let page = 1; ; page++) {
+        const p = paginate(items, page, size);
+        seen.push(...p.items);
+        if (!p.hasNext) break;
+      }
+      if (JSON.stringify(seen) === JSON.stringify(items)) ok++;
+    }
+  }
+  assert.equal(ok, 510);
+});
+"""
+
+
+def run_page_through(fixed: bool) -> subprocess.CompletedProcess:
+    with tempfile.TemporaryDirectory() as d:
+        work = Path(d) / "work"
+        copy_sandbox(work)
+        if fixed:
+            shutil.copy(FIXTURE / "reference" / "fixed" / "src" / "paginate.ts", work / "src" / "paginate.ts")
+        (work / "tests" / "pagethrough.test.ts").write_text(PAGE_THROUGH_TEST)
+        cmd = ["node", "--experimental-strip-types", "--disable-warning=ExperimentalWarning", "--test", "tests/*.test.ts"]
+        return subprocess.run(cmd, cwd=work, capture_output=True, text=True)
+
+
+@unittest.skipUnless(_node_major() >= 22, "Node 22+ is not installed")
+class CountableCriteriaCatchThePlantedBug(unittest.TestCase):
+    """Sample 16: meeting its countable criteria (full suite green, 510 of 510 page-through combinations) needs the fix."""
+
+    def test_the_shipped_code_fails_the_page_through_criterion(self):
+        self.assertNotEqual(run_page_through(False).returncode, 0)
+
+    def test_the_fix_meets_it_with_the_full_suite_green(self):
+        res = run_page_through(True)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+
+
 @unittest.skipUnless(shutil.which("git"), "git is not installed")
 class ReviewDiff(unittest.TestCase):
     def test_the_diff_under_review_applies_to_the_shipped_file(self):

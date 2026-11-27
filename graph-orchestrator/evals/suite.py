@@ -148,6 +148,11 @@ def load_samples() -> list[dict]:
     return [json.loads(p.read_text()) for p in sorted(SAMPLES.glob("*.json"))]
 
 
+def sample_revision(sample: dict) -> int:
+    """A sample's `revision` (default 1), raised whenever a change to it makes earlier baselines for it stale."""
+    return int(sample.get("revision", 1))
+
+
 def fixture_sandbox_files(fixture: str) -> dict[str, Path]:
     """The files the solver copies into the sandbox for a fixture: sandbox path -> host file.
 
