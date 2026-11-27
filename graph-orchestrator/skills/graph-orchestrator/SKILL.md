@@ -15,7 +15,7 @@ You are the orchestrator. Your context window is the budget; you spend it on jud
 Four exceptions, and only these:
 
 1. You read the catalog once, at kickoff.
-2. You write the state file and each dispatch's args file (and nothing else) with the Write tool, rewriting the state file in place, and read one back only to resume its dispatch.
+2. You write the state file, the brief file and each dispatch's args file (and nothing else) with the Write tool, rewriting the state file in place, and read one back only to resume its dispatch.
 3. You run one shell command, once, at session end: the trace renderer.
 4. You run one shell command, once, at kickoff: the copy of the plugin's workflows into `SCRATCH` (see Kickoff).
 
@@ -34,7 +34,7 @@ The task is `$ARGUMENTS`. Parse the trailing flags; everything before them is th
 
 **Mode.** From the flag; else ask once ("attended or autonomous?") when someone is there to answer; else autonomous. A scheduled or unattended run must never stall on this question, so when nobody can answer, it is autonomous. Record the mode in the state file; it must survive compaction.
 
-**Scratch directory.** The scratchpad directory your environment names, if any; else `/workspace/tmp/<task-slug>/`. Call it `SCRATCH`. It holds `state.md`, `args/` (one `<id>.json` per launched dispatch), `trace/` (one `<id>.jsonl` per dispatch), `session.mmd` and every artifact the workers write. Pass it to every dispatch as `scratch`; the workers create it.
+**Scratch directory.** The scratchpad directory your environment names, if any; else `/workspace/tmp/<task-slug>/`. Call it `SCRATCH`. It holds `state.md`, `brief.md`, `args/` (one `<id>.json` per launched dispatch), `trace/` (one `<id>.jsonl` per dispatch), `session.mmd` and every artifact the workers write. Pass it to every dispatch as `scratch`; the workers create it.
 
 **Workflows.** Copy the plugin's workflows into the scratch directory, once, before wave 1:
 
@@ -48,7 +48,9 @@ Every wrapper launches `SCRATCH/plugin/workflows/dispatch.js`. The harness refus
 
 **Ambiguity (trigger 1).** If the task can be read two ways and the readings would give wave 1 a different shape, ask in attended mode; in autonomous mode pick the reading most consistent with the repository, record it under DECISIONS, and continue.
 
-Then write the state file and plan wave 1.
+**Brief file.** Standing rules (branch policy, test rules, authorisations, attribution lines) go once into `SCRATCH/brief.md` at kickoff, one line each, and each spec's `context` carries the line `brief: SCRATCH/brief.md` instead of the rules themselves; the workers read it. A rule that changes mid-session is rewritten there, not pasted into the next spec. Never put a credential in `context`, the brief file or the state file; name the file or variable that holds it (`the demo logins are in .env.test`), so secrets stay out of workflow inputs and transcripts.
+
+Then write the brief file and the state file, and plan wave 1.
 
 ## The state file: `SCRATCH/state.md`
 
@@ -93,10 +95,10 @@ From the state file alone. Up to `--dispatches` dispatch specs, ids `w<wave>-d<n
 - **topology** — from the catalog. One pass: `single`. Review until it passes: `generator-evaluator`. Independent parts at once: `fan-out`. Ordered stages: `chain`. One deliverable too big for one context, built session by session: `relay`. Several viable approaches, pick one: `best-of-n`. Research whose gaps show only after a pass: `iterative-fan-out`. Several independent reviews, one pass/fail: `panel`. A contested decision, as a verdict: `debate`. Prefer one dispatch whose topology holds the loop over several dispatches you would loop yourself.
 - **title** — what the dispatch is for, in two to six plain words ("Add the HTTP retry policy", "Map trace file access"). It names the dispatch's workflow, after its topology (`Fan-out: Map trace file access`), so whoever watches sees the wave as its goals; it heads the dispatch's node in the diagram. No quotes, backslashes or newlines.
 - **task** — one imperative sentence stating what done looks like.
-- **context** — only KNOWN lines the worker cannot derive from disk: a decision you made, a hypothesis a worker ruled out, a path an earlier dispatch returned. Cut anything findable by grep: conventions, ports, versions, file listings. If `context` is longer than `task`, you are pasting your window into the prompt.
+- **context** — only KNOWN lines the worker cannot derive from disk: a decision you made, a hypothesis a worker ruled out, a path an earlier dispatch returned. Cut anything findable by grep: conventions, ports, versions, file listings. If `context` is longer than `task`, you are pasting your window into the prompt. Standing rules are not context lines: they live in the brief file, which `context` names.
 - **roles** — per role, the skill that supplies the domain (`tdd`, `code-review`, …) and the task-specific instructions. Name skills; never paste their text.
 - **params** — as the catalog narrows them.
-- **returns** — the contract: `shape` (what the lines are) and `maxLines` (≤ 20, usually 1–6). Results come back inline and cut to this; size it so you can decide without opening anything. Anything longer is an artifact path.
+- **returns** — the contract: `shape` (what the lines are) and `maxLines`. `maxLines` defaults to 4; above 8 needs a reason, recorded under DECISIONS (the code ceiling is 20). Every result lands in your window, so keep it small. Results come back inline and cut to this; size it so you can decide without opening anything. Anything longer is an artifact path.
 - **dependsOn** — ids of dispatches from earlier waves whose results this one builds on. Forward their artifact paths in `context`, not their prose. The dispatches of one wave run as separate workflows and cannot wait on each other: a dispatch that names a same-wave id is `failed` unrun. Steps that must happen in order within a wave are one `chain`. **Pre-launch check:** before any launch, every `dependsOn` id must be in a lower-numbered wave; if one is not, move the dispatch to the next wave or make the pair one `chain`. `dependsOn` is never cleared to pass the check: the edge is the diagram's record of what built on what.
 
 Hard to reverse (deleting, pushing, anything with an external side effect)? **Trigger 4: ask first, in both modes.** Tell the roles in `instructions` what they are not authorised to do.
@@ -149,6 +151,15 @@ A wave is a launch batch, not a barrier (ADR-0006). When a dispatch returns, int
 
 **Budgets (trigger 5).** Budgets count launches. Before any launch, rolling ones included, that would take a wave number past `--waves`, or a wave wider than `--dispatches`: attended, ask; autonomous, record the overrun under DECISIONS and stop with what you have. A budget stop with a failing review ends with one `single` that reads the review artifact and returns its blocking items in at most 6 lines; that one dispatch is the only launch allowed past the budget, and its lines go in the final reply.
 
+### Asking
+
+Every ask (triggers 1 to 5) follows two rules, so that a slow answer does not idle the session:
+
+1. Before asking, launch every FRONTIER dispatch that does not depend on the answer, as **Rolling launches** says (pre-launch check, state file, args file, dispatch line), and only then ask. For a design question, dispatch first the parts the answer does not change.
+2. Ask with options with a recommended default: two to four concrete choices, the one you would pick named first and marked as recommended, with one line on why. A yes/no question names the default too.
+
+While the answer is pending, integrate results and roll ready work as usual; the only items that wait are those that depend on the answer.
+
 ### Human interventions and the trace
 
 Every time you ask (or, in autonomous mode, record a best guess for triggers 1, 3, 5), it is an intervention. Record it so the diagram shows where you were consulted:
@@ -164,10 +175,10 @@ Every time you ask (or, in autonomous mode, record a best guess for triggers 1, 
 When FRONTIER is empty (or a budget stop), render the session, in both modes:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/render-trace.js SCRATCH/trace --out SCRATCH/session.mmd [--human '<json>' ...]
+node ${CLAUDE_PLUGIN_ROOT}/scripts/render-trace.js SCRATCH/trace --out SCRATCH/session.mmd [--human '<json>' ...] > /dev/null
 ```
 
-It reads every dispatch's trace file in order, prints the Mermaid diagram and saves it. Your final reply is: the UNVERIFIED items first, each with its artifact paths and why no evaluator passed it; then STATUS in one line; the artifacts, by path; the DECISIONS that need the human's eyes; the diagram, verbatim, in a ```mermaid block. Nothing else.
+It reads every dispatch's trace file in order and saves the Mermaid diagram; the redirect keeps the diagram's text out of your window (errors still show). Never open the saved file. Your final reply is: the UNVERIFIED items first, each with its artifact paths and why no evaluator passed it; then STATUS in one line, opening a summary of at most 3 lines; the artifacts, by path; the DECISIONS that need the human's eyes. With it, send `SCRATCH/session.mmd` as a file (the file-sending tool your environment offers; else name its path), never its text. Nothing else.
 
 ## Rationalizations
 
@@ -179,11 +190,13 @@ It reads every dispatch's trace file in order, prints the Mermaid diagram and sa
 | "I'll pass the whole result on to the next dispatch" | Pass the artifact path. Prose through you is context spent twice. |
 | "Append this wave to state.md so nothing is lost" | What you would delete was already false. Rewrite. |
 | "Drop its `dependsOn` so it can launch now" | The edge is the diagram's record. Move it to the next wave, or make the pair one `chain`. |
+| "I'll put the branch rules in this spec too, to be safe" | They are in the brief file. Name it in `context`; a rule pasted twice drifts. |
+| "I'll ask now and launch the rest once they answer" | The answer may take hours. Launch everything that does not depend on it first, then ask with a recommended default. |
 | "A 20-line result is fine" | If you need 20 lines to decide, the contract is wrong. Ask for the verdict and the one piece of evidence that would kill it. |
 
 ## Red flags — stop
 
-- You are about to call Read, Grep, Glob, Edit, Write or Bash on anything but the catalog, `state.md`, a dispatch's args file, or the renderer.
+- You are about to call Read, Grep, Glob, Edit, Write or Bash on anything but the catalog, `state.md`, `brief.md`, a dispatch's args file, or the renderer.
 - You know what a source file contains.
 - You are drafting a dispatch with more `context` lines than the task needs.
 - You are planning a wave from anything other than the state file.
