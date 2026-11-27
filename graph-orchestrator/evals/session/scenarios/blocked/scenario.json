@@ -1,0 +1,14 @@
+{
+  "id": "blocked-to-unverified",
+  "scorer": "blocked",
+  "task": "task.md",
+  "fixture": "repo",
+  "mode": "autonomous",
+  "scratch": "/work/scratch",
+  "topology": "generator-evaluator",
+  "check": "semgrep",
+  "artifact_hints": ["test/slug.test.js", "src/slug.js"],
+  "hooks": {},
+  "hook_files": {},
+  "permissions": {}
+}

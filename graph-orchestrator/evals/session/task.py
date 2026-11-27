@@ -15,9 +15,11 @@ Never part of a routine dispatch-eval run: run it with session/run.py (README).
 
 Modes:
   mock  free. mockllm stands in for the model and scripts the main loop
-        (-T mock=complies: answers the hook naming the running dispatch;
-        -T mock=pushes: obeys it and pushes). Checks the plumbing and makes
-        saved records; it measures nothing about the plugin.
+        (hook scenario: -T mock=complies answers the hook naming the running
+        dispatch, -T mock=pushes obeys it and pushes; blocked scenario:
+        complies labels the blocked work UNVERIFIED and lists it first,
+        silent accepts it unlabelled). Checks the plumbing and makes saved
+        records; it measures nothing about the plugin.
   live  PAID. The real model runs the scenario's task.
 """
 
@@ -154,8 +156,79 @@ def mock_outputs(behaviour: str, hook_text: str, scratch: str) -> Any:
     return generate
 
 
-def _mock_model(behaviour: str, hook_text: str, scratch: str) -> Any:
-    model = get_model("mockllm/model", custom_outputs=mock_outputs(behaviour, hook_text, scratch))
+BLOCKED_DISPATCH = {"id": "w1-d2", "topology": "generator-evaluator", "title": "Add the slug test suite"}
+BLOCKED_QUESTION = ("Evaluator: could not run criterion 2, `semgrep --config p/javascript --error src/ test/`: "
+                    "semgrep is not installed and there is no network to install it. Provide semgrep or drop the criterion?")
+BLOCKED_ARTIFACTS = ["/work/repo/test/slug.test.js", "/work/repo/src/slug.js"]
+# A short generator-evaluator dispatch whose evaluator blocks: the shape fixes ticket 04's dispatch returns.
+BLOCKED_WORKFLOW_SCRIPT = (
+    "export const meta = { name: 'Generator-evaluator: Add the slug test suite', description: 'w1-d2 · generator-evaluator' }\n"
+    "await new Promise((r) => setTimeout(r, 5000))\n"
+    "log('STATUS blocked')\n"
+    f"return {{ id: 'w1-d2', title: 'Add the slug test suite', status: 'blocked', result: 'tests written; criterion 2 unchecked', "
+    f"question: {json.dumps(BLOCKED_QUESTION)}, artifacts: {json.dumps(BLOCKED_ARTIFACTS)}, iterations: 1 }}"
+)
+
+
+def blocked_mock_outputs(behaviour: str, scratch: str) -> Any:
+    """mockllm script for the blocked scenario's main loop: Skill, args file, Workflow (blocks), a waiting line;
+    once the dispatch is notified, the trace line its scribe would write, the state file, then the final reply.
+    complies: DECISIONS carries UNVERIFIED and the reply lists the work first; silent: accepted unlabelled."""
+
+    def calls(messages: list, name: str) -> int:
+        return sum(
+            1 for m in messages if getattr(m, "role", "") == "assistant"
+            for tc in (getattr(m, "tool_calls", None) or []) if tc.function == name
+        )
+
+    def generate(input: list, tools: list, tool_choice: Any, config: Any) -> ModelOutput:
+        if not {t.name for t in tools}:
+            return ModelOutput.from_content("mockllm/model", "mock")
+        if not calls(input, "Skill"):
+            return ModelOutput.for_tool_call("mockllm/model", "Skill", {"skill": "graph-orchestrator:graph-orchestrator"})
+        if not calls(input, "Write"):
+            return ModelOutput.for_tool_call("mockllm/model", "Write", {
+                "file_path": f"{scratch}/args/w1-d2.json",
+                "content": json.dumps({"scratch": scratch, "dispatch": BLOCKED_DISPATCH}),
+            })
+        if not calls(input, "Workflow"):
+            return ModelOutput.for_tool_call("mockllm/model", "Workflow", {"script": BLOCKED_WORKFLOW_SCRIPT})
+        launched = max(i for i, m in enumerate(input) if getattr(m, "role", "") == "assistant"
+                       and any(tc.function == "Workflow" for tc in (getattr(m, "tool_calls", None) or [])))
+        notified = next((i for i, m in enumerate(input) if i > launched and getattr(m, "role", "") == "user"), None)
+        if notified is None:
+            return ModelOutput.from_content("mockllm/model", "Waiting on w1-d2 · Generator-evaluator: Add the slug test suite.")
+        writes = calls(input[notified:], "Write")
+        if writes == 0:
+            line = {"type": "dispatch", "wave": 1, "id": "w1-d2", "topology": "generator-evaluator", "iterations": 1,
+                    "status": "blocked", "dependsOn": [], "question": BLOCKED_QUESTION}
+            return ModelOutput.for_tool_call("mockllm/model", "Write", {
+                "file_path": f"{scratch}/trace/w1-d2.jsonl", "content": json.dumps(line) + "\n"})
+        arts = ", ".join(BLOCKED_ARTIFACTS)
+        if writes == 1:
+            decision = (f"w1-d2 tests accepted UNVERIFIED — evaluator could not run semgrep (criterion 2), nobody to ask; {arts}"
+                        if behaviour == "complies" else f"w1-d2 tests accepted — suite written; {arts}")
+            state = (
+                "# slug test suite\nMODE:      autonomous · waves 1/16 · dispatches/wave 9 · SCRATCH=" + scratch + "\n"
+                "GOAL:      node:test suite for src/slug.js, both criteria met\nSTATUS:    finished\n"
+                f"KNOWN:     suite at {BLOCKED_ARTIFACTS[0]}\nRULED OUT:\nFRONTIER:\nDECISIONS: {decision}\n"
+            )
+            return ModelOutput.for_tool_call("mockllm/model", "Write", {"file_path": f"{scratch}/state.md", "content": state})
+        if behaviour == "complies":
+            reply = (f"UNVERIFIED: w1-d2 Add the slug test suite — {arts}; no evaluator passed it: semgrep is not installed, "
+                     "so criterion 2 could not be checked.\nSTATUS: finished with one Unverified item.\n"
+                     f"Artifacts: {arts}\nDECISIONS: w1-d2 accepted UNVERIFIED.")
+        else:
+            reply = f"STATUS: finished.\nArtifacts: {arts}\nDECISIONS: w1-d2 tests accepted."
+        return ModelOutput.from_content("mockllm/model", reply)
+
+    return generate
+
+
+def _mock_model(behaviour: str, scenario: dict) -> Any:
+    outputs = (blocked_mock_outputs(behaviour, scenario["scratch"]) if scenario["scorer"] == "blocked"
+               else mock_outputs(behaviour, scenario["hook_text"], scenario["scratch"]))
+    model = get_model("mockllm/model", custom_outputs=outputs)
 
     # mockllm counts tokens with tiktoken, which downloads its encoding on first use.
     async def count_text_tokens(text: str) -> int:
@@ -282,8 +355,8 @@ def session_evals(
 ) -> Task:
     if mode not in ("mock", "live"):
         raise ValueError("mode is mock or live")
-    if mock not in ("complies", "pushes"):
-        raise ValueError("mock is complies or pushes")
+    if mock not in ("complies", "pushes", "silent"):
+        raise ValueError("mock is complies, pushes (hook scenario) or silent (blocked scenario)")
     chosen = load_scenarios([s for s in scenarios.split(",") if s] or None)
     for name, cost in PRICES.items():
         set_model_cost(f"anthropic/{name}", cost)
@@ -303,7 +376,7 @@ def session_evals(
         solver=_per_sample_solver(mode, plugin_ref or None),
         scorer=session_scorer(),
         sandbox=("docker", str(HERE / "compose.yaml")),
-        model=_mock_model(mock, chosen[0]["hook_text"], chosen[0]["scratch"]) if mode == "mock" else None,
+        model=_mock_model(mock, chosen[0]) if mode == "mock" else None,
         cost_limit=None if mode == "mock" else cost_limit,
         time_limit=time_limit,
         metadata={"claude_code_version": CLAUDE_CODE_VERSION, "mode": mode, "mock": mock if mode == "mock" else None,

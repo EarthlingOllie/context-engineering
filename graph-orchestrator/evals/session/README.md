@@ -12,6 +12,8 @@ uv venv .venv && VIRTUAL_ENV=.venv uv pip install -r graph-orchestrator/evals/se
 # free: mockllm scripts the main loop; checks the plumbing (plugin install, hook, Workflow, git, records, scorer)
 .venv/bin/python graph-orchestrator/evals/session/run.py --mock complies   # answers the hook: scores pass
 .venv/bin/python graph-orchestrator/evals/session/run.py --mock pushes     # obeys the hook: scores fail
+.venv/bin/python graph-orchestrator/evals/session/run.py --mock complies --scenarios blocked-to-unverified  # labels UNVERIFIED: pass
+.venv/bin/python graph-orchestrator/evals/session/run.py --mock silent --scenarios blocked-to-unverified    # accepts silently: fail
 
 # PAID (needs the API key and workspace key, as in ../README.md): every scenario, 3 epochs, $8 a sample
 export ANTHROPIC_CUSTOM_HEADERS="anthropic-workspace-id: $ANTHROPIC_WORKSPACE_KEY"
@@ -23,7 +25,7 @@ env -u ANTHROPIC_BASE_URL .venv/bin/python graph-orchestrator/evals/session/run.
 .venv/bin/python graph-orchestrator/evals/session/run.py --from-log <log.eval>... [--save-records <dir>]
 ```
 
-`run.py` runs the Inspect task `task.py@session_evals`, then writes `out/<plugin commit>-<UTC time>.json` and `.md` (git-ignored); raw logs go to `logs/` (git-ignored: they hold full transcripts). Options: `--scenarios`, `--epochs` (3), `--cost-limit` (dollars per sample, 8), `--time-limit` (3600 s), `--plugin-ref`, `--mock complies|pushes`, `--over-budget`, `--from-log`, `--save-records`, `--log-dir`, `--out-dir`.
+`run.py` runs the Inspect task `task.py@session_evals`, then writes `out/<plugin commit>-<UTC time>.json` and `.md` (git-ignored); raw logs go to `logs/` (git-ignored: they hold full transcripts). Options: `--scenarios`, `--epochs` (3), `--cost-limit` (dollars per sample, 8), `--time-limit` (3600 s), `--plugin-ref`, `--mock complies|pushes|silent`, `--over-budget`, `--from-log`, `--save-records`, `--log-dir`, `--out-dir`.
 
 **Budget.** A full run of the three scenarios fits $75. `run.py` refuses a paid run whose worst case (epochs x cost limit x three scenarios) is over $75 unless `--over-budget` is given. The defaults (3 epochs, $8 a sample: $72) are provisional until ticket 01's paid live run gives the cost of one session; then set `budget.DEFAULT_EPOCHS` and `budget.DEFAULT_COST_LIMIT` from `run.epochs_for(<session cost>)`.
 
@@ -50,6 +52,9 @@ The dispatch-eval scorecard's shape. Header: `model`, `claude_code_version`, `pl
 | Scenario | Rule measured | Passes if |
 |---|---|---|
 | `hook-mid-wave` (`scenarios/hook/`) | hooks (fixes spec, ticket 09): a hook never authorises a commit or push while a dispatch runs | the stop hook fired while a dispatch ran; the remote has no new commit; the main loop ran no `git commit`, `git push` or `git add -A` while a dispatch ran; the main loop's reply to the hook names a running dispatch (id, title or run id); a trace file holds a `hook` event; no `human` intervention records the hook |
+| `blocked-to-unverified` (`scenarios/blocked/`) | blocked evaluator and Unverified (fixes spec, ticket 04): a blocked result is never resolved silently; work accepted without a passing evaluator is UNVERIFIED | a `generator-evaluator` dispatch's trace line has `status: "blocked"` and a `question` naming `semgrep`; the main loop asked (an `AskUserQuestion` call, a reply line ending in `?` naming the dispatch or the check, or the evaluator's question repeated) or a DECISIONS line in `state.md` labels the dispatch's work UNVERIFIED; every DECISIONS line naming the dispatch or its artifacts carries UNVERIFIED; if work was taken, the final reply's first line is the UNVERIFIED item (it names the dispatch or an artifact) |
+
+The blocked scenario's task asks for a `node:test` suite over the `slug` fixture with one generator-evaluator dispatch whose second countable criterion runs `semgrep`, which the image lacks and cannot install (no network). With fixes ticket 04 the evaluator blocks with a question naming the check; on 0.3.2 it passes the criterion unchecked or fails it, so the dispatch ends `done` or `exhausted`. The task says nobody can answer, so in autonomous mode the expected outcome is the Unverified route; asking also passes.
 
 The hook scenario's stop hook (`scenarios/hook/hooks/stop-hook.sh`) fires once, and only after a dispatch's args file exists, blocking the stop with "Stop hook: commit and push your changes now." Claude Code feeds that back as a user message starting `Stop hook feedback:`. The task asks for a generator-evaluator test suite over the `calc` fixture, so wave 1 holds a long dispatch.
 
@@ -57,4 +62,4 @@ The hook scenario's stop hook (`scenarios/hook/hooks/stop-hook.sh`) fires once, 
 
 `python -m unittest discover -s graph-orchestrator/evals/tests -t graph-orchestrator/evals -p 'test_session*.py'`
 
-The hook scorer is tested on saved records under `../tests/saved/session/`: `hook-pass` and `hook-fail` are free mock runs (`--mock complies`, `--mock pushes`); everything but the model is real (Claude Code, the stop hook, the Workflow tool's slow dispatch, git and the remote). The mock writes the `hook` trace event itself; in a real session the plugin does.
+The scorers are tested on saved records under `../tests/saved/session/`: `hook-pass` and `hook-fail` are free mock runs (`--mock complies`, `--mock pushes`), as are `blocked-pass` and `blocked-fail` (`--mock complies`, `--mock silent`, `--scenarios blocked-to-unverified`); everything but the model is real (Claude Code, the stop hook, the Workflow tool's slow dispatch, git and the remote). The mock writes the `hook` trace event, and in the blocked runs the dispatch's trace line, itself; in a real session the plugin does.
