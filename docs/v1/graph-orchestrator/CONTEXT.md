@@ -29,7 +29,7 @@ One step of a chain. A stage is a dispatch, so it may be any topology.
 _Avoid_: Step, link
 
 **Wave**:
-The set of dispatches the orchestrator issues at once; each dispatch is its own workflow run, named for its purpose, and the wave is waited on in full before planning again (ADR-0003).
+The set of dispatches the orchestrator launches together; each dispatch is its own workflow run, named for its purpose (ADR-0003). A launch batch, not a barrier: work whose dependencies have all finished may launch as the next wave before the rest of the current wave reports (ADR-0006).
 _Avoid_: Batch, round
 
 **Run**:
@@ -48,6 +48,10 @@ _Avoid_: Backlog, queue
 The fixed contract every topology accepts from and returns to the orchestrator: a dispatch spec in; a status (done, blocked, exhausted, over budget, failed), an inline result, artifact paths and an iteration count out.
 _Avoid_: Interface, API
 
+**Unverified**:
+Work the orchestrator accepted although no evaluator passed it, because its dispatch ended blocked or exhausted. A label the orchestrator writes, not a signature status. An evaluator that cannot run a check it needs blocks rather than failing the work.
+_Avoid_: Unreviewed, accepted, best guess (that is the decision, not the label on its work)
+
 **Return Contract**:
 The shape and line limit a dispatch's result must satisfy. Results always return inline.
 _Avoid_: Output format, response schema
@@ -55,6 +59,10 @@ _Avoid_: Output format, response schema
 **Mode**:
 Whether the orchestrator asks the human on uncertainty (attended) or records a best guess and continues (autonomous). Irreversible actions and human-only questions always ask.
 _Avoid_: Flag, setting
+
+**Intervention**:
+A decision at one of the five triggers (ambiguity, blocked, exhausted, irreversible, budget), answered by the human (source `user`) or by the orchestrator's recorded best guess in autonomous mode (source `self`). Hook messages, the mode question and the human's status questions are not interventions; a hook message is never a human answer.
+_Avoid_: Human node (a `self` intervention is not human), consultation, gate
 
 **Catalog**:
 The short description of every available topology — when to use it, its roles, its params — that the orchestrator loads once. Fixed per version.
