@@ -2,12 +2,21 @@
 
 Each release maps to one spec under `docs/specs/`. Ticket numbers below refer to that spec's `tickets/` folder.
 
-## Unreleased
+## 0.5.0
 
-Spec: `docs/specs/observability-evals/` (planned for 0.5.0).
+Spec: `docs/specs/observability-evals/` (every run recorded truthfully, whole sessions measured). Release ticket: 12.
 
+Dispatch code, role prompts and the orchestrator skill:
+
+- Version stamp: the build injects the package version and the git short commit (`<version>+<sha>`) into the bundled dispatch script; it is in the returned data, on every dispatch trace line and in the diagram header (an old trace without it still renders), and SKILL.md's MODE line records it (ticket 03).
 - Real timestamps: the dispatch script no longer needs `now`. With none, it stamps placeholders for the dispatch's start (`at`) and end (new `ended`), and the agent that appends the trace lines (the scribe, or a `single`'s worker) replaces them with the clock's UTC time: the start from the launch's args file (GNU or BSD `date`, falling back to the end time), the end from the time of the write. A `now` still sent is used as the start. SKILL.md and the dispatch skill's description no longer pass `now` or say the orchestrator has no clock; the renderer ignores a placeholder left unreplaced (ticket 04).
+- Per-agent usage: each top-level dispatch line carries `agents: [{ role, output_tokens? }]` (output tokens only where the runtime's budget makes them readable for that agent, otherwise omitted, never zeroed), `demand` (the agents the dispatch needed) and `concurrency` (the most agents running at once); old traces still render (ticket 05).
+- Verdict, chain and truncation detail: a generator-evaluator line records the pass criteria once and each evaluator round's pass or fail with its first feedback line; a chain line carries each stage's first line; a cut that drops lines logs how many; interventions carry `source: self | human`, which the renderer prefers, falling back to the mode for traces without it (ticket 06).
 - Refusal counts: the worker, generator, reducer and evaluator stances and schemas ask for `writesRefused` and `toolsDenied`; each agent's counts go on its entry in the dispatch line's `agents`, and their totals on the line as `writes_refused` and `tools_denied` (absent when no agent reported them), and are logged. A `single`'s worker fills its own into the line it writes from `{{WRITES_REFUSED}}` and `{{TOOLS_DENIED}}` placeholders. SKILL.md: while waiting on a human, CI or a restart, the state file holds one `WAITING: <cause> since <time>` line, removed when the wait ends (ticket 07).
+
+Not a plugin change: the session-eval harness and its three scenarios (tickets 01, 08, 09, 10) and the manually triggered GitHub Actions job for the dispatch evals (ticket 11) live with the evals under `evals/` and ship no plugin version.
+
+Tickets 03, 05 and 06 were already on the branch when the 0.4.0 metadata was committed, so a 0.4.0 cut from that commit carries them as well (see the note under 0.4.0).
 
 ## 0.4.0
 
@@ -39,7 +48,7 @@ Not in this release:
 
 - Per-role models (ticket 07) is not in this release: it waits on the live run of the spike in ticket 01.
 
-Also in this build, from `docs/specs/observability-evals/` (planned for 0.5.0) and already on the branch this release is cut from: per-agent role and output tokens, demand and concurrency on each dispatch line (its ticket 05), and evaluator rounds, chain stage lines and cut counts on dispatch lines, with interventions carrying `source` (its ticket 06).
+Also in this build, from `docs/specs/observability-evals/` (planned for 0.5.0) and already on the branch this release is cut from: the plugin version stamp (its ticket 03), per-agent role and output tokens, demand and concurrency on each dispatch line (its ticket 05), and evaluator rounds, chain stage lines and cut counts on dispatch lines, with interventions carrying `source` (its ticket 06).
 
 ## 0.3.2
 
