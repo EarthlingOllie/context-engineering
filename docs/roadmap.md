@@ -4,6 +4,8 @@ Work that has been discussed but is not covered by a spec and tickets yet, in pr
 
 - **Dispatch evals and the baseline**: `docs/specs/dispatch-evals/` (spec and 12 tickets).
 - **Execution and lifecycle (Group 1)**: `docs/specs/execution-lifecycle/` (spec and 6 tickets).
+- **Fixes (Groups 2, 3, 4)**: `docs/specs/fixes/` (spec and 16 tickets), release 0.4.0.
+- **Observability and evals (Group 5: ranks 5, 7, 16; QUA-08, REL-07)**: `docs/specs/observability-evals/` (spec and 12 tickets), release 0.5.0. Ranks 13, 14, 15, 17, 18 and 19 remain open below.
 
 Finding ids (REL-01, QUA-04 and so on) refer to the session analysis in `docs/v1/graph-orchestrator/session-analysis-2026-11-18/findings.md`, which holds the evidence, the proposed change and the file and line for each.
 
