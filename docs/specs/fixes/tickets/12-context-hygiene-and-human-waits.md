@@ -7,7 +7,9 @@
 **Status:** ready-for-agent
 
 - [x] SKILL.md documents each rule; no document tells the orchestrator to paste the diagram verbatim (docs seam)
-- [ ] By hand: a session's final reply sends the diagram file, and a question is asked only after independent dispatches launched
+- [ ] By hand: a session's final reply follows SKILL.md's final-reply template (UNVERIFIED; STATUS in one line plus at most 3 summary lines; ARTIFACTS; DECISIONS) and sends the diagram file; and a human wait comes only after every independent dispatch launched: in attended mode a question, with options and a recommended default, is asked then; in autonomous mode, with no one to ask, a best guess with its options is recorded under DECISIONS then, and no question is put to anyone
+
+**Box restated (2026-11-28, finding C):** the box asked that "a question is asked", which an autonomous session cannot do: with no person to ask, SKILL.md has it record a best guess instead. The restated box takes a recorded best guess, made after every independent launch, as the autonomous half; the 2026-11-27 session's T2 record (best guess at 23:49:43Z with 3 options, after T1 and T3 launched) meets that half. The final-reply half still fails on that session (a ~12-row table): plugin 0.5.1 makes the reply a fixed template that the renderer prints after saving the diagram, so a re-run of this check uses 0.5.1 or later.
 
 **By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
 

@@ -8,7 +8,7 @@
 
 - [x] The version is 0.4.0 in the plugin manifest and the package manifest
 - [ ] Every dispatch-eval scorecard required by tickets 02-15 is linked from its ticket and meets the merge rule
-- [ ] The by-hand checks in tickets 04 and 09-13 are done in one cloud session and recorded
+- [ ] The by-hand checks in tickets 04 and 09-13 are done in one cloud session with the plugin at 0.5.0 or later and recorded
 - [x] The roadmap drops the items this spec covers and points to it
 
 The version moved in `graph-orchestrator/.claude-plugin/plugin.json`, `package.json` and `package-lock.json`; `graph-orchestrator/CHANGELOG.md` has the 0.4.0 entry; `graph-orchestrator/test/release.test.ts` checks the version, the changelog, the roadmap and the two tables below. The tag, the GitHub release and the marketplace update are not done: they wait for the two open criteria.
@@ -31,7 +31,9 @@ Each run is against the frozen baseline `3035a58f6828` (ADR-0005), on the ticket
 
 ## By-hand checks
 
-All in one cloud session with the plugin at 0.4.0 installed. Record the session id and the date, then the result of each check.
+All in one cloud session with the plugin at 0.5.0 or later, installed or run from the checkout. Record the session id, the date and the plugin version stamp, then the result of each check.
+
+**Box 2 restated (2026-11-28):** it named 0.4.0, but 0.5.0 carries every fix in this spec (see the 0.4.0 and 0.5.0 CHANGELOG entries) and is what the 2026-11-27 session ran (0.5.0+eaf50f7), so 0.5.0 or later now meets the version part, and "wrong version" no longer keeps the box unticked. The box stays open on 09 (no hook fired; ticket 09 now says what environment the check needs) and 12 (final-reply summary; restated in ticket 12, fixed in 0.5.1).
 
 Session: session_016jSC3fsMfuGLacrVjUTYMU, 2026-11-27 (plugin 0.5.0+eaf50f7 from the checkout, not 0.4.0 installed; partial)
 
@@ -41,7 +43,7 @@ Session: session_016jSC3fsMfuGLacrVjUTYMU, 2026-11-27 (plugin 0.5.0+eaf50f7 from
 | 09 | With a stop-hook git check, a hook firing mid-wave gets one line naming the running dispatch; nothing is committed or pushed; the trace has a `hook` line and the diagram no node for it | not exercised: no hook fired |
 | 10 | A dispatch whose `dependsOn` names only a finished dispatch launches before its wave's slow dispatch returns; the state file is rewritten first; `dependsOn` is kept | pass (w3-d1 launched 23:39:16Z, T2 ended 23:49:26Z) |
 | 11 | Asked a question about results after its dispatches finish, the session dispatches a `single` (at most 6 lines) instead of reading files in the main loop | pending: question arrives after finish |
-| 12 | The final reply sends the diagram file with a summary of at most 3 lines; a question is asked only after every independent dispatch launched, with options and a recommended default | partial: question after launches; diagram sent before final reply |
+| 12 | The final reply follows SKILL.md's template and sends the diagram file with a summary of at most 3 lines; a human wait comes only after every independent dispatch launched, with options and a recommended default: asked in attended mode, recorded as a best guess under DECISIONS in autonomous mode | partial: question after launches; diagram sent before final reply |
 | 13 | A ticket-set session's last wave before rendering is one acceptance dispatch whose numbered, countable criteria are the spec's acceptance criteria plus the full regression suite | pass (w5-d1) |
 
 **By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
