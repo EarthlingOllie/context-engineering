@@ -990,7 +990,12 @@ progress: ${progress}` }
     );
     if (!ev) return { ...fail(spec, `relay: evaluator returned nothing in session ${s}`, s), artifacts };
     const eq = blockedQuestion(ev);
-    if (eq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: eq, iterations: s };
+    const round = Math.ceil(s / check_every);
+    if (eq) {
+      recordRound(ctx, spec, round, "blocked", eq);
+      return { id: spec.id, status: "blocked", result: work.result, artifacts, question: eq, iterations: s };
+    }
+    recordRound(ctx, spec, round, ev["pass"] === true ? "pass" : "fail", str(ev, "feedback"));
     if (ev["pass"] === true) return { id: spec.id, status: "done", result: work.result, artifacts, iterations: s };
     feedback = str(ev, "feedback");
   }
@@ -1353,6 +1358,7 @@ async function runPanel(ctx, spec) {
   const verdicts = raw.map((v, i) => v ?? { lens: lenses[i], missing: true });
   const blocked = verdicts.filter((v) => !("missing" in v) && v.question !== void 0);
   if (blocked.length) {
+    recordRound(ctx, spec, 1, "blocked", `lens ${blocked[0].lens.name}: ${firstLine(blocked[0].question ?? "")}`);
     return { id: spec.id, status: "blocked", result: `lens(es) ${blocked.map((v) => v.lens.name).join(", ")} blocked`, artifacts: [], question: blocked.map((v) => `lens ${v.lens.name}: ${v.question}`).join("\n"), iterations: 1 };
   }
   const missing = verdicts.filter((v) => "missing" in v);
@@ -1362,6 +1368,8 @@ async function runPanel(ctx, spec) {
   const passed = pool === "all" ? p === k : p > k / 2;
   const verdict = passed ? "PASS" : `FAIL (${p}/${k})`;
   const failing = judged.filter((v) => !v.pass);
+  const firstFail = failing[0];
+  recordRound(ctx, spec, 1, passed ? "pass" : "fail", firstFail && !passed ? `lens ${firstFail.lens.name}: ${firstLine(firstFail.feedback) || "(no feedback given)"}` : "");
   if (reducer === null) {
     const lines = [verdict, ...failing.map((v) => `[${v.lens.name}] FAIL: ${firstLine(v.feedback) || "(no feedback given)"}`)];
     return { id: spec.id, status: "done", result: cutLines(lines.join("\n"), returns.maxLines, ctx), artifacts: [], iterations: 1 };
@@ -1437,7 +1445,7 @@ async function runDispatch(ctx, raw) {
 }
 
 // src/run.ts
-var PLUGIN_VERSION = "0.5.0+88232dc" ? "0.5.0+88232dc" : "dev";
+var PLUGIN_VERSION = "0.5.0+c0b3b7e" ? "0.5.0+c0b3b7e" : "dev";
 var HARD_AGENT_LIMIT = 1e3;
 function waveOf(id) {
   const m = /^w(\d+)-/.exec(id);
