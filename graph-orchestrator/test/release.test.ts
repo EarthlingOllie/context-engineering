@@ -41,7 +41,10 @@ test("the fixes spec shipped as 0.4.0", () => {
 test("the observability-evals release is 0.5.0", () => {
   const spec = read("../../docs/specs/observability-evals/spec.md");
   assert.match(spec, /The plugin changes ship as one release, 0\.5\.0\./);
-  assert.equal(pluginVersion, "0.5.0");
+});
+
+test("the current release is 0.5.1, the fixes from the 2026-11-27 by-hand session", () => {
+  assert.equal(pluginVersion, "0.5.1");
 });
 
 const changelog = read("../CHANGELOG.md");
@@ -49,6 +52,15 @@ const changelog = read("../CHANGELOG.md");
 test("the changelog's newest entry is the manifest version", () => {
   const newest = changelog.match(/^## (\d+\.\d+\.\d+)/m)?.[1];
   assert.equal(newest, pluginVersion);
+});
+
+test("the 0.5.1 changelog entry covers all three findings and the ticket records", () => {
+  const entry = section(changelog, "## 0.5.1", "\n## 0.5.0");
+  assert.doesNotMatch(changelog, /^## Unreleased/m);
+  for (const finding of ["Artifact check (finding A", "Review verdict (finding B", "Final reply (finding C"]) {
+    assert.ok(entry.includes(finding), `0.5.1 entry misses ${finding}`);
+  }
+  for (const ticket of ["ticket 12", "ticket 16", "ticket 09"]) assert.ok(entry.includes(ticket), `0.5.1 entry misses fixes ${ticket}`);
 });
 
 test("the 0.5.0 changelog entry names what the observability-evals spec shipped and what ships no version", () => {
