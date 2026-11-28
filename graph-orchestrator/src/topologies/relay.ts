@@ -1,7 +1,7 @@
 // ---------- relay ----------
 import type { DispatchResult, DispatchSpec, RelayParams } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { DEFAULT_SESSIONS, MAX_SESSIONS, type Checked, type TopologyContext, type TopologyImpl, type WorkOutput, blockedQuestion, callRole, contractOf, cutLines, fail, firstLine, int, overBudget, readWorkOutput, roleEntry, str, uniq } from "./shared.ts";
+import { DEFAULT_SESSIONS, MAX_SESSIONS, type Checked, type TopologyContext, type TopologyImpl, type WorkOutput, blockedQuestion, callRole, contractOf, cutLines, fail, firstLine, int, overBudget, readWorkOutput, recordRound, roleEntry, str, uniq } from "./shared.ts";
 
 /** Relay params with the defaults applied. */
 export type RelayPlan = Required<RelayParams>;
@@ -93,7 +93,12 @@ async function runRelay(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
     );
     if (!ev) return { ...fail(spec, `relay: evaluator returned nothing in session ${s}`, s), artifacts };
     const eq = blockedQuestion(ev);
-    if (eq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: eq, iterations: s };
+    const round = Math.ceil(s / check_every);
+    if (eq) {
+      recordRound(ctx, spec, round, "blocked", eq);
+      return { id: spec.id, status: "blocked", result: work.result, artifacts, question: eq, iterations: s };
+    }
+    recordRound(ctx, spec, round, ev["pass"] === true ? "pass" : "fail", str(ev, "feedback"));
     if (ev["pass"] === true) return { id: spec.id, status: "done", result: work.result, artifacts, iterations: s };
     feedback = str(ev, "feedback");
   }

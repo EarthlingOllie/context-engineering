@@ -68,6 +68,69 @@ test("no evaluator ran, no verdict: a plain single's line has no verdict field",
   assert.equal("verdict" in dispatchLine(out.events, "w1-d1"), false);
 });
 
+// ---------- dispatch seam: relay and panel, whose evaluators also run ----------
+
+const relayOk = { done_criteria: "all features pass", progress: "/scratch/progress.md" };
+
+test("an exhausted relay's line carries the last check's verdict and first blocking reason", async () => {
+  const { out } = await wave([spec({ id: "w1-d1", topology: "relay", params: { ...relayOk, max_sessions: 2 } })], {
+    "Worker (1": { result: "one", artifacts: [], blocked: false },
+    "Worker (2": { result: "two", artifacts: [], blocked: false },
+    "Evaluator (1": { pass: false, feedback: "first gap", blocked: false },
+    "Evaluator (2": { pass: false, feedback: "1. feature 3 still failing\n2. another", blocked: false },
+  });
+  const d = dispatchLine(out.events, "w1-d1");
+  assert.equal(d["status"], "exhausted");
+  assert.equal(d["verdict"], "fail: 1. feature 3 still failing");
+});
+
+test("a relay whose done-check passed carries verdict pass", async () => {
+  const { out } = await wave([spec({ id: "w1-d1", topology: "relay", params: { ...relayOk, max_sessions: 3 } })], {
+    "Worker (1": { result: "one", artifacts: [], blocked: false },
+    "Evaluator (1": { pass: true, feedback: "", blocked: false },
+  });
+  assert.equal(dispatchLine(out.events, "w1-d1")["verdict"], "pass");
+});
+
+test("a relay whose evaluator blocked carries verdict blocked with the question's first line", async () => {
+  const { out } = await wave([spec({ id: "w1-d1", topology: "relay", params: { ...relayOk, max_sessions: 2 } })], {
+    "Worker (1": { result: "one", artifacts: [], blocked: false },
+    "Evaluator (1": { pass: false, feedback: "", blocked: true, question: "Which feature list is current?\nmore" },
+  });
+  assert.equal(dispatchLine(out.events, "w1-d1")["verdict"], "blocked: Which feature list is current?");
+});
+
+const panelSpec = (params: Record<string, unknown> = {}) =>
+  spec({
+    id: "w1-d1",
+    topology: "panel",
+    params: { lenses: [{ name: "correctness", focus: "bugs" }, { name: "caps", focus: "limits" }], pass_criteria: "no defects", ...params },
+  });
+
+test("a failing panel's line carries its pooled verdict and the first failing lens's first feedback line", async () => {
+  const { out } = await wave([panelSpec()], {
+    "Evaluator correctness": { pass: true, feedback: "", blocked: false },
+    "Evaluator caps": { pass: false, feedback: "1. MAX_WIDTH unchecked at fan-out.ts:20\n2. second", blocked: false },
+  });
+  assert.equal(dispatchLine(out.events, "w1-d1")["verdict"], "fail: lens caps: 1. MAX_WIDTH unchecked at fan-out.ts:20");
+});
+
+test("a passing panel carries verdict pass", async () => {
+  const { out } = await wave([panelSpec()], {
+    "Evaluator correctness": { pass: true, feedback: "", blocked: false },
+    "Evaluator caps": { pass: true, feedback: "", blocked: false },
+  });
+  assert.equal(dispatchLine(out.events, "w1-d1")["verdict"], "pass");
+});
+
+test("a blocked panel carries verdict blocked with the blocking lens's question", async () => {
+  const { out } = await wave([panelSpec()], {
+    "Evaluator correctness": { pass: true, feedback: "", blocked: false },
+    "Evaluator caps": { pass: false, feedback: "", blocked: true, question: "which cap table is current?" },
+  });
+  assert.equal(dispatchLine(out.events, "w1-d1")["verdict"], "blocked: lens caps: which cap table is current?");
+});
+
 // ---------- dispatch seam: the evaluator-only review ----------
 
 test("evaluator-only review: a single with roles.evaluator runs one evaluator, and a failing review's line says why it kept the label", async () => {
@@ -166,4 +229,12 @@ test("catalog.md: single documents the evaluator-only review, its PASS/FAIL resu
   assert.match(single, /\*\*Evaluator-only review\.\*\*/);
   assert.match(single, /`pass_criteria`/);
   assert.match(single, /`verdict`/);
+});
+
+test("catalog.md: the verdict paragraph names exactly which topologies carry `verdict` and which do not", () => {
+  const catalog = doc("catalog.md");
+  const para = catalog.split("\n").find((l) => l.startsWith("**Evaluator-only review.**"))!;
+  for (const t of ["generator-evaluator", "iterative-fan-out", "relay", "panel"]) assert.ok(para.includes(t), t);
+  assert.match(para, /best-of-n and debate run a judge, not an evaluator, and carry no `verdict`/);
+  assert.match(para, /`fail: lens <name>: <first feedback line>`/);
 });
