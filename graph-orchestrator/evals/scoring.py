@@ -107,15 +107,22 @@ def _lines(rec: Recorded, with_files: bool = True) -> list[str]:
 
 
 SCRIBE_LABEL = "Grapher"  # the plugin's label for its scribe (src/labels.ts)
+CHECKER_LABEL = "Checker"  # the plugin's label for its artifact checker (src/labels.ts), run after the topology returns
 
 
 def _is_scribe(a: dict) -> bool:
     return str(a.get("label") or "").startswith(SCRIBE_LABEL)
 
 
+def _is_engine_agent(a: dict) -> bool:
+    """The scribe and the artifact checker: agents the engine runs around the topology, not the topology's own."""
+    return _is_scribe(a) or str(a.get("label") or "").startswith(CHECKER_LABEL)
+
+
 def dispatch_agents(rec: Recorded) -> list[dict]:
-    """The agents the dispatch's topology ran: every agent but the scribe that writes its trace lines."""
-    return [a for a in rec.result.get("agents") or [] if not _is_scribe(a)]
+    """The agents the dispatch's topology ran: every agent but the scribe that writes its trace lines and the
+    artifact checker that tests the claimed artifacts exist."""
+    return [a for a in rec.result.get("agents") or [] if not _is_engine_agent(a)]
 
 
 def queue_seconds(rec: Recorded) -> float:

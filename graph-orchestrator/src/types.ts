@@ -86,6 +86,8 @@ export type DispatchResult = {
   question?: string; // when blocked; for fan-out, also when a branch blocked
   iterations: number;
   stages?: string[]; // chain only: "w3-s1:done"
+  /** Local artifact paths the result claims that the engine's artifact check did not find (finding A); absent when every one was found or none was checked. */
+  missing?: string[];
 };
 
 /**
@@ -175,6 +177,8 @@ export type TraceEvent =
       /** Writes refused and tools denied, totalled over the agents that reported them (B-07); absent when none did. A `single`'s worker fills in its own. */
       writes_refused?: number;
       tools_denied?: number;
+      /** Local artifact paths the result claimed that the artifact check did not find; absent when none. */
+      missing?: string[];
     }
   | { type: "wave_end"; wave: number; at: string; done: number; blocked: number; exhausted: number; over_budget: number; failed: number } // v0.2 traces only
   | HumanEvent

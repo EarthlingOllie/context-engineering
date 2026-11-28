@@ -53,6 +53,68 @@ export function scribePrompt(traceFile: string, lines: string[], argsFile?: stri
   ].join("\n");
 }
 
+/**
+ * The artifact paths a result claims that name local files: not a URL (anything with a `scheme://`), not blank,
+ * each once, trimmed, in the order claimed.
+ */
+export function localArtifacts(artifacts: unknown): string[] {
+  const out: string[] = [];
+  for (const a of Array.isArray(artifacts) ? artifacts : []) {
+    if (typeof a !== "string") continue;
+    const p = a.trim();
+    if (!p || /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(p) || out.includes(p)) continue;
+    out.push(p);
+  }
+  return out;
+}
+
+export function checkerPrompt(paths: string[]): string {
+  return [
+    "ROLE: checker",
+    `Check whether each of the ${paths.length} path(s) below exists on the local filesystem (a file or a directory; a relative path is relative to your working directory).`,
+    "Use one read-only command such as `ls -d` or `test -e`; do not create, open for writing, or change anything. Do nothing else.",
+    ...paths.map((p) => `- ${p}`),
+    "Return in `missing` every path above, exactly as written, that does not exist; an empty list when all exist.",
+  ].join("\n");
+}
+
+const CHECKER_SCHEMA = {
+  type: "object",
+  properties: { missing: { type: "array", items: { type: "string" } } },
+  required: ["missing"],
+};
+
+/** The question a done result whose claimed artifact is missing is blocked on (finding A). */
+export function missingQuestion(missing: string[]): string {
+  return missing.map((p) => `artifact ${p} claimed but not found`).join("; ");
+}
+
+/**
+ * The artifact check (finding A): after the dispatch returns, one checker agent tests that each local artifact
+ * path the result claims exists. Missing ones are marked in `missing`; a done result becomes blocked on
+ * missingQuestion. Any other status keeps its own status and question. No local path, no agent; a checker that
+ * returns nothing or throws leaves the result unchanged, and the log says the check did not run. Like the
+ * scribe, the checker is the engine's, not the topology's, so it is not on the dispatch line's `agents`.
+ */
+async function checkArtifacts(rt: Runtime, spec: DispatchSpec | null, r: DispatchResult): Promise<DispatchResult> {
+  const paths = localArtifacts(r.artifacts);
+  if (!paths.length) return r;
+  let reported: unknown;
+  try {
+    const out = await rt.agent(checkerPrompt(paths), { label: agentLabel({ role: "checker", task: "artifacts exist" }), schema: CHECKER_SCHEMA, ...modelOpt(spec, "checker") });
+    reported = out && typeof out === "object" ? (out as Record<string, unknown>)["missing"] : undefined;
+    if (!Array.isArray(reported)) throw new Error("the checker returned no missing list");
+  } catch (err) {
+    rt.log(`${r.id}: artifact check did not run: ${err instanceof Error ? err.message : String(err)}`);
+    return r;
+  }
+  const said = new Set(reported.filter((p): p is string => typeof p === "string").map((p) => p.trim()));
+  const missing = paths.filter((p) => said.has(p));
+  if (!missing.length) return r;
+  for (const p of missing) rt.log(`${r.id}: artifact ${p} claimed but not found`);
+  return r.status === "done" ? { ...r, status: "blocked", question: missingQuestion(missing), missing } : { ...r, missing };
+}
+
 const SCRIBE_SCHEMA = {
   type: "object",
   properties: { appended: { type: "number" }, totalLines: { type: "number" } },
@@ -154,7 +216,7 @@ function withSource(h: HumanEvent): HumanEvent {
 
 /** Why a spec cannot run before its topology is asked, or null. */
 function refusal(spec: DispatchSpec, demand: number): DispatchResult | null {
-  if (demand + 1 > HARD_AGENT_LIMIT) return { id: spec.id, status: "over_budget", result: `not run: ${demand} agent(s) and the scribe would exceed the ${HARD_AGENT_LIMIT}-agent run limit`, artifacts: [], iterations: 0 };
+  if (demand + 2 > HARD_AGENT_LIMIT) return { id: spec.id, status: "over_budget", result: `not run: ${demand} agent(s), the artifact checker and the scribe would exceed the ${HARD_AGENT_LIMIT}-agent run limit`, artifacts: [], iterations: 0 };
   const wave = waveOf(spec.id);
   const sameWave = wave ? spec.dependsOn.find((d) => waveOf(d) === wave && d !== spec.id) : undefined;
   if (sameWave) return fail(spec, `dependsOn names ${sameWave} from the same wave; each dispatch is its own workflow and cannot wait on another: use a chain, or dispatch this next wave`);
@@ -197,6 +259,7 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   let result: DispatchResult;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
   else result = refusal(spec, demand) ?? (await runDispatch(ctx, raw));
+  result = await checkArtifacts(rt, raw && typeof raw === "object" ? spec : null, result);
 
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
   // Cuts that dropped lines are logged, and counted on the dispatch line (B-06).

@@ -275,5 +275,6 @@ export function dispatchEvent(wave: number, spec: DispatchSpec, r: DispatchResul
   if (r.stages) e.stages = r.stages;
   if (parent) e.parent = parent;
   if (r.question) e.question = firstLine(r.question);
+  if (r.missing && r.missing.length) e.missing = r.missing;
   return e;
 }

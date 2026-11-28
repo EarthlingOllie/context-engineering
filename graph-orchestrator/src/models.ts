@@ -1,7 +1,8 @@
 /**
  * Per-role models (ticket 07, COST-01 and COST-02a). Mechanical roles do not
  * need the session model: the scribe copies lines into a file and the partition
- * step splits a task into sentences, so both default to Haiku. Every other role
+ * step splits a task into sentences, and the checker tests whether claimed
+ * artifact paths exist, so all three default to Haiku. Every other role
  * gets no model and runs on the session model. A dispatch spec overrides any
  * role, default or not, with `roles.<role>.model` (for a reducer or judge given
  * in params, `params.reducer.model` / `params.judge.model`); that is how an
@@ -14,7 +15,7 @@ import type { DispatchSpec } from "./types.ts";
 import type { LabelRole } from "./labels.ts";
 
 /** The model each role runs on when the spec names none; a role absent here runs on the session model. */
-export const ROLE_MODEL_DEFAULTS: Partial<Record<LabelRole, string>> = { scribe: "haiku", partition: "haiku" };
+export const ROLE_MODEL_DEFAULTS: Partial<Record<LabelRole, string>> = { scribe: "haiku", partition: "haiku", checker: "haiku" };
 
 /** A non-blank model string, else undefined (the spec is JSON: anything may be there). */
 function modelOf(raw: unknown): string | undefined {

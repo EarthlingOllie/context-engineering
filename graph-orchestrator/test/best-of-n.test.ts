@@ -23,8 +23,8 @@ test("best-of-n select: n workers in parallel, then a judge that sees every cand
   assert.equal(r.iterations, 1);
   assert.match(r.result, /^candidate 2: \/b\.diff/);
   assert.deepEqual(r.artifacts, ["/b.diff", "/a.diff", "/verdict.md"]);
-  assert.deepEqual(roles().filter((l) => !l.includes("Grapher")), ["Worker (1 of 2)", "Worker (2 of 2)", "Judge"]);
-  assert.deepEqual(labels(), ["Worker (1 of 2): do w1-d1", "Worker (2 of 2): do w1-d1", "Judge: do w1-d1", "Grapher: logging current dispatch"]);
+  assert.deepEqual(roles().filter((l) => !l.includes("Grapher") && !l.includes("Checker")), ["Worker (1 of 2)", "Worker (2 of 2)", "Judge"]);
+  assert.deepEqual(labels(), ["Worker (1 of 2): do w1-d1", "Worker (2 of 2): do w1-d1", "Judge: do w1-d1", "Checker: artifacts exist", "Grapher: logging current dispatch"]);
 
   const a1 = calls.find((c) => roleOf(c.opts.label) === "Worker (1 of 2)")!.prompt;
   assert.match(a1, /ROLE: worker/);

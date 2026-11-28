@@ -2,6 +2,10 @@
 
 Each release maps to one spec under `docs/specs/`. Ticket numbers below refer to that spec's `tickets/` folder.
 
+## Unreleased
+
+- Artifact check (finding A, by-hand session 2026-11-27): after any dispatch returns, one `checker` agent (Haiku by default, `roles.checker.model` overrides) tests that each local artifact path in its result exists. Missing paths are listed in the result's and the dispatch trace line's `missing` and logged, and a `done` result becomes `blocked` with the question `artifact <path> claimed but not found`. The renderer draws the last line written for a dispatch, so a `single` whose worker appended its done line before the check shows the scribe's blocked line. SKILL.md's Integrate table and the catalog say what to do with it; dispatch eval sample 17 (`17-single-phantom-artifact`, stub-runnable) measures it.
+
 ## 0.5.0
 
 Spec: `docs/specs/observability-evals/` (every run recorded truthfully, whole sessions measured). Release ticket: 12.

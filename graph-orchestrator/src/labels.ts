@@ -16,7 +16,7 @@
  * stage's), one line, at most 40 characters.
  */
 
-export type LabelRole = "worker" | "generator" | "evaluator" | "partition" | "reducer" | "judge" | "debater" | "scribe";
+export type LabelRole = "worker" | "generator" | "evaluator" | "partition" | "reducer" | "judge" | "debater" | "scribe" | "checker";
 
 export type AgentLabelParts = {
   /** The dispatch's (or chain stage's) topology; shown only for a chain stage, whose workflow name says only "Chain". */
@@ -47,6 +47,7 @@ const ROLE_TITLES: Record<LabelRole, string> = {
   judge: "Judge",
   debater: "Debater",
   scribe: "Grapher",
+  checker: "Checker",
 };
 
 const TOPOLOGY_TITLES: Record<string, string> = {

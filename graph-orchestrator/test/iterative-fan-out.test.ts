@@ -25,7 +25,7 @@ test("iterative-fan-out pass: round 1 branches, evaluator passes, reducer merges
   assert.equal(r.result, "2 call sites");
   assert.deepEqual(r.artifacts, ["/s/a.md", "/s/b.md", "/s/merged.md"]);
   assert.equal(r.question, undefined);
-  assert.deepEqual(roles(), ["Worker (round 1 of 2, 1 of 2)", "Worker (round 1 of 2, 2 of 2)", "Evaluator (1 of 2)", "Reducer", "Grapher"]);
+  assert.deepEqual(roles(), ["Worker (round 1 of 2, 1 of 2)", "Worker (round 1 of 2, 2 of 2)", "Evaluator (1 of 2)", "Reducer", "Checker", "Grapher"]);
   assert.deepEqual(labels().slice(0, 3), ["Worker (round 1 of 2, 1 of 2): scan src/a", "Worker (round 1 of 2, 2 of 2): scan src/b", "Evaluator (1 of 2): map trace file access"]);
   assert.ok(calls.every((c) => c.opts.phase === undefined), "agents carry no phase: the workflow is the dispatch");
   assert.match(calls[0]!.prompt, /TASK: scan src\/a/);
@@ -58,7 +58,7 @@ test("iterative-fan-out gaps: failing feedback becomes the next split, numbering
   assert.deepEqual(roles(), [
     "Worker (round 1 of 2, 1 of 2)", "Worker (round 1 of 2, 2 of 2)", "Evaluator (1 of 2)",
     "Worker (round 2 of 2, 1 of 2)", "Worker (round 2 of 2, 2 of 2)", "Evaluator (2 of 2)",
-    "Reducer", "Grapher",
+    "Reducer", "Checker", "Grapher",
   ]);
   assert.match(calls[3]!.prompt, /TASK: cover src\/c\n/);
   assert.match(calls[4]!.prompt, /TASK: cover src\/d\n/);

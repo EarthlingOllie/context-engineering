@@ -109,7 +109,7 @@ test("catalog: documents the per-role model field, the Haiku defaults, and Sonne
   const { readFileSync } = await import("node:fs");
   const catalog = readFileSync(new URL("../skills/graph-orchestrator/catalog.md", import.meta.url), "utf8");
   assert.match(catalog, /Roles take `\{ skill\?, instructions, model\? \}`/);
-  assert.match(catalog, /`scribe` and `partition` run on Haiku/);
+  assert.match(catalog, /`scribe`, `partition` and `checker` run on Haiku/);
   assert.match(catalog, /every other role runs on the session model/);
   assert.match(catalog, /Sonnet for `evaluator`, `reducer` or `judge` is opt-in/);
   assert.match(catalog, /`agent\(\)` returns nothing/);

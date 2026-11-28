@@ -20,7 +20,7 @@ test("dispatch: an evaluator that cannot run a check blocks the dispatch with it
       "Evaluator (1": { pass: false, feedback: "", blocked: true, question: "Bash was denied: could not run `npm test` for criterion 1. Allow it?" },
     },
   );
-  assert.deepEqual(roles(), ["Generator (1 of 3)", "Evaluator (1 of 3)", "Grapher"]);
+  assert.deepEqual(roles(), ["Generator (1 of 3)", "Evaluator (1 of 3)", "Checker", "Grapher"]);
   const r = out.results[0]!;
   assert.equal(r.status, "blocked");
   assert.equal(r.question, "Bash was denied: could not run `npm test` for criterion 1. Allow it?");

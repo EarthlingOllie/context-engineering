@@ -15,7 +15,8 @@ var ROLE_TITLES = {
   reducer: "Reducer",
   judge: "Judge",
   debater: "Debater",
-  scribe: "Grapher"
+  scribe: "Grapher",
+  checker: "Checker"
 };
 var TOPOLOGY_TITLES = {
   single: "Single",
@@ -69,7 +70,7 @@ function roleOfLabel(label) {
 }
 
 // src/models.ts
-var ROLE_MODEL_DEFAULTS = { scribe: "haiku", partition: "haiku" };
+var ROLE_MODEL_DEFAULTS = { scribe: "haiku", partition: "haiku", checker: "haiku" };
 function modelOf(raw) {
   if (!raw || typeof raw !== "object") return void 0;
   const m = raw.model;
@@ -407,6 +408,7 @@ function dispatchEvent(wave, spec, r, parent) {
   if (r.stages) e.stages = r.stages;
   if (parent) e.parent = parent;
   if (r.question) e.question = firstLine(r.question);
+  if (r.missing && r.missing.length) e.missing = r.missing;
   return e;
 }
 
@@ -1407,6 +1409,51 @@ function scribePrompt(traceFile, lines, argsFile) {
     "Return the number of lines you appended and the total number of lines in the file afterwards."
   ].join("\n");
 }
+function localArtifacts(artifacts) {
+  const out = [];
+  for (const a of Array.isArray(artifacts) ? artifacts : []) {
+    if (typeof a !== "string") continue;
+    const p = a.trim();
+    if (!p || /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(p) || out.includes(p)) continue;
+    out.push(p);
+  }
+  return out;
+}
+function checkerPrompt(paths) {
+  return [
+    "ROLE: checker",
+    `Check whether each of the ${paths.length} path(s) below exists on the local filesystem (a file or a directory; a relative path is relative to your working directory).`,
+    "Use one read-only command such as `ls -d` or `test -e`; do not create, open for writing, or change anything. Do nothing else.",
+    ...paths.map((p) => `- ${p}`),
+    "Return in `missing` every path above, exactly as written, that does not exist; an empty list when all exist."
+  ].join("\n");
+}
+var CHECKER_SCHEMA = {
+  type: "object",
+  properties: { missing: { type: "array", items: { type: "string" } } },
+  required: ["missing"]
+};
+function missingQuestion(missing) {
+  return missing.map((p) => `artifact ${p} claimed but not found`).join("; ");
+}
+async function checkArtifacts(rt, spec, r) {
+  const paths = localArtifacts(r.artifacts);
+  if (!paths.length) return r;
+  let reported;
+  try {
+    const out = await rt.agent(checkerPrompt(paths), { label: agentLabel({ role: "checker", task: "artifacts exist" }), schema: CHECKER_SCHEMA, ...modelOpt(spec, "checker") });
+    reported = out && typeof out === "object" ? out["missing"] : void 0;
+    if (!Array.isArray(reported)) throw new Error("the checker returned no missing list");
+  } catch (err) {
+    rt.log(`${r.id}: artifact check did not run: ${err instanceof Error ? err.message : String(err)}`);
+    return r;
+  }
+  const said = new Set(reported.filter((p) => typeof p === "string").map((p) => p.trim()));
+  const missing = paths.filter((p) => said.has(p));
+  if (!missing.length) return r;
+  for (const p of missing) rt.log(`${r.id}: artifact ${p} claimed but not found`);
+  return r.status === "done" ? { ...r, status: "blocked", question: missingQuestion(missing), missing } : { ...r, missing };
+}
 var SCRIBE_SCHEMA = {
   type: "object",
   properties: { appended: { type: "number" }, totalLines: { type: "number" } },
@@ -1479,7 +1526,7 @@ function withSource(h) {
   return s ? { ...rest, source: s } : rest;
 }
 function refusal(spec, demand) {
-  if (demand + 1 > HARD_AGENT_LIMIT) return { id: spec.id, status: "over_budget", result: `not run: ${demand} agent(s) and the scribe would exceed the ${HARD_AGENT_LIMIT}-agent run limit`, artifacts: [], iterations: 0 };
+  if (demand + 2 > HARD_AGENT_LIMIT) return { id: spec.id, status: "over_budget", result: `not run: ${demand} agent(s), the artifact checker and the scribe would exceed the ${HARD_AGENT_LIMIT}-agent run limit`, artifacts: [], iterations: 0 };
   const wave = waveOf(spec.id);
   const sameWave = wave ? spec.dependsOn.find((d) => waveOf(d) === wave && d !== spec.id) : void 0;
   if (sameWave) return fail(spec, `dependsOn names ${sameWave} from the same wave; each dispatch is its own workflow and cannot wait on another: use a chain, or dispatch this next wave`);
@@ -1508,6 +1555,7 @@ async function runWorkflow(args, rt) {
   let result;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
   else result = refusal(spec, demand) ?? await runDispatch(ctx, raw);
+  result = await checkArtifacts(rt, raw && typeof raw === "object" ? spec : null, result);
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
   const dropped = ctx.dropped ?? 0;
   if (dropped > 0) rt.log(`${id}: cuts dropped ${dropped} line(s)`);

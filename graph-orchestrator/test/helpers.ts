@@ -29,6 +29,7 @@ export function fakeRuntime(script: Script = {}) {
     Grapher: (c: Call) => ({ appended: c.prompt.split("\n").filter((l) => l.startsWith("{")).length, totalLines: 99 }),
     Evaluator: { pass: true, feedback: "", blocked: false },
     Partition: { subtasks: ["part a", "part b"], blocked: false },
+    Checker: { missing: [] },
   };
   /** The runtime one dispatch workflow sees; its calls are recorded with the dispatch id. */
   const runtimeFor = (dispatch: string): Runtime => ({

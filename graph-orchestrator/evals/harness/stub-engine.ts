@@ -5,7 +5,10 @@
  * `evaluator: "fail"` always fails (so a dry run reaches `exhausted`); a judge
  * picks candidate [1]; a debater holds its stance; a relay worker adds a
  * `SESSION s: stub` line to its progress file, as a real session rewrites it;
- * every other role reports nothing useful. `delayMs` makes each non-scribe answer
+ * the artifact checker really tests each path it was given, as the scribe
+ * really writes; a worker whose instructions say `Report <path> in artifacts`
+ * claims that path without writing it (sample 17); every other role reports
+ * nothing useful. `delayMs` makes each non-scribe answer
  * take that long, so queueing under the cap shows in a dry run.
  *
  * Each answer's record holds one call, served on the model requested, the way
@@ -13,7 +16,7 @@
  * every call on that model whatever was requested: a dry run of the bridge's
  * silent fallback to the main model, so the routing check can be seen failing.
  */
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Engine } from "./runtime.ts";
 
@@ -32,6 +35,10 @@ export function stubEngine(o: StubOptions = {}): Engine {
       appendFileSync(file, lines.map((l) => l + "\n").join(""));
       const totalLines = readFileSync(file, "utf8").split("\n").filter(Boolean).length;
       return { output: { appended: lines.length, totalLines }, record };
+    }
+    if (req.prompt.startsWith("ROLE: checker")) {
+      const paths = req.prompt.split("\n").filter((l) => l.startsWith("- ")).map((l) => l.slice(2));
+      return { output: { missing: paths.filter((p) => !existsSync(p)) }, record };
     }
     if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
     if (req.label?.startsWith("Partition")) {
@@ -54,6 +61,7 @@ export function stubEngine(o: StubOptions = {}): Engine {
       const pass = o.evaluator !== "fail";
       return { output: { pass, feedback: pass ? "" : "1. stub: the evaluator was set to fail", blocked: false }, record };
     }
-    return { output: { result: "stub: no model call was made", artifacts: [], blocked: false }, record };
+    const claimed = req.label?.startsWith("Worker") ? /Report (\S+) in artifacts/.exec(req.prompt)?.[1] : undefined;
+    return { output: { result: "stub: no model call was made", artifacts: claimed ? [claimed] : [], blocked: false }, record };
   };
 }

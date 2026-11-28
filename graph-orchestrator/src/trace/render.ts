@@ -122,7 +122,13 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
           const list = w.stages.get(e.parent) ?? [];
           list.push(e);
           w.stages.set(e.parent, list);
-        } else w.dispatches.push(e);
+        } else {
+          // A later line for the same dispatch supersedes an earlier one: a `single`'s worker appends its done line,
+          // and when the artifact check then blocks the dispatch the scribe appends the true line after it.
+          const prior = w.dispatches.findIndex((d) => d.id === e.id);
+          if (prior === -1) w.dispatches.push(e);
+          else w.dispatches[prior] = e;
+        }
         break;
       }
       case "wave_end":

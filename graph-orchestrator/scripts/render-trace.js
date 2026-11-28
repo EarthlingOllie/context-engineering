@@ -100,7 +100,11 @@ function parseTrace(text, extra = []) {
           const list = w.stages.get(e.parent) ?? [];
           list.push(e);
           w.stages.set(e.parent, list);
-        } else w.dispatches.push(e);
+        } else {
+          const prior = w.dispatches.findIndex((d) => d.id === e.id);
+          if (prior === -1) w.dispatches.push(e);
+          else w.dispatches[prior] = e;
+        }
         break;
       }
       case "wave_end":

@@ -11,7 +11,7 @@ test("single: one worker call, one done result, prompt carries stance, context, 
     [spec({ id: "w1-d1", topology: "single", task: "Write the leap-year helper", context: ["tests live in test/", "use node:test"], roles: { worker: { skill: "tdd", instructions: "red first" } } })],
     { Worker: { result: "/scratch/t/leap.js\nexports isLeap", artifacts: ["/scratch/t/leap.js"], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Worker: Write the leap-year helper", "Grapher: logging current dispatch"]);
+  assert.deepEqual(labels(), ["Worker: Write the leap-year helper", "Checker: artifacts exist", "Grapher: logging current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 1);
@@ -56,6 +56,7 @@ test("generator-evaluator: stops on first pass; round 2 generator sees feedback 
     "Evaluator (1 of 3)",
     "Generator (2 of 3)",
     "Evaluator (2 of 3)",
+    "Checker",
     "Grapher",
   ]);
   const r = out.results[0]!;
@@ -106,7 +107,7 @@ test("fan-out: explicit split runs one branch per sub-task in parallel and conca
     [spec({ id: "w1-d1", topology: "fan-out", task: "Survey the three modules", params: { split: ["module a", "module b", "module c"] }, returns: { shape: "a line per module", maxLines: 6 } })],
     { "Worker (1 of 3)": { result: "a: fine", artifacts: ["/scratch/t/a.md"], blocked: false }, "Worker (2 of 3)": { result: "b: fine", artifacts: [], blocked: false }, "Worker (3 of 3)": { result: "c: fine", artifacts: [], blocked: false } },
   );
-  assert.deepEqual(labels(), ["Worker (1 of 3): module a", "Worker (2 of 3): module b", "Worker (3 of 3): module c", "Grapher: logging current dispatch"]);
+  assert.deepEqual(labels(), ["Worker (1 of 3): module a", "Worker (2 of 3): module b", "Worker (3 of 3): module c", "Checker: artifacts exist", "Grapher: logging current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.result, "[1] a: fine\n[2] b: fine\n[3] c: fine");
@@ -223,7 +224,7 @@ test("chain: runs stages in order, forwards artifacts, records stage statuses an
       Generator: { result: "/scratch/t/writeup.md", artifacts: ["/scratch/t/writeup.md"], blocked: false },
     },
   );
-  assert.deepEqual(labels(), ["Link 1 · Single, Worker: research", "Link 2 · Generator-evaluator, Generator (1 of 2): write it up", "Link 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Grapher: logging current dispatch"]);
+  assert.deepEqual(labels(), ["Link 1 · Single, Worker: research", "Link 2 · Generator-evaluator, Generator (1 of 2): write it up", "Link 2 · Generator-evaluator, Evaluator (1 of 2): write it up", "Checker: artifacts exist", "Grapher: logging current dispatch"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);
