@@ -358,6 +358,20 @@ test("hard limit: a dispatch whose demand and scribe exceed the 1000-agent run l
   assert.ok(!calls.some((c) => c.dispatch === "w1-d1" && roleOf(c.opts.label) !== "Grapher"), "the refused dispatch spends only its scribe");
 });
 
+test("hard limit: the artifact checker and the scribe are both counted, so demand 999 is refused and 998 runs", async () => {
+  const ge = { topology: "generator-evaluator", task: "s", params: { max_iterations: 5, pass_criteria: "1. npm test exits 0" } }; // 10 agents each
+  const one = { topology: "single", task: "s" };
+  const stages = (singles: number) => [...Array.from({ length: 99 }, () => ge), ...Array.from({ length: singles }, () => one)];
+  const over = spec({ id: "w1-d1", topology: "chain", params: { stages: stages(9) } }); // 999 + checker + scribe
+  const fits = spec({ id: "w1-d2", topology: "chain", params: { stages: stages(8) } }); // 998 + checker + scribe
+  assert.equal(agentDemand(over), 999);
+  assert.equal(agentDemand(fits), 998);
+  const { out } = await wave([over, fits]);
+  assert.equal(out.results[0]!.status, "over_budget");
+  assert.equal(out.results[0]!.result, "not run: 999 agent(s), the artifact checker and the scribe would exceed the 1000-agent run limit");
+  assert.equal(out.results[1]!.status, "done");
+});
+
 test("dependsOn: an earlier wave is recorded in the trace; a same-wave id fails unrun, since parallel workflows cannot wait on each other", async () => {
   const { out, roles, calls } = await wave([
     spec({ id: "w2-d1", topology: "single", dependsOn: ["w1-d1", "w1-d3"] }),
