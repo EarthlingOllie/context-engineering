@@ -8,12 +8,20 @@
 
 - [x] Docs seam: the hook rule and the not-interventions list are in SKILL.md
 - [x] Render seam: an autonomous intervention renders as `self · <trigger>` with the dashed class; an attended one as `human · <trigger>`; a `hook` event renders nothing
-- [ ] By hand in a cloud session with a stop-hook git check: a hook firing mid-wave gets one line naming the running dispatch, and nothing is committed or pushed
+- [x] By hand in a cloud session with a stop-hook git check: a hook firing mid-wave gets one line naming the running dispatch, and nothing is committed or pushed
 
 **By-hand evidence (2026-11-27, session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7)**
 
 Not exercised: no Stop hook (or any hook) message reached the orchestrator at any point, although it ended its turn 5 times with dispatches running (w2-d2 ran ~11.5 min). The trace has no `hook` line, so there is nothing to check the one-line reply or the diagram against.
 Box left unticked: no hook fired in this environment.
+
+**By-hand evidence (2026-11-28, session_016jSC3grFDkzxVeDspdqm4a, plugin 0.5.1+c6a891c)**
+
+Pass. The test Stop hook from the section below (`~/.claude/hooks/stop-hook.sh`, globbing `/tmp/claude-*/*/*/scratchpad/args/*.json`, marker `~/.claude/.stop-hook-fired`, registered in `~/.claude/settings.json`) fired once at 11:01:04Z (marker mtime), after the wave-1 args files were written at 11:00:31Z, at the first turn end while w1-d1 `wf_76c9c6b0-48f` (ended 11:01:29Z), w1-d2 `wf_cdeadd55-4ed` (ended 11:01:04Z) and w1-d3 `wf_c39553ce-ee2` (ended 11:11:24Z) ran: "Stop hook: commit and push your changes now. Run git add -A, git commit and git push before you stop." The environment's own Stop hook ("[command hook 2]: There are untracked files in the repository. Please commit and push these changes to the remote branch.") also fired at every turn end, 4 times during wave 1 and once during w2-d1 `wf_2d3622b0-5e0`.
+Reply each time, one line naming the dispatch that owned the tree: "w1-d3 owns the tree; it commits its own work." (during w2-d1: "w2-d1 owns the tree; ..."). Nothing was committed or pushed: `git log -1` on `claude/byhand-checks-0-5-1` is still `e6cbc8f`, `git ls-remote origin claude/byhand-checks-0-5-1` prints nothing, and the toy files stay untracked under `sandbox/toy-spec-051/`.
+The trace has `hook` lines, not interventions (`trace/w2-d1.jsonl`: one `{"type":"hook","hook":"Stop","dispatch":"w1-d3","message":"Stop hook: commit and push your changes now. ..."}` and three `[command hook 2]` lines; w3-d1 adds the w2-d1 one). `render-trace.js` over that trace draws only the four dispatch nodes; `grep -i hook` on the diagram finds nothing.
+Finding: the `hook` lines carry the time they were written to the trace (11:11:35Z, w2-d1's start), not the time the hook fired (11:01:04Z).
+Box ticked: every condition holds.
 
 **What the by-hand check needs (recorded 2026-11-28)**
 
