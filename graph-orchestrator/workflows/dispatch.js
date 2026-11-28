@@ -273,6 +273,7 @@ var DEFAULT_SESSIONS = 3;
 var MAX_GAP_ROUNDS = 3;
 var DEFAULT_GAP_ROUNDS = 2;
 var MAX_DEBATE_ROUNDS = 4;
+var VERDICT_MAX = 160;
 function cutLines(text, maxLines, sink) {
   const lines = String(text ?? "").split("\n");
   if (lines.length <= maxLines) return lines.join("\n");
@@ -295,11 +296,20 @@ function recordRound(ctx, spec, round, verdict, feedback = "") {
 function recordStageLines(ctx, spec, lines) {
   detailFor(ctx, spec.id).stageLines = [...lines];
 }
+function verdictLine(rounds) {
+  const last = rounds?.at(-1);
+  if (!last) return void 0;
+  const reason = String(last.feedback ?? "").replace(/\s+/g, " ").trim();
+  const v = reason ? `${last.verdict}: ${reason}` : last.verdict;
+  return v.length > VERDICT_MAX ? `${v.slice(0, VERDICT_MAX - 1)}\u2026` : v;
+}
 function traceDetail(ctx, id, dropped) {
   const d = ctx.detail?.[id] ?? {};
+  const verdict = verdictLine(d.rounds);
   return {
     ...d.criteria !== void 0 ? { criteria: d.criteria } : {},
     ...d.rounds?.length ? { rounds: d.rounds } : {},
+    ...verdict !== void 0 ? { verdict } : {},
     ...d.stageLines ? { stageLines: d.stageLines } : {},
     ...dropped > 0 ? { dropped } : {}
   };
@@ -412,10 +422,46 @@ function dispatchEvent(wave, spec, r, parent) {
   return e;
 }
 
-// src/types.ts
-var TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain", "relay", "best-of-n", "iterative-fan-out", "panel"];
-
 // src/topologies/single.ts
+function isReview(spec) {
+  const roles = spec.roles && typeof spec.roles === "object" ? spec.roles : {};
+  return spec.topology === "single" && !!roles["evaluator"] && !roles["worker"];
+}
+async function runReview(ctx, spec) {
+  const returns = contractOf(spec);
+  const given = typeof spec.params?.["pass_criteria"] === "string" ? String(spec.params["pass_criteria"]).trim() : "";
+  if (given) recordCriteria(ctx, spec, given);
+  const ev = await callRole(
+    ctx,
+    spec,
+    "evaluator",
+    buildPrompt({
+      role: "evaluator",
+      task: spec.task,
+      context: spec.context,
+      entry: roleEntry(spec, "evaluator"),
+      returns,
+      artifactDir: ctx.artifactDir,
+      sections: [
+        { title: "PASS CRITERIA", body: given || "the criteria the TASK names" },
+        { title: "SUBMISSION (an evaluator-only review)", body: "the artifacts the TASK and CONTEXT name; open them from disk" }
+      ]
+    }),
+    { role: "evaluator" }
+  );
+  if (!ev) return fail(spec, "evaluator returned nothing", 1);
+  const question = blockedQuestion(ev, "evaluator");
+  if (question) {
+    recordRound(ctx, spec, 1, "blocked", question);
+    return { id: spec.id, status: "blocked", result: "BLOCKED", artifacts: [], question, iterations: 1 };
+  }
+  const pass = ev["pass"] === true;
+  const feedback = str(ev, "feedback").trim();
+  recordRound(ctx, spec, 1, pass ? "pass" : "fail", feedback);
+  const result = pass ? "PASS" : cutLines(feedback ? `FAIL
+${feedback}` : "FAIL", returns.maxLines, ctx);
+  return { id: spec.id, status: "done", result, artifacts: [], iterations: 1 };
+}
 function traceStep(file, lines, argsFile) {
   const clock = argsFile && hasPlaceholder(lines) ? clockSteps(argsFile) : [];
   const counts = hasRefusalPlaceholder(lines) ? refusalSteps() : [];
@@ -446,6 +492,7 @@ var TRACING_WORKER_SCHEMA = {
   required: [...workerSchema.required, "traceAppended"]
 };
 async function runSingle(ctx, spec) {
+  if (isReview(spec)) return runReview(ctx, spec);
   const returns = contractOf(spec);
   const trace = ctx.selfTrace && ctx.selfTrace.id === spec.id ? ctx.selfTrace : void 0;
   const out = await callRole(
@@ -474,6 +521,9 @@ async function runSingle(ctx, spec) {
   return question ? { ...base, status: "blocked", question } : { ...base, status: "done" };
 }
 var single = { demand: () => 1, run: runSingle };
+
+// src/types.ts
+var TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain", "relay", "best-of-n", "iterative-fan-out", "panel"];
 
 // src/topologies/generator-evaluator.ts
 async function runGeneratorEvaluator(ctx, spec) {
@@ -1387,7 +1437,7 @@ async function runDispatch(ctx, raw) {
 }
 
 // src/run.ts
-var PLUGIN_VERSION = "0.5.0+0bec341" ? "0.5.0+0bec341" : "dev";
+var PLUGIN_VERSION = "0.5.0+88232dc" ? "0.5.0+88232dc" : "dev";
 var HARD_AGENT_LIMIT = 1e3;
 function waveOf(id) {
   const m = /^w(\d+)-/.exec(id);
@@ -1549,7 +1599,7 @@ async function runWorkflow(args, rt) {
   const linesOf = (r, stages, fields2) => [...humans, ...stages.map(stamped), stamped({ ...dispatchEvent(wave, spec, r), ...fields2, at: now, ended: END_PLACEHOLDER })].map((e) => JSON.stringify(e));
   const meter = meteredRuntime(rt);
   const ctx = { rt: meter.runtime, artifactDir: scratch, wave, stageEvents: [] };
-  if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
+  if (raw && typeof raw === "object" && spec.topology === "single" && !isReview(spec) && id !== "?") {
     ctx.selfTrace = { id, file: traceFileOf(scratch, id), argsFile: argsFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1, ...REFUSAL_PLACEHOLDERS }) };
   }
   let result;

@@ -36,6 +36,8 @@ function normalise(raw) {
     if (parent) d.parent = parent;
     const question = str(e.question);
     if (question) d.question = question;
+    const verdict = str(e.verdict);
+    if (verdict) d.verdict = verdict;
     const version = str(e.version)?.replace(/[^A-Za-z0-9.+_-]/g, "");
     if (version) d.version = version;
     return d;
@@ -145,6 +147,7 @@ function label(d) {
   const parts = d.title ? [short(d.title), `${d.id} \xB7 ${d.topology} \xD7${d.iterations}`] : [`${d.id}`, `${d.topology} \xD7${d.iterations}`];
   if (d.status !== "done") parts.push(d.status.replace("_", " "));
   if (d.question) parts.push(`? ${short(d.question, 40)}`);
+  if (d.verdict) parts.push(short(d.verdict, 60));
   return parts.map(esc).join("<br/>");
 }
 var WAVE_STATUSES = ["done", "blocked", "exhausted", "over_budget", "failed"];
