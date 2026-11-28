@@ -15,7 +15,8 @@ var ROLE_TITLES = {
   reducer: "Reducer",
   judge: "Judge",
   debater: "Debater",
-  scribe: "Grapher"
+  scribe: "Grapher",
+  checker: "Checker"
 };
 var TOPOLOGY_TITLES = {
   single: "Single",
@@ -69,7 +70,7 @@ function roleOfLabel(label) {
 }
 
 // src/models.ts
-var ROLE_MODEL_DEFAULTS = { scribe: "haiku", partition: "haiku" };
+var ROLE_MODEL_DEFAULTS = { scribe: "haiku", partition: "haiku", checker: "haiku" };
 function modelOf(raw) {
   if (!raw || typeof raw !== "object") return void 0;
   const m = raw.model;
@@ -272,6 +273,7 @@ var DEFAULT_SESSIONS = 3;
 var MAX_GAP_ROUNDS = 3;
 var DEFAULT_GAP_ROUNDS = 2;
 var MAX_DEBATE_ROUNDS = 4;
+var VERDICT_MAX = 160;
 function cutLines(text, maxLines, sink) {
   const lines = String(text ?? "").split("\n");
   if (lines.length <= maxLines) return lines.join("\n");
@@ -294,11 +296,20 @@ function recordRound(ctx, spec, round, verdict, feedback = "") {
 function recordStageLines(ctx, spec, lines) {
   detailFor(ctx, spec.id).stageLines = [...lines];
 }
+function verdictLine(rounds) {
+  const last = rounds?.at(-1);
+  if (!last) return void 0;
+  const reason = String(last.feedback ?? "").replace(/\s+/g, " ").trim();
+  const v = reason ? `${last.verdict}: ${reason}` : last.verdict;
+  return v.length > VERDICT_MAX ? `${v.slice(0, VERDICT_MAX - 1)}\u2026` : v;
+}
 function traceDetail(ctx, id, dropped) {
   const d = ctx.detail?.[id] ?? {};
+  const verdict = verdictLine(d.rounds);
   return {
     ...d.criteria !== void 0 ? { criteria: d.criteria } : {},
     ...d.rounds?.length ? { rounds: d.rounds } : {},
+    ...verdict !== void 0 ? { verdict } : {},
     ...d.stageLines ? { stageLines: d.stageLines } : {},
     ...dropped > 0 ? { dropped } : {}
   };
@@ -407,13 +418,50 @@ function dispatchEvent(wave, spec, r, parent) {
   if (r.stages) e.stages = r.stages;
   if (parent) e.parent = parent;
   if (r.question) e.question = firstLine(r.question);
+  if (r.missing && r.missing.length) e.missing = r.missing;
   return e;
 }
 
-// src/types.ts
-var TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain", "relay", "best-of-n", "iterative-fan-out", "panel"];
-
 // src/topologies/single.ts
+function isReview(spec) {
+  const roles = spec.roles && typeof spec.roles === "object" ? spec.roles : {};
+  return spec.topology === "single" && !!roles["evaluator"] && !roles["worker"];
+}
+async function runReview(ctx, spec) {
+  const returns = contractOf(spec);
+  const given = typeof spec.params?.["pass_criteria"] === "string" ? String(spec.params["pass_criteria"]).trim() : "";
+  if (given) recordCriteria(ctx, spec, given);
+  const ev = await callRole(
+    ctx,
+    spec,
+    "evaluator",
+    buildPrompt({
+      role: "evaluator",
+      task: spec.task,
+      context: spec.context,
+      entry: roleEntry(spec, "evaluator"),
+      returns,
+      artifactDir: ctx.artifactDir,
+      sections: [
+        { title: "PASS CRITERIA", body: given || "the criteria the TASK names" },
+        { title: "SUBMISSION (an evaluator-only review)", body: "the artifacts the TASK and CONTEXT name; open them from disk" }
+      ]
+    }),
+    { role: "evaluator" }
+  );
+  if (!ev) return fail(spec, "evaluator returned nothing", 1);
+  const question = blockedQuestion(ev, "evaluator");
+  if (question) {
+    recordRound(ctx, spec, 1, "blocked", question);
+    return { id: spec.id, status: "blocked", result: "BLOCKED", artifacts: [], question, iterations: 1 };
+  }
+  const pass = ev["pass"] === true;
+  const feedback = str(ev, "feedback").trim();
+  recordRound(ctx, spec, 1, pass ? "pass" : "fail", feedback);
+  const result = pass ? "PASS" : cutLines(feedback ? `FAIL
+${feedback}` : "FAIL", returns.maxLines, ctx);
+  return { id: spec.id, status: "done", result, artifacts: [], iterations: 1 };
+}
 function traceStep(file, lines, argsFile) {
   const clock = argsFile && hasPlaceholder(lines) ? clockSteps(argsFile) : [];
   const counts = hasRefusalPlaceholder(lines) ? refusalSteps() : [];
@@ -444,6 +492,7 @@ var TRACING_WORKER_SCHEMA = {
   required: [...workerSchema.required, "traceAppended"]
 };
 async function runSingle(ctx, spec) {
+  if (isReview(spec)) return runReview(ctx, spec);
   const returns = contractOf(spec);
   const trace = ctx.selfTrace && ctx.selfTrace.id === spec.id ? ctx.selfTrace : void 0;
   const out = await callRole(
@@ -472,6 +521,9 @@ async function runSingle(ctx, spec) {
   return question ? { ...base, status: "blocked", question } : { ...base, status: "done" };
 }
 var single = { demand: () => 1, run: runSingle };
+
+// src/types.ts
+var TOPOLOGIES = ["single", "generator-evaluator", "fan-out", "debate", "chain", "relay", "best-of-n", "iterative-fan-out", "panel"];
 
 // src/topologies/generator-evaluator.ts
 async function runGeneratorEvaluator(ctx, spec) {
@@ -938,7 +990,12 @@ progress: ${progress}` }
     );
     if (!ev) return { ...fail(spec, `relay: evaluator returned nothing in session ${s}`, s), artifacts };
     const eq = blockedQuestion(ev);
-    if (eq) return { id: spec.id, status: "blocked", result: work.result, artifacts, question: eq, iterations: s };
+    const round = Math.ceil(s / check_every);
+    if (eq) {
+      recordRound(ctx, spec, round, "blocked", eq);
+      return { id: spec.id, status: "blocked", result: work.result, artifacts, question: eq, iterations: s };
+    }
+    recordRound(ctx, spec, round, ev["pass"] === true ? "pass" : "fail", str(ev, "feedback"));
     if (ev["pass"] === true) return { id: spec.id, status: "done", result: work.result, artifacts, iterations: s };
     feedback = str(ev, "feedback");
   }
@@ -1301,6 +1358,7 @@ async function runPanel(ctx, spec) {
   const verdicts = raw.map((v, i) => v ?? { lens: lenses[i], missing: true });
   const blocked = verdicts.filter((v) => !("missing" in v) && v.question !== void 0);
   if (blocked.length) {
+    recordRound(ctx, spec, 1, "blocked", `lens ${blocked[0].lens.name}: ${firstLine(blocked[0].question ?? "")}`);
     return { id: spec.id, status: "blocked", result: `lens(es) ${blocked.map((v) => v.lens.name).join(", ")} blocked`, artifacts: [], question: blocked.map((v) => `lens ${v.lens.name}: ${v.question}`).join("\n"), iterations: 1 };
   }
   const missing = verdicts.filter((v) => "missing" in v);
@@ -1310,6 +1368,8 @@ async function runPanel(ctx, spec) {
   const passed = pool === "all" ? p === k : p > k / 2;
   const verdict = passed ? "PASS" : `FAIL (${p}/${k})`;
   const failing = judged.filter((v) => !v.pass);
+  const firstFail = failing[0];
+  recordRound(ctx, spec, 1, passed ? "pass" : "fail", firstFail && !passed ? `lens ${firstFail.lens.name}: ${firstLine(firstFail.feedback) || "(no feedback given)"}` : "");
   if (reducer === null) {
     const lines = [verdict, ...failing.map((v) => `[${v.lens.name}] FAIL: ${firstLine(v.feedback) || "(no feedback given)"}`)];
     return { id: spec.id, status: "done", result: cutLines(lines.join("\n"), returns.maxLines, ctx), artifacts: [], iterations: 1 };
@@ -1385,7 +1445,7 @@ async function runDispatch(ctx, raw) {
 }
 
 // src/run.ts
-var PLUGIN_VERSION = "0.5.0+eaf50f7" ? "0.5.0+eaf50f7" : "dev";
+var PLUGIN_VERSION = "0.5.1+c6a891c" ? "0.5.1+c6a891c" : "dev";
 var HARD_AGENT_LIMIT = 1e3;
 function waveOf(id) {
   const m = /^w(\d+)-/.exec(id);
@@ -1406,6 +1466,51 @@ function scribePrompt(traceFile, lines, argsFile) {
     "TRACE>>>",
     "Return the number of lines you appended and the total number of lines in the file afterwards."
   ].join("\n");
+}
+function localArtifacts(artifacts) {
+  const out = [];
+  for (const a of Array.isArray(artifacts) ? artifacts : []) {
+    if (typeof a !== "string") continue;
+    const p = a.trim();
+    if (!p || /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(p) || out.includes(p)) continue;
+    out.push(p);
+  }
+  return out;
+}
+function checkerPrompt(paths) {
+  return [
+    "ROLE: checker",
+    `Check whether each of the ${paths.length} path(s) below exists on the local filesystem (a file or a directory; a relative path is relative to your working directory).`,
+    "Use one read-only command such as `ls -d` or `test -e`; do not create, open for writing, or change anything. Do nothing else.",
+    ...paths.map((p) => `- ${p}`),
+    "Return in `missing` every path above, exactly as written, that does not exist; an empty list when all exist."
+  ].join("\n");
+}
+var CHECKER_SCHEMA = {
+  type: "object",
+  properties: { missing: { type: "array", items: { type: "string" } } },
+  required: ["missing"]
+};
+function missingQuestion(missing) {
+  return missing.map((p) => `artifact ${p} claimed but not found`).join("; ");
+}
+async function checkArtifacts(rt, spec, r) {
+  const paths = localArtifacts(r.artifacts);
+  if (!paths.length) return r;
+  let reported;
+  try {
+    const out = await rt.agent(checkerPrompt(paths), { label: agentLabel({ role: "checker", task: "artifacts exist" }), schema: CHECKER_SCHEMA, ...modelOpt(spec, "checker") });
+    reported = out && typeof out === "object" ? out["missing"] : void 0;
+    if (!Array.isArray(reported)) throw new Error("the checker returned no missing list");
+  } catch (err) {
+    rt.log(`${r.id}: artifact check did not run: ${err instanceof Error ? err.message : String(err)}`);
+    return r;
+  }
+  const said = new Set(reported.filter((p) => typeof p === "string").map((p) => p.trim()));
+  const missing = paths.filter((p) => said.has(p));
+  if (!missing.length) return r;
+  for (const p of missing) rt.log(`${r.id}: artifact ${p} claimed but not found`);
+  return r.status === "done" ? { ...r, status: "blocked", question: missingQuestion(missing), missing } : { ...r, missing };
 }
 var SCRIBE_SCHEMA = {
   type: "object",
@@ -1479,7 +1584,7 @@ function withSource(h) {
   return s ? { ...rest, source: s } : rest;
 }
 function refusal(spec, demand) {
-  if (demand + 1 > HARD_AGENT_LIMIT) return { id: spec.id, status: "over_budget", result: `not run: ${demand} agent(s) and the scribe would exceed the ${HARD_AGENT_LIMIT}-agent run limit`, artifacts: [], iterations: 0 };
+  if (demand + 2 > HARD_AGENT_LIMIT) return { id: spec.id, status: "over_budget", result: `not run: ${demand} agent(s), the artifact checker and the scribe would exceed the ${HARD_AGENT_LIMIT}-agent run limit`, artifacts: [], iterations: 0 };
   const wave = waveOf(spec.id);
   const sameWave = wave ? spec.dependsOn.find((d) => waveOf(d) === wave && d !== spec.id) : void 0;
   if (sameWave) return fail(spec, `dependsOn names ${sameWave} from the same wave; each dispatch is its own workflow and cannot wait on another: use a chain, or dispatch this next wave`);
@@ -1502,12 +1607,13 @@ async function runWorkflow(args, rt) {
   const linesOf = (r, stages, fields2) => [...humans, ...stages.map(stamped), stamped({ ...dispatchEvent(wave, spec, r), ...fields2, at: now, ended: END_PLACEHOLDER })].map((e) => JSON.stringify(e));
   const meter = meteredRuntime(rt);
   const ctx = { rt: meter.runtime, artifactDir: scratch, wave, stageEvents: [] };
-  if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
+  if (raw && typeof raw === "object" && spec.topology === "single" && !isReview(spec) && id !== "?") {
     ctx.selfTrace = { id, file: traceFileOf(scratch, id), argsFile: argsFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1, ...REFUSAL_PLACEHOLDERS }) };
   }
   let result;
   if (!raw || typeof raw !== "object") result = fail({ id: "?" }, "args.dispatch is not a dispatch spec");
   else result = refusal(spec, demand) ?? await runDispatch(ctx, raw);
+  result = await checkArtifacts(rt, raw && typeof raw === "object" ? spec : null, result);
   const traceFile = traceFileOf(scratch, result.id !== "?" ? result.id : id);
   const dropped = ctx.dropped ?? 0;
   if (dropped > 0) rt.log(`${id}: cuts dropped ${dropped} line(s)`);

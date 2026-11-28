@@ -2,7 +2,7 @@
  * The trace renderer: trace JSONL text in, Mermaid flowchart out.
  * Waves become subgraphs (grouped by each dispatch line's `wave`), dispatches
  * nodes labelled with their title, id, topology and iteration count, `dependsOn` edges, status as node class, chain stages as a
- * nested subgraph, interventions as nodes (`human`, or `self` dashed, by
+ * nested subgraph, an evaluator's verdict as the node's last line, interventions as nodes (`human`, or `self` dashed, by
  * their `source`, else by mode: autonomous is `self`), `hook` lines as nothing.
  * The builds that wrote the dispatch lines (their `version`, B-03) become the
  * diagram's title, in a front-matter header; a trace without one has none.
@@ -55,6 +55,8 @@ function normalise(raw: unknown): TraceEvent | null {
     if (parent) d.parent = parent;
     const question = str(e.question);
     if (question) d.question = question;
+    const verdict = str(e.verdict);
+    if (verdict) d.verdict = verdict;
     // Only characters a build stamp uses, so a hostile line cannot break out of the header.
     const version = str(e.version)?.replace(/[^A-Za-z0-9.+_-]/g, "");
     if (version) d.version = version;
@@ -122,7 +124,13 @@ export function parseTrace(text: string, extra: TraceEvent[] = []): ParsedTrace 
           const list = w.stages.get(e.parent) ?? [];
           list.push(e);
           w.stages.set(e.parent, list);
-        } else w.dispatches.push(e);
+        } else {
+          // A later line for the same dispatch supersedes an earlier one: a `single`'s worker appends its done line,
+          // and when the artifact check then blocks the dispatch the scribe appends the true line after it.
+          const prior = w.dispatches.findIndex((d) => d.id === e.id);
+          if (prior === -1) w.dispatches.push(e);
+          else w.dispatches[prior] = e;
+        }
         break;
       }
       case "wave_end":
@@ -168,6 +176,8 @@ function label(d: Dispatch): string {
   const parts = d.title ? [short(d.title), `${d.id} · ${d.topology} ×${d.iterations}`] : [`${d.id}`, `${d.topology} ×${d.iterations}`];
   if (d.status !== "done") parts.push(d.status.replace("_", " "));
   if (d.question) parts.push(`? ${short(d.question, 40)}`);
+  // The evaluator's verdict and first blocking reason (finding B), last; a line without one draws as before.
+  if (d.verdict) parts.push(short(d.verdict, 60));
   return parts.map(esc).join("<br/>");
 }
 

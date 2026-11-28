@@ -1,0 +1,21 @@
+TOY SPEC: toy string utilities
+Purpose: a tiny, disposable ticket set used to exercise the orchestrator's
+by-hand checks (dispatch, dependency ordering, criteria counting, refusal of
+unrunnable steps). The code itself is incidental.
+
+Layout (all paths relative to repo root):
+  sandbox/toy-spec/toy/__init__.py         package marker
+  sandbox/toy-spec/toy/slugify.py          T1
+  sandbox/toy-spec/toy/wordcount.py        T2
+  sandbox/toy-spec/toy/title.py            T3 (depends on T1)
+  sandbox/toy-spec/tests/__init__.py       package marker
+  sandbox/toy-spec/tests/test_*.py         one test module per ticket
+
+Tickets: T1.txt, T2.txt, T3.txt (T3 depends on T1; T1 and T2 independent).
+
+Acceptance criteria (5, each checkable yes/no):
+  A1. All three tickets report every one of their pass criteria met.
+  A2. `python3 -m unittest discover -s sandbox/toy-spec -t .` exits 0.
+  A3. That run reports at least 9 tests run and 0 failures, 0 errors.
+  A4. Only standard library imports appear under sandbox/toy-spec/.
+  A5. No file outside sandbox/toy-spec/ is changed by any ticket.

@@ -20,7 +20,7 @@ test("relay done: sessions run until the done-check passes; result is the last s
   assert.equal(r.iterations, 2);
   assert.equal(r.result, "feature 2 done\nall green");
   assert.deepEqual(r.artifacts, ["/a.ts", "/progress.md", "/b.ts"]);
-  assert.deepEqual(roles(), ["Worker (1 of 5)", "Evaluator (1 of 5)", "Worker (2 of 5)", "Evaluator (2 of 5)", "Grapher"]);
+  assert.deepEqual(roles(), ["Worker (1 of 5)", "Evaluator (1 of 5)", "Worker (2 of 5)", "Evaluator (2 of 5)", "Checker", "Grapher"]);
 
   const w1 = calls[0]!.prompt;
   assert.match(w1, /SESSION 1 of 5/);

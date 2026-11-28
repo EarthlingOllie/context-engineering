@@ -25,6 +25,8 @@ export const MAX_GAP_ROUNDS = 3;
 export const DEFAULT_GAP_ROUNDS = 2;
 /** debate: rounds per dispatch (worst case 6 × 4 + 1 = 25 agents). */
 export const MAX_DEBATE_ROUNDS = 4;
+/** A dispatch line's `verdict`: one line of at most this many characters (finding B). */
+export const VERDICT_MAX = 160;
 
 export type TopologyContext = {
   rt: Runtime;
@@ -103,12 +105,27 @@ export function recordStageLines(ctx: TopologyContext, spec: DispatchSpec, lines
   detailFor(ctx, spec.id).stageLines = [...lines];
 }
 
+/**
+ * The verdict a dispatch line carries when an evaluator ran (finding B): the last round's verdict and, for fail
+ * or blocked, its first blocking reason (`fail: <first feedback line>`), on one line of at most VERDICT_MAX
+ * characters, cut with an ellipsis. Undefined when no evaluator round was recorded.
+ */
+export function verdictLine(rounds: EvaluatorRound[] | undefined): string | undefined {
+  const last = rounds?.at(-1);
+  if (!last) return undefined;
+  const reason = String(last.feedback ?? "").replace(/\s+/g, " ").trim();
+  const v = reason ? `${last.verdict}: ${reason}` : last.verdict;
+  return v.length > VERDICT_MAX ? `${v.slice(0, VERDICT_MAX - 1)}…` : v;
+}
+
 /** The fields a dispatch line gains from its recorded detail and the lines its cuts dropped (absent when none). */
-export function traceDetail(ctx: TopologyContext, id: string, dropped: number): DispatchDetail & { dropped?: number } {
+export function traceDetail(ctx: TopologyContext, id: string, dropped: number): DispatchDetail & { verdict?: string; dropped?: number } {
   const d = ctx.detail?.[id] ?? {};
+  const verdict = verdictLine(d.rounds);
   return {
     ...(d.criteria !== undefined ? { criteria: d.criteria } : {}),
     ...(d.rounds?.length ? { rounds: d.rounds } : {}),
+    ...(verdict !== undefined ? { verdict } : {}),
     ...(d.stageLines ? { stageLines: d.stageLines } : {}),
     ...(dropped > 0 ? { dropped } : {}),
   };
@@ -275,5 +292,6 @@ export function dispatchEvent(wave: number, spec: DispatchSpec, r: DispatchResul
   if (r.stages) e.stages = r.stages;
   if (parent) e.parent = parent;
   if (r.question) e.question = firstLine(r.question);
+  if (r.missing && r.missing.length) e.missing = r.missing;
   return e;
 }

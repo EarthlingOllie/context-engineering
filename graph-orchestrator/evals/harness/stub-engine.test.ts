@@ -82,3 +82,22 @@ test("with a failing evaluator the stub iterative fan-out (sample 10) runs its s
   assert.equal(r.return?.["iterations"], 2);
   assert.ok(r.agents.some((a) => /round 2 of 2/.test(a.label ?? "")));
 });
+
+test("sample 17: the stub worker claims the artifact its instructions name without writing it; the stub checker finds it missing, so the dispatch comes back blocked", async () => {
+  const scratch = mkdtempSync(join(tmpdir(), "stub-"));
+  const result = await runHarness({ bundleSource, args: sampleArgs("17-single-phantom-artifact.json", scratch), engine: stubEngine(), mainModel: "m", cap: 2 });
+  assert.equal(result.return?.["status"], "blocked");
+  assert.equal(result.return?.["question"], "artifact /work/scratch/phantom-summary.md claimed but not found");
+  assert.deepEqual(result.return?.["missing"], ["/work/scratch/phantom-summary.md"]);
+  assert.deepEqual(result.agents.map((a) => a.label?.split(":")[0]), ["Worker", "Checker", "Grapher"]);
+  const line = JSON.parse(readFileSync(join(scratch, "trace", "w1-d17.jsonl"), "utf8").trim().split("\n").at(-1)!);
+  assert.equal(line.status, "blocked");
+  assert.deepEqual(line.missing, ["/work/scratch/phantom-summary.md"]);
+});
+
+test("the stub checker really looks: a claimed path that exists is not missing", async () => {
+  const scratch = mkdtempSync(join(tmpdir(), "stub-"));
+  const engine = stubEngine();
+  const out = await engine({ prompt: `ROLE: checker\nCheck whether each of the 2 path(s) below exists\n- ${scratch}\n- ${join(scratch, "nope.md")}\nReturn in \`missing\` every path`, label: "Checker: artifacts exist", model: "m" } as never);
+  assert.deepEqual((out.output as { missing: string[] }).missing, [join(scratch, "nope.md")]);
+});

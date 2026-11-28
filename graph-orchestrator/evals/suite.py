@@ -18,7 +18,7 @@ BASELINES = EVALS / "baselines"  # frozen baseline scorecards, committed, one pe
 FIXTURES = EVALS / "fixtures"
 
 # ---- pins: written into every scorecard header ----
-MODEL = "claude-opus-5-5"  # the main model: every role the plugin names no model for (scribe and partition ask for Haiku since ticket 07)
+MODEL = "claude-opus-5-5"  # the main model: every role the plugin names no model for (scribe and partition ask for Haiku since ticket 07, the artifact checker since finding A)
 INSPECT_VERSION = "0.3.292"  # = requirements.txt
 SDK_VERSION = "0.3.332"  # @anthropic-ai/claude-agent-sdk in sandbox/package.json
 CLAUDE_CODE_VERSION = "2.1.332"  # the engine that SDK version ships
@@ -30,7 +30,7 @@ ENGINE_VERSION = f"@anthropic-ai/claude-agent-sdk {SDK_VERSION} (Claude Code {CL
 DECLARED_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
 
 # The roles an agent label names (src/labels.ts LabelRole; the "Grapher" label is the scribe).
-ROLES = ["worker", "generator", "evaluator", "partition", "reducer", "judge", "debater", "scribe"]
+ROLES = ["worker", "generator", "evaluator", "partition", "reducer", "judge", "debater", "scribe", "checker"]
 
 
 def parse_role_models(pairs) -> dict[str, str]:

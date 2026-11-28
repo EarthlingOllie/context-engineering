@@ -63,6 +63,7 @@ class Samples(unittest.TestCase):
             "06-fan-out-reducer-docs": ("fan-out", "done"),
             "07-fan-out-partition-docs": ("fan-out", "done"),
             "15-fan-out-over-budget": ("fan-out", "over_budget"),
+            "17-single-phantom-artifact": ("single", "blocked"),
         }.items():
             self.assertEqual(got[i], want, i)
 
@@ -75,6 +76,14 @@ class Samples(unittest.TestCase):
         p6 = s["06-fan-out-reducer-docs"]["args"]["dispatch"]
         self.assertIsInstance(p6["params"]["split"], list)
         self.assertIn("reducer", p6["roles"])
+
+    def test_sample_17_is_scored_blocked_on_the_artifact_check_question_for_the_path_its_worker_is_told_to_claim(self):
+        s = self.by_id()["17-single-phantom-artifact"]
+        check = suite.hidden_check(s)
+        self.assertEqual(check["kind"], "blocked")
+        self.assertNotIn("facts", check)
+        self.assertIn("Report /work/scratch/phantom-summary.md in artifacts", s["args"]["dispatch"]["roles"]["worker"]["instructions"])
+        self.assertTrue(re.search(check["question_patterns"][0], "artifact /work/scratch/phantom-summary.md claimed but not found"))
 
     def test_no_sample_requests_a_model(self):
         for s in suite.load_samples():
@@ -241,8 +250,8 @@ class RemainingTopologySamples(unittest.TestCase):
         covered = {spec["topology"] for s in suite.load_samples() for spec in _specs(s["args"]["dispatch"])}
         self.assertLessEqual(topologies, covered)
 
-    def test_the_suite_has_16_samples_numbered_1_to_16(self):
-        self.assertEqual([int(s["id"][:2]) for s in suite.load_samples()], list(range(1, 17)))
+    def test_the_suite_has_17_samples_numbered_1_to_17(self):
+        self.assertEqual([int(s["id"][:2]) for s in suite.load_samples()], list(range(1, 18)))
 
     def test_samples_10_12_13_14_with_their_topology_fixture_and_expected_status(self):
         got = {i: (s["fixture"], s["args"]["dispatch"]["topology"], s["expected_status"]) for i, s in self.by_id().items()}

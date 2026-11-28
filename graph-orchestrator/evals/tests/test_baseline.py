@@ -188,9 +188,9 @@ class BaselineCheck(unittest.TestCase):
         self.assertEqual(run.baseline_problems(card, "abc123.json"), [])
         self.assertEqual(run.stale_samples(card), ["10-iterative-fan-out-docs-gap", "16-generator-evaluator-countable-criteria"])
 
-    def test_the_frozen_baseline_predates_sample_10_s_fix_and_sample_16(self):
+    def test_the_frozen_baseline_predates_sample_10_s_fix_and_samples_16_and_17(self):
         card = json.loads((suite.BASELINES / "3035a58f6828.json").read_text())
-        self.assertEqual(run.stale_samples(card), ["10-iterative-fan-out-docs-gap", "16-generator-evaluator-countable-criteria"])
+        self.assertEqual(run.stale_samples(card), ["10-iterative-fan-out-docs-gap", "16-generator-evaluator-countable-criteria", "17-single-phantom-artifact"])
 
     def test_the_scorecard_header_records_each_sample_s_revision_from_the_log(self):
         s1, s2 = fake_sample(), fake_sample()

@@ -1,0 +1,35 @@
+{
+  "id": "17-single-phantom-artifact",
+  "description": "single over the docs fixture whose worker is told to list an artifact it never writes: the engine's artifact check must find the path missing and turn the done result into blocked with the question 'artifact <path> claimed but not found' (finding A, by-hand session 2026-11-27: w4-d2 listed a path it never wrote and nothing caught it). Runs under --stub: the canned worker claims the path its instructions name and the canned checker really looks",
+  "fixture": "docs",
+  "expected_status": "blocked",
+  "check": {
+    "kind": "blocked",
+    "question_patterns": ["^artifact /work/scratch/phantom-summary\\.md claimed but not found$"]
+  },
+  "args": {
+    "now": "2026-11-28T00:00:00Z",
+    "scratch": "/work/scratch",
+    "dispatch": {
+      "id": "w1-d17",
+      "title": "Claim an unwritten summary",
+      "topology": "single",
+      "task": "State in one line the maximum number of retries /work/docs/retry-policy.md allows, citing the file.",
+      "context": [
+        "The documents are under /work/docs.",
+        "This dispatch is an eval of the engine's artifact check, which runs after you return: a claimed artifact path that does not exist must be caught."
+      ],
+      "roles": {
+        "worker": {
+          "instructions": "Do not create, write or change any file. Report /work/scratch/phantom-summary.md in artifacts without writing it; list no other artifact."
+        }
+      },
+      "params": {},
+      "returns": {
+        "shape": "line1: the maximum retries and the file it comes from",
+        "maxLines": 2
+      },
+      "dependsOn": []
+    }
+  }
+}

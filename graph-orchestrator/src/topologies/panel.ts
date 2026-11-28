@@ -1,7 +1,7 @@
 // ---------- panel ----------
 import type { DispatchResult, DispatchSpec, PanelLens, PanelParams, RoleEntry } from "../types.ts";
 import { buildPrompt } from "../roles.ts";
-import { MAX_PARTICIPANTS, type Checked, type TopologyContext, type TopologyImpl, blockedQuestion, callRole, entryOf, contractOf, cutLines, fail, firstLine, overBudget, readWorkOutput, roleEntry, str } from "./shared.ts";
+import { MAX_PARTICIPANTS, type Checked, type TopologyContext, type TopologyImpl, blockedQuestion, callRole, entryOf, contractOf, cutLines, fail, firstLine, overBudget, readWorkOutput, recordRound, roleEntry, str } from "./shared.ts";
 
 /** Panel params with the defaults applied and the reducer resolved (roles.reducer, params.reducer entry, or `true`; null when none). */
 export type PanelPlan = { lenses: PanelLens[]; pass_criteria: string; pool: "all" | "majority"; reducer: RoleEntry | true | null };
@@ -100,6 +100,7 @@ async function runPanel(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
 
   const blocked = verdicts.filter((v): v is Extract<LensVerdict, { pass: boolean }> => !("missing" in v) && v.question !== undefined);
   if (blocked.length) {
+    recordRound(ctx, spec, 1, "blocked", `lens ${blocked[0]!.lens.name}: ${firstLine(blocked[0]!.question ?? "")}`);
     return { id: spec.id, status: "blocked", result: `lens(es) ${blocked.map((v) => v.lens.name).join(", ")} blocked`, artifacts: [], question: blocked.map((v) => `lens ${v.lens.name}: ${v.question}`).join("\n"), iterations: 1 };
   }
   const missing = verdicts.filter((v) => "missing" in v);
@@ -110,6 +111,9 @@ async function runPanel(ctx: TopologyContext, spec: DispatchSpec): Promise<Dispa
   const passed = pool === "all" ? p === k : p > k / 2;
   const verdict = passed ? "PASS" : `FAIL (${p}/${k})`;
   const failing = judged.filter((v) => !v.pass);
+  // The pooled verdict on the trace line (finding B): pass, or the first failing lens's first feedback line.
+  const firstFail = failing[0];
+  recordRound(ctx, spec, 1, passed ? "pass" : "fail", firstFail && !passed ? `lens ${firstFail.lens.name}: ${firstLine(firstFail.feedback) || "(no feedback given)"}` : "");
 
   if (reducer === null) {
     const lines = [verdict, ...failing.map((v) => `[${v.lens.name}] FAIL: ${firstLine(v.feedback) || "(no feedback given)"}`)];

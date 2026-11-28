@@ -18,7 +18,7 @@ test("debate: runs every round with all debaters in parallel, then the judge; th
     [spec({ id: "w1-d1", topology: "debate", roles: { judge: { instructions: "weigh stability" } }, params: { participants: two, rounds: 2 } })],
     { Debater: echo, Judge: verdict },
   );
-  assert.deepEqual(roles(), ["Debater check (round 1 of 2)", "Debater flag (round 1 of 2)", "Debater check (round 2 of 2)", "Debater flag (round 2 of 2)", "Judge", "Grapher"]);
+  assert.deepEqual(roles(), ["Debater check (round 1 of 2)", "Debater flag (round 1 of 2)", "Debater check (round 2 of 2)", "Debater flag (round 2 of 2)", "Judge", "Checker", "Grapher"]);
   const r = out.results[0]!;
   assert.equal(r.status, "done");
   assert.equal(r.iterations, 2);

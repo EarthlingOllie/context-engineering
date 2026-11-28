@@ -1,0 +1,19 @@
+TICKET T1: slugify
+Depends on: none
+Files: sandbox/toy-spec/toy/__init__.py, sandbox/toy-spec/toy/slugify.py,
+       sandbox/toy-spec/tests/__init__.py, sandbox/toy-spec/tests/test_slugify.py
+
+Implement slugify(s: str) -> str in toy/slugify.py: lowercase, replace each
+run of non-alphanumeric ASCII characters with a single "-", strip leading and
+trailing "-".
+
+Steps:
+  1. Write toy/slugify.py and tests/test_slugify.py.
+  2. Run the test command below.
+
+Pass criteria (5):
+  P1. slugify("Hello World") == "hello-world"
+  P2. slugify("  --Already--Slugged--  ") == "already-slugged"
+  P3. slugify("") == ""
+  P4. tests/test_slugify.py contains at least 3 test methods covering P1-P3.
+  P5. `python3 -m unittest discover -s sandbox/toy-spec -t .` exits 0.

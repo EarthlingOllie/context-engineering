@@ -36,6 +36,8 @@ function normalise(raw) {
     if (parent) d.parent = parent;
     const question = str(e.question);
     if (question) d.question = question;
+    const verdict = str(e.verdict);
+    if (verdict) d.verdict = verdict;
     const version = str(e.version)?.replace(/[^A-Za-z0-9.+_-]/g, "");
     if (version) d.version = version;
     return d;
@@ -100,7 +102,11 @@ function parseTrace(text, extra = []) {
           const list = w.stages.get(e.parent) ?? [];
           list.push(e);
           w.stages.set(e.parent, list);
-        } else w.dispatches.push(e);
+        } else {
+          const prior = w.dispatches.findIndex((d) => d.id === e.id);
+          if (prior === -1) w.dispatches.push(e);
+          else w.dispatches[prior] = e;
+        }
         break;
       }
       case "wave_end":
@@ -141,6 +147,7 @@ function label(d) {
   const parts = d.title ? [short(d.title), `${d.id} \xB7 ${d.topology} \xD7${d.iterations}`] : [`${d.id}`, `${d.topology} \xD7${d.iterations}`];
   if (d.status !== "done") parts.push(d.status.replace("_", " "));
   if (d.question) parts.push(`? ${short(d.question, 40)}`);
+  if (d.verdict) parts.push(short(d.verdict, 60));
   return parts.map(esc).join("<br/>");
 }
 var WAVE_STATUSES = ["done", "blocked", "exhausted", "over_budget", "failed"];
@@ -220,6 +227,22 @@ function renderTrace(text, extra = []) {
   return out.join("\n") + "\n";
 }
 
+// src/trace/final-reply.ts
+function finalReplySkeleton(diagram) {
+  return [
+    "UNVERIFIED",
+    "- <item>: <artifact paths>; <why no evaluator passed it>   (or: - none)",
+    "STATUS: <where the task stands, one line>",
+    "<summary: at most 3 plain lines>",
+    "ARTIFACTS",
+    "- <path>",
+    "DECISIONS",
+    "- <decision that needs the human's eyes>",
+    `DIAGRAM: send ${diagram} as a file, never its text`,
+    ""
+  ].join("\n");
+}
+
 // src/trace/cli.ts
 var USAGE = "usage: render-trace <trace-dir | trace.jsonl> [--out <file.mmd>] [--human '<json>']...\n";
 function orderOf(name) {
@@ -283,6 +306,10 @@ function main(argv) {
   process.stdout.write(mermaid);
   process.stderr.write(`wrote ${target}
 `);
+  process.stderr.write(`
+Final reply, in this shape and nothing else:
+
+${finalReplySkeleton(target)}`);
   return 0;
 }
 process.exitCode = main(process.argv);

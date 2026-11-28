@@ -20,7 +20,7 @@ test("dispatch: an evaluator that cannot run a check blocks the dispatch with it
       "Evaluator (1": { pass: false, feedback: "", blocked: true, question: "Bash was denied: could not run `npm test` for criterion 1. Allow it?" },
     },
   );
-  assert.deepEqual(roles(), ["Generator (1 of 3)", "Evaluator (1 of 3)", "Grapher"]);
+  assert.deepEqual(roles(), ["Generator (1 of 3)", "Evaluator (1 of 3)", "Checker", "Grapher"]);
   const r = out.results[0]!;
   assert.equal(r.status, "blocked");
   assert.equal(r.question, "Bash was denied: could not run `npm test` for criterion 1. Allow it?");
@@ -47,7 +47,8 @@ test("SKILL.md: Unverified work gets an evaluator-only dispatch next wave unless
 
 test("SKILL.md: the final reply lists Unverified items first", () => {
   const finish = skill.slice(skill.indexOf("### Finish"));
-  assert.match(finish, /Your final reply is: the UNVERIFIED items first[^\n]*; then STATUS in one line/);
+  assert.match(finish, /Your final reply is this template[^\n]*\n\n```\nUNVERIFIED\n/);
+  assert.match(finish, /UNVERIFIED comes first, one line per item\. STATUS is one line/);
 });
 
 test("SKILL.md: a budget stop with a failing review ends with one single that returns its blocking items in at most 6 lines", () => {

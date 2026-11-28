@@ -2,6 +2,16 @@
 
 Each release maps to one spec under `docs/specs/`. Ticket numbers below refer to that spec's `tickets/` folder.
 
+## 0.5.1
+
+Fixes from the by-hand session of 2026-11-27 (session_016jSC3fsMfuGLacrVjUTYMU, plugin 0.5.0+eaf50f7), recorded in `docs/specs/fixes/tickets/` 04, 09, 11, 12, 13 and 16 and `docs/specs/observability-evals/tickets/04`. Three stages, one per finding:
+
+- Artifact check (finding A, by-hand session 2026-11-27): after any dispatch returns, one `checker` agent (Haiku by default, `roles.checker.model` overrides) tests that each local artifact path in its result exists. Missing paths are listed in the result's and the dispatch trace line's `missing` and logged, and a `done` result becomes `blocked` with the question `artifact <path> claimed but not found`. The renderer draws the last line written for a dispatch, so a `single` whose worker appended its done line before the check shows the scribe's blocked line. SKILL.md's Integrate table and the catalog say what to do with it; dispatch eval sample 17 (`17-single-phantom-artifact`, stub-runnable) measures it.
+- Review verdict (finding B, by-hand session 2026-11-27): a dispatch line whose evaluator ran carries `verdict`, the last round's `pass`, `fail: <first feedback line>` or `blocked: <question's first line>`, one line of at most 160 characters (generator-evaluator, iterative-fan-out, relay per done-check, and panel as one pooled round whose reason is `lens <name>: <first feedback line>`; best-of-n and debate run a judge and carry none). A `single` with `roles.evaluator` and no `roles.worker` is an evaluator-only review: it runs one evaluator against `params.pass_criteria`, returns `PASS` or `FAIL` plus feedback (`done`) or `blocked`, and the scribe writes its line, so the line says why a review kept work UNVERIFIED. The renderer shows a verdict as the node's last line; a line without one draws as before. SKILL.md's Unverified paragraph and the catalog's `single` say how to plan and read it.
+- Final reply (finding C, by-hand check 12): the session's final reply summarised with a ~12-row table instead of STATUS plus at most 3 lines. SKILL.md's Finish now fixes the reply as a template: an UNVERIFIED block first, then a STATUS line opening at most 3 summary lines, ARTIFACTS by path, the DECISIONS that need the human's eyes, and the diagram sent as a file; Red flags add a table in the final reply. `render-trace.js` prints the same template on stderr, with the saved diagram's path filled in, right after it saves the diagram (stdout is still the diagram alone); a test keeps the SKILL.md block and the printed skeleton equal.
+
+Ticket records, no plugin change: fixes ticket 12's by-hand box is restated so that in autonomous mode a best guess recorded under DECISIONS after every independent launch, not a question, meets its human-wait half; fixes ticket 16's box 2 takes plugin 0.5.0 or later instead of 0.4.0; fixes ticket 09 records that its by-hand check needs an environment with a git Stop hook that fires mid-wave, and how to add one.
+
 ## 0.5.0
 
 Spec: `docs/specs/observability-evals/` (every run recorded truthfully, whole sessions measured). Release ticket: 12.

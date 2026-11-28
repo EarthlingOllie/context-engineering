@@ -29,7 +29,8 @@ export type DispatchSpec = {
 };
 
 /** Narrowed params. Validated at runtime because the orchestrator writes them as JSON. */
-export type SingleParams = Record<string, never>;
+/** An evaluator-only review (`roles.evaluator`, no `roles.worker`) may carry `pass_criteria`; a worker single takes none. */
+export type SingleParams = { pass_criteria?: string };
 export type GeneratorEvaluatorParams = { max_iterations?: number; pass_criteria: string }; // pass_criteria required: missing or blank → failed, no agent spent
 export type FanOutParams = {
   width?: number; // ≤ 9
@@ -86,6 +87,8 @@ export type DispatchResult = {
   question?: string; // when blocked; for fan-out, also when a branch blocked
   iterations: number;
   stages?: string[]; // chain only: "w3-s1:done"
+  /** Local artifact paths the result claims that the engine's artifact check did not find (finding A); absent when every one was found or none was checked. */
+  missing?: string[];
 };
 
 /**
@@ -166,6 +169,8 @@ export type TraceEvent =
       criteria?: string;
       /** generator-evaluator and iterative-fan-out: each evaluator round's verdict and first feedback line, in order. */
       rounds?: EvaluatorRound[];
+      /** When an evaluator ran (finding B): the last verdict and, for fail or blocked, its first blocking reason, as `fail: <reason>`; one line, at most 160 characters. Absent when no evaluator ran and on older lines. */
+      verdict?: string;
       /** chain only: each run stage's `<id> <status>: <first line>`. */
       stageLines?: string[];
       /** The build that wrote the line (B-03): `<package version>+<git short commit>`, `dev` from unbundled source. Absent on older lines. */
@@ -175,6 +180,8 @@ export type TraceEvent =
       /** Writes refused and tools denied, totalled over the agents that reported them (B-07); absent when none did. A `single`'s worker fills in its own. */
       writes_refused?: number;
       tools_denied?: number;
+      /** Local artifact paths the result claimed that the artifact check did not find; absent when none. */
+      missing?: string[];
     }
   | { type: "wave_end"; wave: number; at: string; done: number; blocked: number; exhausted: number; over_budget: number; failed: number } // v0.2 traces only
   | HumanEvent

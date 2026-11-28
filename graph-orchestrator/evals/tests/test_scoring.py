@@ -231,6 +231,11 @@ class OverBudget(unittest.TestCase):
         rec.result["agents"].insert(0, {"n": 0, "label": "Worker (1 of 10): x", "startMs": 0, "endMs": 1, "queuedMs": 0})
         self.assertEqual(outcome(rec, self.CHECK), (False, ["1 dispatch agent(s) ran"]))
 
+    def test_the_artifact_checker_is_the_engine_s_like_the_scribe_so_it_is_not_a_dispatch_agent(self):
+        rec = load_saved_sample(SAVED / "over-budget")
+        rec.result["agents"].insert(0, {"n": 0, "label": "Checker: artifacts exist", "startMs": 0, "endMs": 1, "queuedMs": 0})
+        self.assertEqual(outcome(rec, self.CHECK), (True, []))
+
 
 class FanOut(unittest.TestCase):
     def test_sample_6_scores_the_reducers_result_not_the_files_the_branches_wrote(self):
@@ -370,6 +375,7 @@ class CostByRole(unittest.TestCase):
         self.assertEqual(role_of("Link 2 · Generator-evaluator, Evaluator (1 of 3): Add parse"), "evaluator")
         self.assertEqual(role_of("Link 1 · Single, Worker: Plan"), "worker")
         self.assertEqual(role_of("Grapher: logging current dispatch"), "scribe")
+        self.assertEqual(role_of("Checker: artifacts exist"), "checker")
         self.assertEqual(role_of("Debater pro (round 1 of 2)"), "debater")
         self.assertEqual(role_of(None), "unlabelled")
 
