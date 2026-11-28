@@ -227,6 +227,22 @@ function renderTrace(text, extra = []) {
   return out.join("\n") + "\n";
 }
 
+// src/trace/final-reply.ts
+function finalReplySkeleton(diagram) {
+  return [
+    "UNVERIFIED",
+    "- <item>: <artifact paths>; <why no evaluator passed it>   (or: - none)",
+    "STATUS: <where the task stands, one line>",
+    "<summary: at most 3 plain lines>",
+    "ARTIFACTS",
+    "- <path>",
+    "DECISIONS",
+    "- <decision that needs the human's eyes>",
+    `DIAGRAM: send ${diagram} as a file, never its text`,
+    ""
+  ].join("\n");
+}
+
 // src/trace/cli.ts
 var USAGE = "usage: render-trace <trace-dir | trace.jsonl> [--out <file.mmd>] [--human '<json>']...\n";
 function orderOf(name) {
@@ -290,6 +306,10 @@ function main(argv) {
   process.stdout.write(mermaid);
   process.stderr.write(`wrote ${target}
 `);
+  process.stderr.write(`
+Final reply, in this shape and nothing else:
+
+${finalReplySkeleton(target)}`);
   return 0;
 }
 process.exitCode = main(process.argv);

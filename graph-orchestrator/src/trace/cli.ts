@@ -7,12 +7,13 @@
  * the dispatch workflows write), or a single JSONL file (a v0.2 trace). A
  * directory's files are read in dispatch order: by wave, then dispatch number.
  * Prints the Mermaid diagram to stdout and writes it beside the trace
- * (<trace>.mmd by default). Each --human event is appended first (to
- * <trace-dir>/end.jsonl for a directory), so interventions after the final
- * wave are recorded too.
+ * (<trace>.mmd by default), then prints the final reply's template to
+ * stderr. Each --human event is appended first (to <trace-dir>/end.jsonl for
+ * a directory), so interventions after the final wave are recorded too.
  */
 import { appendFileSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { renderTrace } from "./render.ts";
+import { finalReplySkeleton } from "./final-reply.ts";
 
 const USAGE = "usage: render-trace <trace-dir | trace.jsonl> [--out <file.mmd>] [--human '<json>']...\n";
 
@@ -81,6 +82,7 @@ function main(argv: string[]): number {
   writeFileSync(target, mermaid);
   process.stdout.write(mermaid);
   process.stderr.write(`wrote ${target}\n`);
+  process.stderr.write(`\nFinal reply, in this shape and nothing else:\n\n${finalReplySkeleton(target)}`);
   return 0;
 }
 

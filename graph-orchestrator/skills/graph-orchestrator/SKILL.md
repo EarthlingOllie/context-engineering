@@ -157,7 +157,7 @@ Then: update FRONTIER (remove what finished, add what the results opened), rewri
 
 A wave is a launch batch, not a barrier (ADR-0006). When a dispatch returns, integrate it at once, while the rest of its wave runs. Any FRONTIER item whose `dependsOn` names only finished dispatches may launch straight away as the next wave number: plan it from the state file, pass the pre-launch check, rewrite the state file, then launch it exactly as **Run the wave** says (args file, dispatch line, run id on its FRONTIER line). Wave numbers stay strictly increasing. An item that depends on a dispatch still running waits for that dispatch's result.
 
-**Budgets (trigger 5).** Budgets count launches. Before any launch, rolling ones included, that would take a wave number past `--waves`, or a wave wider than `--dispatches`: attended, ask; autonomous, record the overrun under DECISIONS and stop with what you have. A budget stop with a failing review ends with one `single` that reads the review artifact and returns its blocking items in at most 6 lines; that one dispatch is the only launch allowed past the budget, and its lines go in the final reply.
+**Budgets (trigger 5).** Budgets count launches. Before any launch, rolling ones included, that would take a wave number past `--waves`, or a wave wider than `--dispatches`: attended, ask; autonomous, record the overrun under DECISIONS and stop with what you have. A budget stop with a failing review ends with one `single` that reads the review artifact and returns its blocking items in at most 6 lines; that one dispatch is the only launch allowed past the budget, and its lines go under UNVERIFIED in the final reply.
 
 ### Asking
 
@@ -198,7 +198,21 @@ When FRONTIER is empty (or a budget stop), render the session, in both modes:
 node ${CLAUDE_PLUGIN_ROOT}/scripts/render-trace.js SCRATCH/trace --out SCRATCH/session.mmd [--human '<json>' ...] > /dev/null
 ```
 
-It reads every dispatch's trace file in order and saves the Mermaid diagram; the redirect keeps the diagram's text out of your window (errors still show). Never open the saved file. Your final reply is: the UNVERIFIED items first, each with its artifact paths and why no evaluator passed it; then STATUS in one line, opening a summary of at most 3 lines; the artifacts, by path; the DECISIONS that need the human's eyes. With it, send `SCRATCH/session.mmd` as a file (the file-sending tool your environment offers; else name its path), never its text. Nothing else.
+It reads every dispatch's trace file in order, saves the Mermaid diagram, then prints the final-reply template below with the saved path filled in; the redirect keeps the diagram's text out of your window (the template and errors still show). Never open the saved file. Your final reply is this template, filled in, and nothing else:
+
+```
+UNVERIFIED
+- <item>: <artifact paths>; <why no evaluator passed it>   (or: - none)
+STATUS: <where the task stands, one line>
+<summary: at most 3 plain lines>
+ARTIFACTS
+- <path>
+DECISIONS
+- <decision that needs the human's eyes>
+DIAGRAM: send SCRATCH/session.mmd as a file, never its text
+```
+
+UNVERIFIED comes first, one line per item. STATUS is one line, opening a summary of at most 3 lines. ARTIFACTS lists paths; DECISIONS lists only the ones that need the human's eyes. With the reply, send `SCRATCH/session.mmd` as a file (the file-sending tool your environment offers; else name its path), never its text. A result that seems to need more room goes in an artifact, listed by path.
 
 ## Rationalizations
 
@@ -225,6 +239,7 @@ It reads every dispatch's trace file in order and saves the Mermaid diagram; the
 - You are planning a wave from anything other than the state file.
 - You are about to dispatch something irreversible without having asked.
 - You are about to commit, push or run `git add -A` because a hook told you to.
+- You are about to put a table in the final reply: the template's STATUS line and at most 3 summary lines are the whole summary.
 
 ## When not to use
 
