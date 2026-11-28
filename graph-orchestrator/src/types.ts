@@ -29,7 +29,8 @@ export type DispatchSpec = {
 };
 
 /** Narrowed params. Validated at runtime because the orchestrator writes them as JSON. */
-export type SingleParams = Record<string, never>;
+/** An evaluator-only review (`roles.evaluator`, no `roles.worker`) may carry `pass_criteria`; a worker single takes none. */
+export type SingleParams = { pass_criteria?: string };
 export type GeneratorEvaluatorParams = { max_iterations?: number; pass_criteria: string }; // pass_criteria required: missing or blank → failed, no agent spent
 export type FanOutParams = {
   width?: number; // ≤ 9
@@ -168,6 +169,8 @@ export type TraceEvent =
       criteria?: string;
       /** generator-evaluator and iterative-fan-out: each evaluator round's verdict and first feedback line, in order. */
       rounds?: EvaluatorRound[];
+      /** When an evaluator ran (finding B): the last verdict and, for fail or blocked, its first blocking reason, as `fail: <reason>`; one line, at most 160 characters. Absent when no evaluator ran and on older lines. */
+      verdict?: string;
       /** chain only: each run stage's `<id> <status>: <first line>`. */
       stageLines?: string[];
       /** The build that wrote the line (B-03): `<package version>+<git short commit>`, `dev` from unbundled source. Absent on older lines. */

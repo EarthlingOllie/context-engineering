@@ -21,13 +21,15 @@ Each dispatch runs as its own workflow, named by its `title` (a few plain words 
 
 **Use when** one worker can do it in one pass: a lookup, a focused edit, a survey of one area, writing one file.
 
-**Roles** `worker` (optional entry; skill + instructions).
+**Roles** `worker` (optional entry; skill + instructions), or `evaluator` alone for an evaluator-only review (below).
 
-**Params** none.
+**Params** none; an evaluator-only review takes `pass_criteria`.
 
 **Demand** 1 agent.
 
 **Returns** `done` with the worker's result, or `blocked` with its question.
+
+**Evaluator-only review.** A `single` with `roles.evaluator` and no `roles.worker` runs one evaluator instead of a worker, over artifacts its `task` and `context` name, against `params.pass_criteria` (recorded once on the line as `criteria`; without it, the criteria the task names). It returns `done` with `PASS`, or `done` with `FAIL` and the evaluator's feedback cut to `maxLines`; `blocked` with the evaluator's question. Its trace line's `verdict` is `pass`, `fail: <first feedback line>` or `blocked: <question's first line>`, one line of at most 160 characters; every topology whose evaluator ran (generator-evaluator, iterative-fan-out) carries the same field for its last round, and the diagram shows it as the node's last line.
 
 ```json
 { "id": "w1-d1", "title": "Write the leap-year helper", "topology": "single",

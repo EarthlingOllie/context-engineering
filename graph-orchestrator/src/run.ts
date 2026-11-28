@@ -16,6 +16,7 @@ import type { AgentUsage, DispatchArgs, DispatchResult, DispatchReturn, Dispatch
 import { agentLabel, roleOfLabel } from "./labels.ts";
 import { modelOpt } from "./models.ts";
 import { END_PLACEHOLDER, START_PLACEHOLDER, TOOLS_DENIED_PLACEHOLDER, WRITES_REFUSED_PLACEHOLDER, argsFileOf, clockSteps, hasPlaceholder } from "./clock.ts";
+import { isReview } from "./topologies/single.ts";
 import { agentDemand, dispatchEvent, fail, normaliseSpec, runDispatch, traceDetail, type TopologyContext } from "./topologies.ts";
 
 declare const __PLUGIN_VERSION__: string | undefined;
@@ -253,7 +254,8 @@ export async function runWorkflow(args: DispatchArgs, rt: Runtime): Promise<Disp
   const ctx: TopologyContext = { rt: meter.runtime, artifactDir: scratch, wave, stageEvents: [] };
   // A `single`'s worker appends the lines a done result would get, as its final step (fixes ticket 08).
   // Its own usage is not known while it writes them, so its agent carries only its role.
-  if (raw && typeof raw === "object" && spec.topology === "single" && id !== "?") {
+  // An evaluator-only review's line carries a verdict not known in advance, so the scribe writes it.
+  if (raw && typeof raw === "object" && spec.topology === "single" && !isReview(spec) && id !== "?") {
     ctx.selfTrace = { id, file: traceFileOf(scratch, id), argsFile: argsFileOf(scratch, id), lines: linesOf({ id, status: "done", result: "", artifacts: [], iterations: 1 }, [], { agents: [{ role: "worker" }], demand, concurrency: 1, ...REFUSAL_PLACEHOLDERS }) };
   }
   let result: DispatchResult;
